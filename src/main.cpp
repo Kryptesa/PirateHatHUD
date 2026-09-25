@@ -1,13 +1,10 @@
-﻿#include "pattern_scan.hpp"
+#include "pattern_scan.hpp"
 #include "patterns.hpp"
+#include "overlay.hpp"
 #include <windows.h>
-#include <d3d11.h>
-#include <dxgi.h>
-#include <wrl/client.h>
+
 #include <safetyhook.hpp>
-#include <imgui.h>
-#include <backends/imgui_impl_dx11.h>
-#include <backends/imgui_impl_win32.h>
+
 #include <atomic>
 #include <cstdint>
 #include <fstream>
@@ -17,29 +14,23 @@
 #include <utility>
 
 namespace {
-using Microsoft::WRL::ComPtr;
-constexpr char kVersion[] = "0.2.0-diagnostic-preview";
+
+constexpr char kVersion[] = "0.3.0-dx12-preview";
 
 HMODULE g_self{};
 std::wstring g_folder;
 std::ofstream g_log;
 std::mutex g_log_mutex;
 safetyhook::MidHook g_enter, g_leave;
-safetyhook::InlineHook g_present;
+
 std::atomic<std::uintptr_t> g_state_base{0};
 std::atomic<std::uint64_t> g_hook_events{0};
 std::atomic<std::uint32_t> g_pre_state{UINT32_MAX};
 std::atomic<bool> g_enabled{true}, g_stopping{false};
-std::atomic<unsigned> g_in_present{0};
-std::atomic_flag g_rendering = ATOMIC_FLAG_INIT;
+
 int g_x = 40, g_y = 140;
 float g_scale = 1.0f;
 int g_toggle_key = VK_F9, g_unload_key = VK_F10;
-bool g_imgui_ready = false;
-HWND g_hwnd{};
-IDXGISwapChain* g_swap{};
-ComPtr<ID3D11Device> g_device;
-ComPtr<ID3D11DeviceContext> g_context;
 
 void log(const char* text) {
   std::lock_guard lock(g_log_mutex);
@@ -103,87 +94,6 @@ bool detected() {
   }
 }
 
-void draw_icon() {
-  if (!g_enabled.load(std::memory_order_relaxed) || !detected()) return;
-  auto* draw = ImGui::GetForegroundDrawList();
-  const float x = static_cast<float>(g_x), y = static_cast<float>(g_y), s = g_scale;
-  const ImVec2 a{x, y}, b{x + 44 * s, y + 44 * s};
-  draw->AddRectFilled(a, b, IM_COL32(12, 20, 28, 210), 8 * s);
-  draw->AddRect(a, b, IM_COL32(238, 193, 85, 255), 8 * s, 0, 2 * s);
-  draw->AddRectFilled(ImVec2(x + 9*s, y + 19*s), ImVec2(x + 35*s, y + 34*s), IM_COL32(181, 113, 39, 255), 2*s);
-  draw->AddRect(ImVec2(x + 9*s, y + 13*s), ImVec2(x + 35*s, y + 24*s), IM_COL32(246, 209, 112, 255), 3*s, 0, 2*s);
-  draw->AddLine(ImVec2(x + 22*s, y + 19*s), ImVec2(x + 22*s, y + 34*s), IM_COL32(255, 224, 127, 255), 3*s);
-  draw->AddCircleFilled(ImVec2(x + 22*s, y + 26*s), 2.5f*s, IM_COL32(39, 30, 20, 255));
-}
-
-HRESULT WINAPI on_present(IDXGISwapChain* swap, UINT interval, UINT flags) {
-  g_in_present.fetch_add(1, std::memory_order_acq_rel);
-  const bool render_this_frame = !g_rendering.test_and_set(std::memory_order_acquire);
-  if (render_this_frame && !g_stopping.load(std::memory_order_acquire) && !(flags & DXGI_PRESENT_TEST)) {
-    if (!g_device) {
-      DXGI_SWAP_CHAIN_DESC desc{};
-      if (SUCCEEDED(swap->GetDevice(__uuidof(ID3D11Device), reinterpret_cast<void**>(g_device.GetAddressOf()))) &&
-          SUCCEEDED(swap->GetDesc(&desc)) && desc.OutputWindow) {
-        g_device->GetImmediateContext(g_context.GetAddressOf());
-        g_hwnd = desc.OutputWindow;
-        g_swap = swap;
-        IMGUI_CHECKVERSION();
-        ImGui::CreateContext();
-        ImGui_ImplWin32_Init(g_hwnd);
-        ImGui_ImplDX11_Init(g_device.Get(), g_context.Get());
-        g_imgui_ready = true;
-        log("DX11 overlay initialized");
-      }
-    }
-    if (g_imgui_ready && g_context && swap == g_swap) {
-      ComPtr<ID3D11Texture2D> backbuffer;
-      ComPtr<ID3D11RenderTargetView> target;
-      if (SUCCEEDED(swap->GetBuffer(0, IID_PPV_ARGS(backbuffer.GetAddressOf()))) &&
-          SUCCEEDED(g_device->CreateRenderTargetView(backbuffer.Get(), nullptr, target.GetAddressOf()))) {
-        ImGui_ImplDX11_NewFrame();
-        ImGui_ImplWin32_NewFrame();
-        ImGui::NewFrame();
-        draw_icon();
-        ImGui::Render();
-        ComPtr<ID3D11RenderTargetView> old_target;
-        ComPtr<ID3D11DepthStencilView> old_depth;
-        g_context->OMGetRenderTargets(1, old_target.GetAddressOf(), old_depth.GetAddressOf());
-        auto* view = target.Get();
-        g_context->OMSetRenderTargets(1, &view, nullptr);
-        ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-        auto* restore = old_target.Get();
-        g_context->OMSetRenderTargets(1, &restore, old_depth.Get());
-      }
-    }
-  }
-  const auto result = g_present.call<HRESULT>(swap, interval, flags);
-  if (render_this_frame) g_rendering.clear(std::memory_order_release);
-  g_in_present.fetch_sub(1, std::memory_order_acq_rel);
-  return result;
-}
-
-void* present_address() {
-  const auto instance = GetModuleHandleW(nullptr);
-  const wchar_t* name = L"PirateHatHUDProbe";
-  WNDCLASSW wc{}; wc.lpfnWndProc = DefWindowProcW; wc.hInstance = instance; wc.lpszClassName = name;
-  if (!RegisterClassW(&wc)) return nullptr;
-  const HWND window = CreateWindowW(name, name, WS_OVERLAPPEDWINDOW, 0, 0, 64, 64, nullptr, nullptr, instance, nullptr);
-  if (!window) { UnregisterClassW(name, instance); return nullptr; }
-  DXGI_SWAP_CHAIN_DESC desc{};
-  desc.BufferCount = 1; desc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-  desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; desc.OutputWindow = window;
-  desc.SampleDesc.Count = 1; desc.Windowed = TRUE; desc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-  ComPtr<IDXGISwapChain> swap; ComPtr<ID3D11Device> device; ComPtr<ID3D11DeviceContext> context;
-  D3D_FEATURE_LEVEL level{};
-  const auto hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0,
-    nullptr, 0, D3D11_SDK_VERSION, &desc, swap.GetAddressOf(), device.GetAddressOf(), &level, context.GetAddressOf());
-  void* address = nullptr;
-  if (SUCCEEDED(hr)) address = (*reinterpret_cast<void***>(swap.Get()))[8];
-  swap.Reset(); context.Reset(); device.Reset();
-  DestroyWindow(window); UnregisterClassW(name, instance);
-  return address;
-}
-
 DWORD WINAPI worker(void*) {
   wchar_t path[MAX_PATH]{};
   GetModuleFileNameW(g_self, path, MAX_PATH);
@@ -192,6 +102,13 @@ DWORD WINAPI worker(void*) {
   g_log.open(g_folder + L"PirateHatHUD.log", std::ios::app);
   log(kVersion);
   read_config();
+  phi::set_overlay_enabled(g_enabled.load());
+  phi::set_overlay_position(g_x, g_y, g_scale);
+  const auto config_path = g_folder + L"config.ini";
+  phi::set_overlay_force(GetPrivateProfileIntW(L"indicator", L"force_show", 0, config_path.c_str()) != 0);
+  phi::set_overlay_log(log);
+  const bool overlay_started = phi::start_overlay();
+  log(overlay_started ? "DX12 hooks installed; waiting for swapchain" : "DX12 hooks unavailable; overlay disabled");
   const auto scan = phi::find_hook_sites(GetModuleHandleW(L"CrimsonDesert.exe"));
   bool observing = false;
   if (scan.status != phi::ScanStatus::found) {
@@ -213,7 +130,7 @@ DWORD WINAPI worker(void*) {
         g_leave = std::move(*leave);
         observing = true;
         log("State mid-hooks active; waiting for RSI/state transitions");
-        log("DX11 overlay disabled in diagnostic preview");
+
       } else log("Leave mid-hook failed");
     } else log("Enter mid-hook failed");
     if (!observing) { g_enter.reset(); g_leave.reset(); g_state_base.store(0); }
@@ -246,19 +163,17 @@ DWORD WINAPI worker(void*) {
         log(line.str().c_str());
         last_base_log = now;
       }
+      phi::set_overlay_state(state);
       last_state = state;
       last_base = base;
     }
-    if (GetAsyncKeyState(g_toggle_key) & 1) g_enabled.store(!g_enabled.load());
+    if (GetAsyncKeyState(g_toggle_key) & 1) { g_enabled.store(!g_enabled.load()); phi::set_overlay_enabled(g_enabled.load()); }
     if (GetAsyncKeyState(g_unload_key) & 1) break;
     Sleep(30);
   }
   g_stopping.store(true);
-  if (g_present) (void)g_present.disable();
-  while (g_in_present.load(std::memory_order_acquire)) Sleep(1);
-  g_enter.reset(); g_leave.reset(); g_present.reset();
-  if (g_imgui_ready) { ImGui_ImplDX11_Shutdown(); ImGui_ImplWin32_Shutdown(); ImGui::DestroyContext(); }
-  g_context.Reset(); g_device.Reset();
+  if (overlay_started) phi::stop_overlay();
+  g_enter.reset(); g_leave.reset();
   log("Unloaded");
   g_log.close();
   FreeLibraryAndExitThread(g_self, 0);

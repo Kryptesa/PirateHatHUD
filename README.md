@@ -1,54 +1,42 @@
 # Pirate Hat HUD for Crimson Desert
 
-**Diagnostic source preview 0.2.0.** This Windows x64 ASI dynamically discovers the two treasure counter instructions, installs SafetyHook mid-hooks, and logs the observed `RSI` base and `[RSI+0x08]` state. The hooks never freeze, NOP, or write the counter. This milestone is intended to obtain an in-game log showing `0 -> 1 -> 0`.
+**0.3.0 DX12 preview.** The ASI observes the Pirate King Hat treasure counter and draws a small vector chest icon when the observed state is positive. It never writes, freezes, NOPs, or patches game logic. The counter hooks have been validated in game; this DX12 renderer has compiled but has **not yet been tested in game**. Do not publish it as a confirmed working Nexus main file until the rendering checks below pass.
 
-**Current validation:** The scanner found exactly one instruction pair in the installed Crimson Desert 1.0.0.2976 EXE (SHA-256 `57da440d72f4db974f25fef047cf84c4dadd999a88cb2a3c5af4c9bd67fde1e7`). The pair is at RVAs `0x125BD6E` and `0x125BD9A`. These RVAs are reference values only; the plugin does not use them to locate code at runtime. The actual executable section containing the pair is named `.rsrc`. The user confirmed that the ASI logs the treasure state correctly in game. The log file itself has not been attached to this repository, so the exact transition trace is not archived here.
+## How it works
 
-## Runtime discovery and logging
+The plugin scans executable sections of the loaded `CrimsonDesert.exe` for a unique pair: `FF 46 08` (`inc dword ptr [rsi+08]`) and, exactly `0x2C` bytes later, `83 6E 08 01` (`sub dword ptr [rsi+08],1`). It never uses a fixed runtime address. A missing or ambiguous pair disables only state observation and is logged. The user confirmed correct `0 -> 1 -> 0` transitions on Crimson Desert 1.0.0.2976 (EXE SHA-256 `57da440d72f4db974f25fef047cf84c4dadd999a88cb2a3c5af4c9bd67fde1e7`). Hook callbacks capture RSI and the pre-instruction value; a guarded read-only poll checks `[RSI+0x08]`.
 
-The plugin scans every executable section of the loaded `CrimsonDesert.exe` for `FF 46 08` (`inc dword ptr [rsi+08]`) followed exactly `0x2C` bytes later by `83 6E 08 01` (`sub dword ptr [rsi+08],1`). This pair is required to occur exactly once. Missing or multiple pairs, invalid PE metadata, or failed hook installation leave state observation disabled and write a reason to `PirateHatHUD.log` beside the ASI. A game update may require a revised matcher after fresh inspection.
+The DX12 renderer hooks DXGI Present and ResizeBuffers. It intercepts `CreateSwapChain`, `CreateSwapChainForHwnd`, `CreateSwapChainForCoreWindow`, and `CreateSwapChainForComposition` to pair the real swapchain with its direct command queue. If attachment occurs after swapchain creation, it may use an observed direct queue only when exactly one queue has been seen. It refuses a queue from another D3D12 device. It owns an allocator and render target per backbuffer, uses a fence before reusing resources, and recreates them after resize. The icon is drawn with ImGui DX12 vector primitives; `assets/icon.png` is only an original placeholder reference and is not loaded.
 
-At either hook, the callback records `RSI`, the counter immediately before the original instruction, and an event count. A worker logs that pre-instruction sample and checks `[RSI+0x08]` with read-only guarded access every 30 ms and logs state changes with base, state address, and event count. Base changes without a state change are logged at most once per second. Hook events can be coalesced by the 30 ms poll; the latest pre-instruction sample is logged. This diagnostic build does not install the old DX11 Present hook or initialize a DX11 device. The UI code remains in the source pending the DX12 overlay milestone; showing the icon is a later milestone.
+## Build
 
-To validate in game, wear the Pirate King Hat and stand outside a chest radius, then enter and leave it. Confirm the log records the unique pair, active mid-hooks, and `Treasure state 1` followed by `Treasure state 0`. Repeat without the hat and after changing equipment or location. Do not publish a player-facing binary until those checks and overlay support are complete.
-
-## Build: Visual Studio 2022 x64 Release
-
-Install Visual Studio 2022 with Desktop development with C++, Windows SDK, CMake, and Git. A network connection is needed on first configure for [SafetyHook](https://github.com/cursey/safetyhook), its Zydis dependency, and [Dear ImGui](https://github.com/ocornut/imgui). From a Developer PowerShell:
+Install Visual Studio 2022 with Desktop development with C++, Windows SDK, CMake, and Git. First configure fetches SafetyHook, Zydis, and Dear ImGui. Use x64 Release:
 
 ```powershell
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64
 cmake --build build --config Release
+ctest --test-dir build -C Release --output-on-failure
 ```
 
-The output is `build/Release/PirateHatHUD.asi`, with a `build/Release/PirateHatHUD/` staging folder containing the ASI, INI, and notices. This project requires C++23. The CMake build uses the static MSVC runtime and fetches dependency source; review their licenses before distributing binaries.
+The output is `build/Release/PirateHatHUD.asi`; the staging folder is `build/Release/PirateHatHUD/`. This checkout has also compiled with Visual Studio 2026 Build Tools. The project uses C++23 and the static MSVC runtime.
 
 ## Install
 
-### Definitive Mod Manager (DMM)
+For DMM, place the staged `PirateHatHUD` folder under DMM's `mods` directory or import its ZIP, then enable and Mount it with the ASI loader enabled. For an ordinary compatible x64 ASI loader, put `PirateHatHUD.asi` and `config.ini` side by side in the loader's plugin directory. Restart the game after INI changes. See the [DMM page](https://www.nexusmods.com/crimsondesert/mods/633) for current manager steps.
 
-Place the **folder** `PirateHatHUD` containing `PirateHatHUD.asi` and `config.ini` under DMM's `mods` folder, or import its ZIP in DMM. Enable and Mount it. DMM's ASI loader must be installed/enabled. Keep both files together. DMM supports ASI plugins with companion config files; see the [DMM Nexus page](https://www.nexusmods.com/crimsondesert/mods/633) for its current workflow.
+## Config and controls
 
-### Ordinary ASI loader
+`enabled=1` enables drawing, `x` and `y` set pixel position, and `scale_percent` accepts 25–400. `force_show=1` is a **diagnostic** that draws the icon without the hat or an active treasure state, even if pattern scanning fails. Set it back to `0` for normal use. F9 toggles drawing for the current session; F10 removes hooks and unloads the ASI. Supported key names are F8–F11. The INI is read at startup. Logs are written beside the ASI to `PirateHatHUD.log`.
 
-Install a compatible x64 ASI loader for Crimson Desert. Copy `PirateHatHUD.asi` and `config.ini` together into the loader's ASI plugin directory (commonly the game's `bin64` folder, depending on the loader). Avoid installing two proxy loaders for the same game. Restart the game after changing the INI.
+## In-game validation before release
 
-## Configuration and controls
+1. Set `force_show=1`. Confirm the icon appears after loading a save and F9 hides/shows it. Try windowed, borderless, fullscreen, resize, alt-tab, resolution changes, and F10 unload.
+2. Repeat with DLSS off/on and Frame Generation off/on where supported. NVIDIA Streamline can proxy the swapchain, and one game Present can produce multiple generated frames. The hook may miss a proxy Present, or the icon may appear only on game-rendered frames and be absent or interpolated on generated frames. Treat an unsupported path as a compatibility failure; do not claim generated-frame coverage until observed.
+3. Set `force_show=0`. With Pirate King Hat, enter and leave a chest radius and confirm the icon follows `Treasure state 1` and `Treasure state 0`. Remove the hat inside a radius, change equipment/location, load a save, and confirm no stale icon.
+4. Verify DMM install/uninstall and ordinary ASI loader install. Record game version, graphics settings, and exact log lines for any failure.
 
-`unload=F10` removes hooks and unloads the ASI. Supported hotkeys: F8, F9, F10, F11. The INI is read at startup. The `enabled`, position, scale, and toggle settings are reserved for the later overlay milestone; this diagnostic build does not display an icon. The optional `assets/icon.png` is an original placeholder reference and is not loaded by the plugin.
+The renderer hooks DXGI's system vtables. A graphics proxy loaded ahead of it can expose a different swapchain implementation; check the log for `DX12 swapchain and present queue captured` and `DX12 overlay initialized`. If those messages never appear, this preview may need another integration path. The ExecuteCommandLists fallback is deliberately disabled after multiple distinct direct queues to avoid submitting overlay commands to an unrelated queue.
 
-## Troubleshooting
+## Packaging and license
 
-If no log appears, the ASI loader likely did not load the plugin. If the log says the instruction pair is missing or ambiguous, the game build is unsupported and the matcher needs review. This diagnostic build intentionally disables the DX11 overlay and logs state without graphics hooks. `F10` gracefully unloads during normal play; terminating the game ends it with the process.
-
-## Nexus publishing checklist
-
-- Confirm the discovered instruction pair and document supported game version/hash.
-- Build and test the Release ASI in game, including the 0 -> 1 -> 0 log, DMM install/uninstall, and ordinary ASI loader install.
-- Package a ZIP containing one `PirateHatHUD/` folder with the ASI and INI, plus README and license as desired. Do not put source files in the player-facing binary package unless you intend to publish source there.
-- Upload a clear screenshot of the original icon; mark the mod as requiring DMM or another ASI loader. Explain that it observes the state and draws an overlay, without changing game logic.
-- Include third-party license notices for SafetyHook, Zydis, and Dear ImGui when distributing a binary. The staging folder includes the first two; add `LICENSE-Zydis.txt` from the fetched Zydis source.
-
-## Credits and license
-
-Project code and original placeholder icon: MIT, see [LICENSE](LICENSE). SafetyHook is BSL-1.0; Dear ImGui is MIT; Zydis is MIT. Their code is fetched at build time and is not included in this source archive.
+A player ZIP should contain one `PirateHatHUD/` folder with the ASI and INI, plus the README, LICENSE, and third-party notices. Do not include copyrighted game artwork. Include license files for SafetyHook, Dear ImGui, and Zydis with a binary release. Project code and original placeholder icon are MIT licensed. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

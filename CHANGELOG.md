@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0 — DX12 overlay preview
+
+- Add DXGI swapchain and D3D12 queue capture, per-backbuffer ImGui DX12 rendering, fences, resize handling, and F9/F10 control.
+- Add force_show diagnostic mode to test the icon independently of treasure-state observation.
+- Build and scanner tests pass; live DX12 drawing, DLSS, and Frame Generation remain unverified.
+
 ## 0.2.0 — diagnostic preview
 
 - Discover the unique enter/leave instruction pair in executable PE sections at runtime, including the game's executable `.rsrc` section.
