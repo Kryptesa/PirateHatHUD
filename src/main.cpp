@@ -28,7 +28,7 @@ std::atomic<std::uint64_t> g_hook_events{0};
 std::atomic<std::uint32_t> g_pre_state{UINT32_MAX};
 std::atomic<bool> g_enabled{true}, g_stopping{false};
 
-int g_x = 40, g_y = 140;
+int g_x = 350, g_y = -310;
 float g_scale = 1.0f;
 int g_toggle_key = VK_F9, g_unload_key = VK_F10;
 
@@ -47,8 +47,8 @@ int key_from_name(const wchar_t* value, int fallback) {
 
 void read_config() {
   const auto path = g_folder + L"config.ini";
-  g_x = GetPrivateProfileIntW(L"indicator", L"x", 40, path.c_str());
-  g_y = GetPrivateProfileIntW(L"indicator", L"y", 140, path.c_str());
+  g_x = GetPrivateProfileIntW(L"indicator", L"x", 350, path.c_str());
+  g_y = GetPrivateProfileIntW(L"indicator", L"y", -310, path.c_str());
   g_scale = GetPrivateProfileIntW(L"indicator", L"scale_percent", 100, path.c_str()) / 100.0f;
   if (g_scale < 0.25f || g_scale > 4.0f) g_scale = 1.0f;
   g_enabled = GetPrivateProfileIntW(L"indicator", L"enabled", 1, path.c_str()) != 0;
@@ -102,6 +102,12 @@ DWORD WINAPI worker(void*) {
   g_log.open(g_folder + L"PirateHatHUD.log", std::ios::app);
   log(kVersion);
   read_config();
+  if (!phi::prepare_overlay_icon((g_folder + L"icon.png").c_str())) {
+    log("Required icon.png missing or invalid; mod not started");
+    g_log.close();
+    FreeLibraryAndExitThread(g_self, 0);
+    return 0;
+  }
   phi::set_overlay_enabled(g_enabled.load());
   phi::set_overlay_position(g_x, g_y, g_scale);
   const auto config_path = g_folder + L"config.ini";

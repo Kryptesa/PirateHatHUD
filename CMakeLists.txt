@@ -26,13 +26,14 @@ add_library(PirateHatHUD SHARED src/main.cpp src/pattern_scan.cpp src/overlay.cp
 target_include_directories(PirateHatHUD PRIVATE include)
 target_compile_definitions(PirateHatHUD PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
 target_compile_options(PirateHatHUD PRIVATE /W4 /EHsc)
-target_link_libraries(PirateHatHUD PRIVATE safetyhook imgui_static d3d12 dxgi)
+target_link_libraries(PirateHatHUD PRIVATE safetyhook imgui_static d3d12 dxgi ole32 windowscodecs)
 set_target_properties(PirateHatHUD PROPERTIES PREFIX "" SUFFIX ".asi")
 
 add_custom_command(TARGET PirateHatHUD POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:PirateHatHUD>" "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/PirateHatHUD.asi"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/config.ini" "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/config.ini"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/assets/icon.png" "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/icon.png"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/THIRD_PARTY_NOTICES.md" "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/THIRD_PARTY_NOTICES.md"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "${safetyhook_SOURCE_DIR}/LICENSE" "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/LICENSE-SafetyHook.txt"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "${imgui_SOURCE_DIR}/LICENSE.txt" "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/LICENSE-DearImGui.txt"

@@ -2,6 +2,7 @@
 #include <d3d12.h>
 #include <dxgi1_4.h>
 #include <wrl/client.h>
+#include <wincodec.h>
 #include <safetyhook.hpp>
 #include <imgui.h>
 #include <backends/imgui_impl_dx12.h>
@@ -11,6 +12,9 @@
 #include <mutex>
 #include <vector>
 #include <cstdint>
+#include <cstring>
+#include <string>
+#include <utility>
 
 namespace phi {
 namespace {
@@ -25,8 +29,10 @@ using ExecuteFn = void(WINAPI*)(ID3D12CommandQueue*, UINT, ID3D12CommandList* co
 safetyhook::InlineHook present_hook, resize_hook, create_hook, create_hwnd_hook, create_core_hook, create_composition_hook, execute_hook;
 std::atomic<unsigned> callbacks{0};
 std::atomic<bool> stopping{false}, enabled{true}, force_icon{false}, active{false};
-std::atomic<int> x_pos{40}, y_pos{140};
+std::atomic<int> x_pos{350}, y_pos{-310};
 std::atomic<float> scale{1.0f};
+std::vector<std::uint8_t> icon_pixels;
+UINT icon_width{}, icon_height{};
 std::mutex mutex;
 thread_local bool overlay_submit = false;
 IDXGISwapChain* selected_swap{};
@@ -50,6 +56,10 @@ struct Graphics {
   ComPtr<ID3D12DescriptorHeap> rtv_heap, srv_heap;
   ComPtr<ID3D12GraphicsCommandList> list;
   ComPtr<ID3D12Fence> fence;
+  ComPtr<ID3D12Resource> icon_texture, icon_upload;
+  D3D12_PLACED_SUBRESOURCE_FOOTPRINT icon_footprint{};
+  D3D12_GPU_DESCRIPTOR_HANDLE icon_gpu{};
+  bool icon_pending{};
   HANDLE fence_event{};
   UINT64 fence_next{1};
   std::vector<Frame> frames;
@@ -164,6 +174,10 @@ void shutdown_graphics() {
   if (gfx.win32) { ImGui_ImplWin32_Shutdown(); gfx.win32 = false; }
   if (gfx.context) { ImGui::DestroyContext(); gfx.context = false; }
   release_buffers();
+  gfx.icon_texture.Reset();
+  gfx.icon_upload.Reset();
+  gfx.icon_gpu = {};
+  gfx.icon_pending = false;
   gfx.srv_heap.Reset();
   gfx.fence.Reset();
   gfx.queue.Reset();
@@ -207,6 +221,59 @@ bool initialize_backend(const DXGI_SWAP_CHAIN_DESC& desc) {
   gfx.imgui = ImGui_ImplDX12_Init(&init);
   return gfx.imgui;
 }
+bool load_icon() {
+  if (icon_pixels.empty()) return false;
+  const UINT width = icon_width, height = icon_height;
+  const auto& pixels = icon_pixels;
+
+  D3D12_HEAP_PROPERTIES default_heap{};
+  default_heap.Type = D3D12_HEAP_TYPE_DEFAULT;
+  D3D12_RESOURCE_DESC texture{};
+  texture.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+  texture.Width = width;
+  texture.Height = height;
+  texture.DepthOrArraySize = 1;
+  texture.MipLevels = 1;
+  texture.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+  texture.SampleDesc.Count = 1;
+  if (FAILED(gfx.device->CreateCommittedResource(&default_heap, D3D12_HEAP_FLAG_NONE,
+        &texture, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&gfx.icon_texture)))) return false;
+
+  UINT rows = 0;
+  UINT64 row_bytes = 0, upload_size = 0;
+  gfx.device->GetCopyableFootprints(&texture, 0, 1, 0, &gfx.icon_footprint,
+    &rows, &row_bytes, &upload_size);
+  D3D12_HEAP_PROPERTIES upload_heap{};
+  upload_heap.Type = D3D12_HEAP_TYPE_UPLOAD;
+  D3D12_RESOURCE_DESC upload{};
+  upload.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+  upload.Width = upload_size;
+  upload.Height = 1;
+  upload.DepthOrArraySize = 1;
+  upload.MipLevels = 1;
+  upload.SampleDesc.Count = 1;
+  upload.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+  if (FAILED(gfx.device->CreateCommittedResource(&upload_heap, D3D12_HEAP_FLAG_NONE,
+        &upload, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&gfx.icon_upload)))) return false;
+  void* mapped = nullptr;
+  if (FAILED(gfx.icon_upload->Map(0, nullptr, &mapped))) return false;
+  auto* destination = static_cast<std::uint8_t*>(mapped);
+  for (UINT row = 0; row < rows; ++row)
+    std::memcpy(destination + gfx.icon_footprint.Offset + row * gfx.icon_footprint.Footprint.RowPitch,
+      pixels.data() + static_cast<size_t>(row) * width * 4, width * 4);
+  gfx.icon_upload->Unmap(0, nullptr);
+
+  D3D12_SHADER_RESOURCE_VIEW_DESC srv{};
+  srv.Format = texture.Format;
+  srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+  srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+  srv.Texture2D.MipLevels = 1;
+  gfx.device->CreateShaderResourceView(gfx.icon_texture.Get(), &srv,
+    gfx.srv_heap->GetCPUDescriptorHandleForHeapStart());
+  gfx.icon_gpu = gfx.srv_heap->GetGPUDescriptorHandleForHeapStart();
+  gfx.icon_pending = true;
+  return true;
+}
 bool initialize(IDXGISwapChain* swap, ID3D12CommandQueue* queue) {
   if (FAILED(swap->GetDevice(IID_PPV_ARGS(&gfx.device))) || !same_device(queue, gfx.device.Get())) return false;
   gfx.queue = queue;
@@ -220,25 +287,27 @@ bool initialize(IDXGISwapChain* swap, ID3D12CommandQueue* queue) {
   heap.NumDescriptors = static_cast<UINT>(gfx.descriptors.size());
   heap.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
   if (FAILED(gfx.device->CreateDescriptorHeap(&heap, IID_PPV_ARGS(&gfx.srv_heap))) || !create_buffers(swap)) return false;
+  gfx.descriptors[0] = true; // Reserve the first SRV for icon.png.
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
   gfx.context = true;
   if (!ImGui_ImplWin32_Init(gfx.window)) return false;
   gfx.win32 = true;
   if (!initialize_backend(desc)) return false;
+  if (!load_icon()) return false;
   gfx.swap = swap;
   overlay_log("DX12 overlay initialized");
   return true;
 }void draw_icon() {
   if (!enabled || (!force_icon && !active)) return;
   auto* draw = ImGui::GetForegroundDrawList();
-  const float x = static_cast<float>(x_pos.load()), y = static_cast<float>(y_pos.load()), s = scale.load();
-  draw->AddRectFilled({x,y}, {x+44*s,y+44*s}, IM_COL32(12,20,28,210), 8*s);
-  draw->AddRect({x,y}, {x+44*s,y+44*s}, IM_COL32(238,193,85,255), 8*s, 0, 2*s);
-  draw->AddRectFilled({x+9*s,y+19*s}, {x+35*s,y+34*s}, IM_COL32(181,113,39,255), 2*s);
-  draw->AddRect({x+9*s,y+13*s}, {x+35*s,y+24*s}, IM_COL32(246,209,112,255), 3*s, 0, 2*s);
-  draw->AddLine({x+22*s,y+19*s}, {x+22*s,y+34*s}, IM_COL32(255,224,127,255), 3*s);
-  draw->AddCircleFilled({x+22*s,y+26*s}, 2.5f*s, IM_COL32(39,30,20,255));
+  const float x = static_cast<float>(x_pos.load()), s = scale.load();
+  const int configured_y = y_pos.load();
+  const float y = configured_y < 0
+    ? ImGui::GetIO().DisplaySize.y + static_cast<float>(configured_y) - 44.0f * s
+    : static_cast<float>(configured_y);
+  draw->AddImage(ImTextureRef(static_cast<ImTextureID>(gfx.icon_gpu.ptr)),
+    {x,y}, {x+44*s,y+44*s});
 }
 void render(IDXGISwapChain* swap) {
   if (!gfx.imgui || gfx.swap != swap || !gfx.queue || gfx.untracked_submission) return;
@@ -249,6 +318,23 @@ void render(IDXGISwapChain* swap) {
   auto& frame = gfx.frames[index];
   if (!wait_frame(frame) || FAILED(frame.allocator->Reset()) ||
       FAILED(gfx.list->Reset(frame.allocator.Get(), nullptr))) return;
+  const bool upload_icon = gfx.icon_pending && gfx.icon_texture && gfx.icon_upload;
+  if (upload_icon) {
+    D3D12_TEXTURE_COPY_LOCATION destination{}, source{};
+    destination.pResource = gfx.icon_texture.Get();
+    destination.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    source.pResource = gfx.icon_upload.Get();
+    source.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    source.PlacedFootprint = gfx.icon_footprint;
+    gfx.list->CopyTextureRegion(&destination, 0, 0, 0, &source, nullptr);
+    D3D12_RESOURCE_BARRIER ready{};
+    ready.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    ready.Transition.pResource = gfx.icon_texture.Get();
+    ready.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    ready.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+    ready.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+    gfx.list->ResourceBarrier(1, &ready);
+  }
   ImGui_ImplDX12_NewFrame();
   ImGui_ImplWin32_NewFrame();
   ImGui::NewFrame();
@@ -270,6 +356,7 @@ void render(IDXGISwapChain* swap) {
   if (FAILED(gfx.list->Close())) return;
   ID3D12CommandList* lists[] = {gfx.list.Get()};
   gfx.queue->ExecuteCommandLists(1, lists);
+  if (upload_icon) gfx.icon_pending = false;
   const UINT64 value = gfx.fence_next++;
   if (SUCCEEDED(gfx.queue->Signal(gfx.fence.Get(), value))) frame.fence_value = value;
   else { gfx.untracked_submission = true; overlay_log("DX12 queue signal failed; rendering disabled"); }
@@ -303,6 +390,7 @@ HRESULT WINAPI on_resize(IDXGISwapChain* swap, UINT count, UINT width, UINT heig
       (void)wait_all();
       if (gfx.imgui) { ImGui_ImplDX12_Shutdown(); gfx.imgui = false; }
       gfx.descriptors.fill(false);
+      gfx.descriptors[0] = true;
       release_buffers();
     }
   }
@@ -386,6 +474,39 @@ void stop_overlay() {
 void set_overlay_log(void (*callback)(const char*)) { logger = callback; }
 void set_overlay_enabled(bool value) { enabled = value; }
 void set_overlay_force(bool value) { force_icon = value; }
+bool prepare_overlay_icon(const wchar_t* path) {
+  icon_pixels.clear();
+  icon_width = icon_height = 0;
+  if (!path || !*path) return false;
+  const HRESULT com = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+  if (FAILED(com) && com != RPC_E_CHANGED_MODE) return false;
+  UINT width = 0, height = 0;
+  std::vector<std::uint8_t> pixels;
+  const bool decoded = [&]() {
+    ComPtr<IWICImagingFactory> factory;
+    ComPtr<IWICBitmapDecoder> decoder;
+    ComPtr<IWICBitmapFrameDecode> frame;
+    ComPtr<IWICFormatConverter> converter;
+    if (FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory))) ||
+        FAILED(factory->CreateDecoderFromFilename(path, nullptr, GENERIC_READ,
+          WICDecodeMetadataCacheOnLoad, &decoder)) ||
+        FAILED(decoder->GetFrame(0, &frame)) ||
+        FAILED(frame->GetSize(&width, &height)) ||
+        !width || !height || width > 4096 || height > 4096 ||
+        FAILED(factory->CreateFormatConverter(&converter)) ||
+        FAILED(converter->Initialize(frame.Get(), GUID_WICPixelFormat32bppRGBA,
+          WICBitmapDitherTypeNone, nullptr, 0.0, WICBitmapPaletteTypeCustom))) return false;
+    pixels.resize(static_cast<size_t>(width) * height * 4);
+    return SUCCEEDED(converter->CopyPixels(nullptr, width * 4,
+      static_cast<UINT>(pixels.size()), pixels.data()));
+  }();
+  if (SUCCEEDED(com)) CoUninitialize();
+  if (!decoded) return false;
+  icon_width = width;
+  icon_height = height;
+  icon_pixels = std::move(pixels);
+  return true;
+}
 void set_overlay_position(int x, int y, float s) { x_pos = x; y_pos = y; scale = s; }
 void set_overlay_state(bool value) { active = value; }
 }
