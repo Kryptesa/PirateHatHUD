@@ -7,8 +7,6 @@
 - Add focused candidate scanner tests and confirm one offline match in Crimson Desert 1.0.0.2976.
 - Live in-game state transitions and overlay are still unverified.
 
-# Changelog
-
 ## 0.1.0 — 2026-09-25
 
 - Initial source project with fail-closed AOB scanner, two SafetyHook mid-hooks, read-only counter observer, and DX11/ImGui icon.

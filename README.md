@@ -35,7 +35,7 @@ Install a compatible x64 ASI loader for Crimson Desert. Copy `PirateHatHUD.asi` 
 
 ## Configuration and controls
 
-`config.ini` uses pixel coordinates from the upper-left of the viewport. `scale_percent` accepts 25â€“400; values outside that range become 100. `enabled=0` starts hidden. `toggle=F9` toggles the icon for the current session. `unload=F10` removes hooks and unloads the ASI. Supported keys: F8, F9, F10, F11. Configuration is read at startup. The icon is drawn programmatically; the optional `assets/icon.png` is an original placeholder reference and is not loaded by the plugin.
+`unload=F10` removes hooks and unloads the ASI. Supported hotkeys: F8, F9, F10, F11. The INI is read at startup. The `enabled`, position, scale, and toggle settings are reserved for the later overlay milestone; this diagnostic build does not display an icon. The optional `assets/icon.png` is an original placeholder reference and is not loaded by the plugin.
 
 ## Troubleshooting
 
