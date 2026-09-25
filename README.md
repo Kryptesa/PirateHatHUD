@@ -2,7 +2,7 @@
 
 **Diagnostic source preview 0.2.0.** This Windows x64 ASI dynamically discovers the two treasure counter instructions, installs SafetyHook mid-hooks, and logs the observed `RSI` base and `[RSI+0x08]` state. The hooks never freeze, NOP, or write the counter. This milestone is intended to obtain an in-game log showing `0 -> 1 -> 0`.
 
-**Current validation:** The scanner found exactly one instruction pair in the installed Crimson Desert 1.0.0.2976 EXE (SHA-256 `57da440d72f4db974f25fef047cf84c4dadd999a88cb2a3c5af4c9bd67fde1e7`). The pair is at RVAs `0x125BD6E` and `0x125BD9A`. These RVAs are reference values only; the plugin does not use them to locate code at runtime. The actual executable section containing the pair is named `.rsrc`. The code has compiled, but the ASI has not yet been loaded in a live game for the required state transition test.
+**Current validation:** The scanner found exactly one instruction pair in the installed Crimson Desert 1.0.0.2976 EXE (SHA-256 `57da440d72f4db974f25fef047cf84c4dadd999a88cb2a3c5af4c9bd67fde1e7`). The pair is at RVAs `0x125BD6E` and `0x125BD9A`. These RVAs are reference values only; the plugin does not use them to locate code at runtime. The actual executable section containing the pair is named `.rsrc`. The user confirmed that the ASI logs the treasure state correctly in game. The log file itself has not been attached to this repository, so the exact transition trace is not archived here.
 
 ## Runtime discovery and logging
 
