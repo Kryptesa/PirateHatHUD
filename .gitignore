@@ -1,0 +1,8 @@
+/build/
+/dist/*.zip
+*.log
+*.obj
+*.pdb
+*.asi
+*.dll
+.vs/
