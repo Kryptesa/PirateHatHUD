@@ -1,7 +1,3 @@
-﻿# Pirate Hat HUD 0.1.0 â€” source preview
+# Pirate Hat HUD 0.2.0 diagnostic preview
 
-Displays an original chest icon when the Pirate King Hat's treasure-detection state is active. The plugin observes the counter and draws a DX11 overlay; it does not alter game logic.
-
-**This ZIP is source only.** The AOB signatures still need exact game bytes. With placeholders, the plugin logs a mismatch and installs no hooks. Do not label this version as a tested, working Nexus binary. After validation, distribute the compiled ASI and INI as a separate player-facing ZIP.
-
-Requires Windows x64, DirectX 11, and DMM's ASI loader or a compatible standalone ASI loader. Toggle: F9. Unload: F10.
+This source preview implements the first diagnostic milestone: runtime discovery of the unique treasure-counter instruction pair and read-only state transition logging. It compiled against the local Visual Studio 2026 toolchain and matched one pair in the installed Crimson Desert 1.0.0.2976 EXE. It has not yet produced an in-game 0 -> 1 -> 0 log or a validated icon overlay. Do not publish it as a working Nexus main file yet.

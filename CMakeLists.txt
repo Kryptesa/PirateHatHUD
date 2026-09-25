@@ -1,5 +1,5 @@
 ﻿cmake_minimum_required(VERSION 3.28)
-project(PirateHatHUD VERSION 0.1.0 LANGUAGES CXX)
+project(PirateHatHUD VERSION 0.2.0 LANGUAGES CXX)
 
 if(NOT WIN32 OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
   message(FATAL_ERROR "PirateHatHUD requires Windows x64")
@@ -36,3 +36,11 @@ add_custom_command(TARGET PirateHatHUD POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/THIRD_PARTY_NOTICES.md" "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/THIRD_PARTY_NOTICES.md"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "${safetyhook_SOURCE_DIR}/LICENSE" "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/LICENSE-SafetyHook.txt"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "${imgui_SOURCE_DIR}/LICENSE.txt" "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/LICENSE-DearImGui.txt")
+
+include(CTest)
+if(BUILD_TESTING)
+  add_executable(scanner_tests tests/scanner_tests.cpp src/pattern_scan.cpp)
+  target_include_directories(scanner_tests PRIVATE include)
+  target_compile_definitions(scanner_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+  add_test(NAME scanner_tests COMMAND scanner_tests)
+endif()
