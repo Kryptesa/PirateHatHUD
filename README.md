@@ -1,16 +1,68 @@
 # Pirate Hat HUD for Crimson Desert
 
-**0.3.0 DX12 preview.** The ASI observes the Pirate King Hat treasure counter and draws a small vector chest icon when the observed state is positive. It never writes, freezes, NOPs, or patches game logic. The counter hooks have been validated in game; this DX12 renderer has compiled but has **not yet been tested in game**. Do not publish it as a confirmed working Nexus main file until the rendering checks below pass.
+Pirate Hat HUD is an ASI mod that shows a small treasure chest icon when the Pirate King Hat detects nearby treasure. You can change the icon's position and size, toggle it during play, or unload the mod with a hotkey.
 
-## How it works
+> **Status: 0.3.0 DX12 preview.** Treasure state detection was confirmed in game on Crimson Desert 1.0.0.2976. The DirectX 12 overlay builds, but its drawing has not yet been verified in game. Treat this as a test build, especially when using DLSS or Frame Generation.
 
-The plugin scans executable sections of the loaded `CrimsonDesert.exe` for a unique pair: `FF 46 08` (`inc dword ptr [rsi+08]`) and, exactly `0x2C` bytes later, `83 6E 08 01` (`sub dword ptr [rsi+08],1`). It never uses a fixed runtime address. A missing or ambiguous pair disables only state observation and is logged. The user confirmed correct `0 -> 1 -> 0` transitions on Crimson Desert 1.0.0.2976 (EXE SHA-256 `57da440d72f4db974f25fef047cf84c4dadd999a88cb2a3c5af4c9bd67fde1e7`). Hook callbacks capture RSI and the pre-instruction value; a guarded read-only poll checks `[RSI+0x08]`.
+## Install
 
-The DX12 renderer hooks DXGI Present and ResizeBuffers. It intercepts `CreateSwapChain`, `CreateSwapChainForHwnd`, `CreateSwapChainForCoreWindow`, and `CreateSwapChainForComposition` to pair the real swapchain with its direct command queue. If attachment occurs after swapchain creation, it may use an observed direct queue only when exactly one queue has been seen. It refuses a queue from another D3D12 device. It owns an allocator and render target per backbuffer, uses a fence before reusing resources, and recreates them after resize. The icon is loaded from `icon.png` beside the ASI and drawn as a DX12 texture. If the PNG is missing or invalid, the mod logs the error and unloads before installing hooks.
+You need the Windows x64 version of Crimson Desert and a compatible ASI loader. For Desert Mod Manager (DMM), use its ASI loader support.
 
-## Build
+1. Download or build the mod. Keep these three files together:
 
-Install Visual Studio 2022 with Desktop development with C++, Windows SDK, CMake, and Git. First configure fetches SafetyHook, Zydis, and Dear ImGui. Use x64 Release:
+   ```text
+   PirateHatHUD/
+   ├── PirateHatHUD.asi
+   ├── config.ini
+   └── icon.png
+   ```
+
+2. With DMM, import the ZIP containing the `PirateHatHUD` folder, or place that folder in DMM's `mods` directory. Enable the mod and mount it with the ASI loader enabled. For a standalone ASI loader, put all three files in the loader's plugin directory, side by side.
+3. Start the game. The icon should appear near the minimap when the Pirate King Hat's treasure state is active.
+
+The icon file is required. If it is missing or invalid, the mod logs an error and unloads. After changing `config.ini`, restart the game. For current DMM setup steps, see the [mod manager page](https://www.nexusmods.com/crimsondesert/mods/633).
+
+## Configure
+
+Edit `config.ini` beside `PirateHatHUD.asi`:
+
+```ini
+[indicator]
+enabled=1
+force_show=0
+x=350
+y=-310
+scale_percent=100
+
+[hotkeys]
+toggle=F9
+unload=F10
+```
+
+| Setting | Meaning |
+| --- | --- |
+| `enabled` | `1` draws the icon; `0` starts with it hidden. |
+| `force_show` | `1` always draws the icon for testing, regardless of treasure state or pattern scan results. Return it to `0` for normal play. |
+| `x` | Horizontal position in pixels from the left edge. |
+| `y` | Negative values count pixels up from the bottom; zero and positive values count down from the top. |
+| `scale_percent` | Icon size from `25` to `400`. Values outside this range use `100`. |
+| `toggle` | Show or hide the icon for the current session. Default: `F9`. |
+| `unload` | Remove hooks and unload the mod for the current session. Default: `F10`. |
+
+Hotkeys accept `F8`, `F9`, `F10`, or `F11`. The default position (`x=350`, `y=-310`) was chosen for 2560 × 1440; adjust it for your display and HUD layout.
+
+## If the icon does not appear
+
+1. Check that `PirateHatHUD.asi`, `config.ini`, and `icon.png` are in the same directory and that the ASI loader is active.
+2. Set `force_show=1`, restart the game, and load a save. This tests the overlay without requiring the hat or an active treasure state. Press `F9` to check the toggle.
+3. Open `PirateHatHUD.log` beside the ASI. `DX12 hooks installed; waiting for swapchain` means the graphics hooks started. `DX12 swapchain and present queue captured` and `DX12 overlay initialized` indicate that the renderer reached the game swapchain. `State hooks disabled` means the game's instruction pattern was missing or ambiguous, so normal treasure detection is unavailable.
+4. If the test icon works, restore `force_show=0` and check it while wearing the Pirate King Hat near treasure. If it fails only with DLSS or Frame Generation, record those settings along with the game version and log when reporting the issue.
+
+The DX12 renderer has not been verified in game yet. Graphics proxies and generated frames may affect whether the icon is drawn. `force_show=1` is a diagnostic setting; it does not confirm that treasure detection works.
+
+## Build from source
+
+Install Visual Studio 2022 with **Desktop development with C++**, a Windows SDK, CMake 3.28 or newer, and Git. The first CMake configure downloads SafetyHook, Zydis, and Dear ImGui. Build the x64 Release configuration:
 
 ```powershell
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64
@@ -18,25 +70,14 @@ cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-The output is `build/Release/PirateHatHUD.asi`; the staging folder is `build/Release/PirateHatHUD/`. This checkout has also compiled with Visual Studio 2026 Build Tools. The project uses C++23 and the static MSVC runtime.
+The compiled ASI is `build/Release/PirateHatHUD.asi`. The ready-to-install folder is `build/Release/PirateHatHUD/`; it includes the ASI, configuration, icon, and third-party license files. The project uses C++23 and the static MSVC runtime.
 
-## Install
+## How it works
 
-For DMM, place the staged `PirateHatHUD` folder under DMM's `mods` directory or import its ZIP, then enable and Mount it with the ASI loader enabled. For an ordinary compatible x64 ASI loader, put `PirateHatHUD.asi` and `config.ini` side by side in the loader's plugin directory. Restart the game after INI changes. See the [DMM page](https://www.nexusmods.com/crimsondesert/mods/633) for current manager steps.
+The mod scans executable sections of `CrimsonDesert.exe` for a unique pair of treasure-counter instructions. It attaches observation hooks at the matching instructions, captures the counter address, and reads the counter to decide when to show the icon. It does not write to or freeze the counter. A missing or ambiguous match disables state observation and is logged.
 
-## Config and controls
+The overlay draws `icon.png` through a DirectX 12 swapchain hook. The counter hooks were confirmed on Crimson Desert 1.0.0.2976 (EXE SHA-256 `57da440d72f4db974f25fef047cf84c4dadd999a88cb2a3c5af4c9bd67fde1e7`); other game builds may need updated patterns. See [release notes](release_notes.md) and the [changelog](CHANGELOG.md) for version history.
 
-`enabled=1` enables drawing. `x` is the pixel position from the left edge; a negative `y` places the icon that many pixels above the bottom edge, while a nonnegative `y` is measured from the top. The default `x=350`, `y=-310` places it just above and left of the food icon beside the minimap at 2560×1440. `scale_percent` accepts 25–400. `force_show=1` is a **diagnostic** that draws the icon without the hat or an active treasure state, even if pattern scanning fails. Set it back to `0` for normal use. F9 toggles drawing for the current session; F10 removes hooks and unloads the ASI. Supported key names are F8–F11. The INI is read at startup. Logs are written beside the ASI to `PirateHatHUD.log`.
+## License
 
-## In-game validation before release
-
-1. Set `force_show=1`. Confirm the icon appears after loading a save and F9 hides/shows it. Try windowed, borderless, fullscreen, resize, alt-tab, resolution changes, and F10 unload.
-2. Repeat with DLSS off/on and Frame Generation off/on where supported. NVIDIA Streamline can proxy the swapchain, and one game Present can produce multiple generated frames. The hook may miss a proxy Present, or the icon may appear only on game-rendered frames and be absent or interpolated on generated frames. Treat an unsupported path as a compatibility failure; do not claim generated-frame coverage until observed.
-3. Set `force_show=0`. With Pirate King Hat, enter and leave a chest radius and confirm the icon follows `Treasure state 1` and `Treasure state 0`. Remove the hat inside a radius, change equipment/location, load a save, and confirm no stale icon.
-4. Verify DMM install/uninstall and ordinary ASI loader install. Record game version, graphics settings, and exact log lines for any failure.
-
-The renderer hooks DXGI's system vtables. A graphics proxy loaded ahead of it can expose a different swapchain implementation; check the log for `DX12 swapchain and present queue captured` and `DX12 overlay initialized`. If those messages never appear, this preview may need another integration path. The ExecuteCommandLists fallback is deliberately disabled after multiple distinct direct queues to avoid submitting overlay commands to an unrelated queue.
-
-## Packaging and license
-
-A player ZIP should contain one `PirateHatHUD/` folder with the ASI, INI, and `icon.png`, plus the README, LICENSE, and third-party notices. Do not include copyrighted game artwork. Include license files for SafetyHook, Dear ImGui, and Zydis with a binary release. Project code and original icon are MIT licensed. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+The project code and original icon are licensed under the [MIT License](LICENSE). Dependencies have their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md). Include the dependency license files from the staged build folder when distributing a binary.
