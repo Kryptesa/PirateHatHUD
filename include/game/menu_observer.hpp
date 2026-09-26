@@ -1,4 +1,5 @@
 #pragma once
+#include "core/log.hpp"
 #include "core/signal.hpp"
 #include "game/treasure_observer.hpp"
 #include <functional>
@@ -11,7 +12,7 @@ struct MenuStateChanged {
 };
 class MenuObserver {
 public:
-  explicit MenuObserver(void (*logger)(const char*) = nullptr);
+  explicit MenuObserver(LogCallback logger = nullptr);
   ~MenuObserver();
   MenuObserver(const MenuObserver&) = delete;
   MenuObserver& operator=(const MenuObserver&) = delete;

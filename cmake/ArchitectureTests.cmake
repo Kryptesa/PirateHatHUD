@@ -47,3 +47,18 @@ file(WRITE "${TEST_ROOT}/render_to_minimap/include/game/minimap_observer.hpp" "#
 check_case(render_to_minimap include/render/bad.hpp "#include \"game/minimap_observer.hpp\"\n" "forbidden include")
 
 message(STATUS "Architecture checker regression tests passed")
+
+foreach(module render overlay platform)
+  set(case "${module}_to_log_contract")
+  file(WRITE "${TEST_ROOT}/${case}/include/core/log.hpp" "#pragma once\n")
+  if(module STREQUAL overlay)
+    set(path include/overlay.hpp)
+  else()
+    set(path "include/${module}/good.hpp")
+  endif()
+  check_case("${case}" "${path}" "#include \"core/log.hpp\"\n" "PASS")
+endforeach()
+file(WRITE "${TEST_ROOT}/render_to_logger/include/platform/logger.hpp" "#pragma once\n")
+check_case(render_to_logger include/render/bad.hpp "#include \"platform/logger.hpp\"\n" "forbidden include")
+file(WRITE "${TEST_ROOT}/game_to_logger/include/platform/logger.hpp" "#pragma once\n")
+check_case(game_to_logger include/game/bad.hpp "#include \"platform/logger.hpp\"\n" "forbidden include")

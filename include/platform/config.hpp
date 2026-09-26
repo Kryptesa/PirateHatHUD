@@ -1,7 +1,9 @@
 #pragma once
+#include "platform/logger.hpp"
 #include <string>
 namespace phi {
 struct Config {
+  LogConfig logging;
   bool enabled = true;
   bool force_show = false;
   int show_delay_ms = 1000;

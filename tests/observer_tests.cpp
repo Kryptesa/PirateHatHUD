@@ -14,7 +14,7 @@
 namespace {
 std::vector<std::string> logs;
 
-void capture_log(const char* text) {
+void capture_log(phi::LogLevel, const char* text) {
   logs.emplace_back(text);
 }
 } // namespace

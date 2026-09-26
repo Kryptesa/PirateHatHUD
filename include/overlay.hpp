@@ -1,9 +1,10 @@
 #pragma once
+#include "core/log.hpp"
 #include "render/hud_state.hpp"
 namespace phi {
 // Lifecycle/configuration calls belong to the application thread. Configure before start;
 // stop before clearing the logger. HUD snapshots may be published while rendering.
-void set_overlay_log(void (*logger)(const char*));
+void set_overlay_log(LogCallback logger);
 bool start_overlay();
 struct OverlayStopResult {
   bool hooks_disabled = true;

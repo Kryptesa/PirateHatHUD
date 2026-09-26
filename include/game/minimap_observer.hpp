@@ -1,4 +1,5 @@
 #pragma once
+#include "core/log.hpp"
 #include "core/signal.hpp"
 #include <functional>
 #include <memory>
@@ -13,7 +14,7 @@ struct MinimapStateChanged {
 // publishes changes synchronously; unknown means no valid sample. No game hooks.
 class MinimapObserver {
 public:
-  explicit MinimapObserver(void (*logger)(const char*) = nullptr);
+  explicit MinimapObserver(LogCallback logger = nullptr);
   ~MinimapObserver();
   MinimapObserver(const MinimapObserver&) = delete;
   MinimapObserver& operator=(const MinimapObserver&) = delete;

@@ -14,9 +14,9 @@ only explicitly documented interfaces are intended for library consumers.
 | `core` | Its own headers | Standard library |
 | `game` / `game_observers` | Its own headers, `core`, scanner and patterns | Windows, SafetyHook |
 | `features` / `treasure_indicator` | Its own headers, `game/treasure_observer.hpp`, `game/minimap_observer.hpp`, `game/menu_observer.hpp`, `render/hud_state.hpp` | Standard library |
-| `render` | Its own headers, including `HudState` | Windows, DX12/DXGI, WIC, ImGui, SafetyHook for graphics hooks |
-| `overlay` facade | Its own header, `render` | Standard library |
-| `platform` | Its own headers | Standard library, Windows |
+| `render` | Its own headers, including `HudState`, `core` | Windows, DX12/DXGI, WIC, ImGui, SafetyHook for graphics hooks |
+| `overlay` facade | Its own header, `render`, `core` | Standard library |
+| `platform` | Its own headers, `core` | Standard library, Windows |
 | `app` and DLL entry | All modules for composition | Windows, standard library |
 
 The current feature interface includes the observer headers for state types; it does
@@ -196,3 +196,13 @@ snapshot. Immediate means the first owner-thread publication after a captured si
 the game's +25B transition itself is delayed relative to input.
 
 Menu implementation evidence and remaining game checks: [menu observation](menu-observation.md).
+
+## Logging
+
+`core/log.hpp` defines only severity and the synchronous callback type. Observers and
+rendering pass explicit severity through callbacks; they do not access file logging or
+configuration. Application composition reads configuration before opening the platform
+logger and wires the callback. Hook capture remains free of observer event logging.
+The logger serializes writes and rotation, bounds records, and disables writing on I/O
+failure without throwing. UTC timestamp files rotate on startup and size; retention
+matches only the logger's exact filename pattern and includes the current file.

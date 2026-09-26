@@ -83,7 +83,7 @@ struct MenuObserver::Impl {
   Signal<MenuStateChanged> changes;
   bool stopped = false;
 };
-MenuObserver::MenuObserver(void (*)(const char*)) {
+MenuObserver::MenuObserver(LogCallback) {
   step("menu_construct");
   impl_ = std::make_unique<Impl>();
 }
@@ -116,7 +116,7 @@ struct MinimapObserver::Impl {
   Signal<MinimapStateChanged> changes;
   bool stopped = false;
 };
-MinimapObserver::MinimapObserver(void (*)(const char*)) {
+MinimapObserver::MinimapObserver(LogCallback) {
   step("minimap_construct");
   impl_ = std::make_unique<Impl>();
   scenario.minimap_signal = &impl_->changes;
@@ -155,7 +155,7 @@ struct TreasureObserver::Impl {
   Signal<TreasureStateChanged> changes;
   bool stopped = false;
 };
-TreasureObserver::TreasureObserver(void (*)(const char*)) {
+TreasureObserver::TreasureObserver(LogCallback) {
   step("observer_construct");
   impl_ = std::make_unique<Impl>();
   scenario.signal = &impl_->changes;
@@ -194,7 +194,7 @@ TreasureObserver::subscribe(std::function<void(const TreasureStateChanged&)> cal
     callback(event);
   });
 }
-bool open_log(const std::wstring&) {
+bool open_log(const std::wstring&, const LogConfig&) {
   scenario.log_open = true;
   step("open_log");
   return true;
@@ -206,7 +206,7 @@ void close_log() {
     throw std::runtime_error("close_log");
   }
 }
-void log(const char*) {
+void log(LogLevel, const char*) {
   step("log");
 }
 Config read_config(const std::wstring& path) {
@@ -231,7 +231,7 @@ void set_overlay_hud(const HudState& hud) {
   step("hud");
   scenario.hud_visible = hud.visible;
 }
-void set_overlay_log(void (*logger)(const char*)) {
+void set_overlay_log(LogCallback logger) {
   step(logger ? "set_logger" : "clear_logger");
 }
 bool start_overlay() {
@@ -359,7 +359,7 @@ int main() {
     scenario = {};
     scenario.fail = failure;
     CHECK(run() == AppExitDisposition::unload_allowed);
-    CHECK(has("close_log"));
+    CHECK(has("close_log") || scenario.fail == "config");
     CHECK(!has("overlay_start"));
     CHECK(!has("observer_start"));
   }

@@ -97,7 +97,7 @@ bool Dx12Renderer::initialize(IDXGISwapChain* target_swap, ID3D12CommandQueue* t
   }
   this->swap = target_swap;
   state_ = RendererState::ready;
-  log("DX12 overlay initialized");
+  log(LogLevel::info, "DX12 overlay initialized");
   return true;
 }
 bool Dx12Renderer::replace_swapchain(IDXGISwapChain* candidate,
@@ -112,18 +112,18 @@ bool Dx12Renderer::replace_swapchain(IDXGISwapChain* candidate,
       !same_device(candidate_queue, candidate_device.Get())) {
     return false;
   }
-  log("DX12 replacement swapchain detected; releasing old renderer");
+  log(LogLevel::info, "DX12 replacement swapchain detected; releasing old renderer");
   if (shutdown() != ReleaseResult::released) {
-    log("DX12 swapchain replacement blocked; GPU resources retained");
+    log(LogLevel::error, "DX12 swapchain replacement blocked; GPU resources retained");
     return false;
   }
   state_ = RendererState::waiting;
   if (!initialize(candidate, candidate_queue)) {
-    log("DX12 replacement swapchain initialization failed");
+    log(LogLevel::error, "DX12 replacement swapchain initialization failed");
     shutdown();
     return false;
   }
-  log("DX12 overlay recovered on replacement swapchain");
+  log(LogLevel::info, "DX12 overlay recovered on replacement swapchain");
   return true;
 }
 void Dx12Renderer::render(IDXGISwapChain* target_swap, const HudState& hud,
@@ -217,7 +217,7 @@ void Dx12Renderer::render(IDXGISwapChain* target_swap, const HudState& hud,
   } else {
     untracked_submission = true;
     fault();
-    log("DX12 queue signal failed; rendering disabled");
+    log(LogLevel::error, "DX12 queue signal failed; rendering disabled");
   }
 }
 bool Dx12Renderer::before_resize(IDXGISwapChain* candidate) {
@@ -230,7 +230,7 @@ bool Dx12Renderer::before_resize(IDXGISwapChain* candidate) {
   const auto result = wait_all();
   if (result != WaitResult::completed && result != WaitResult::device_lost) {
     fault();
-    log("DX12 resize wait failed; overlay resources retained");
+    log(LogLevel::error, "DX12 resize wait failed; overlay resources retained");
     return false;
   }
   if (imgui) {
@@ -240,7 +240,7 @@ bool Dx12Renderer::before_resize(IDXGISwapChain* candidate) {
   descriptors.fill(false);
   descriptors[0] = true;
   release_buffers();
-  log("DX12 backbuffers released for resize");
+  log(LogLevel::debug, "DX12 backbuffers released for resize");
   state_ = result == WaitResult::completed ? RendererState::resizing : RendererState::faulted;
   return result == WaitResult::completed;
 }
@@ -256,14 +256,14 @@ void Dx12Renderer::after_resize(IDXGISwapChain* candidate, HRESULT result, UINT 
     std::snprintf(message, sizeof(message),
                   "DX12 swapchain resize failed (HRESULT 0x%08lX); overlay disabled",
                   static_cast<unsigned long>(result));
-    log(message);
+    log(LogLevel::error, message);
     return;
   }
   if (queues) {
     ComPtr<ID3D12CommandQueue> replacement;
     if (!count || count != desc.BufferCount) {
       fault();
-      log("DX12 resize queue count unsupported; overlay disabled");
+      log(LogLevel::error, "DX12 resize queue count unsupported; overlay disabled");
       return;
     }
     for (UINT i = 0; i < count; ++i) {
@@ -273,7 +273,7 @@ void Dx12Renderer::after_resize(IDXGISwapChain* candidate, HRESULT result, UINT 
           !same_device(current.Get(), device.Get()) ||
           (replacement && replacement.Get() != current.Get())) {
         fault();
-        log("DX12 resize queues unsupported; overlay disabled");
+        log(LogLevel::error, "DX12 resize queues unsupported; overlay disabled");
         return;
       }
       replacement = current;
@@ -282,21 +282,21 @@ void Dx12Renderer::after_resize(IDXGISwapChain* candidate, HRESULT result, UINT 
   }
   if (!create_buffers(candidate) || !initialize_backend(desc)) {
     fault();
-    log("DX12 resize recreation failed; overlay disabled");
+    log(LogLevel::error, "DX12 resize recreation failed; overlay disabled");
     return;
   }
   state_ = RendererState::ready;
-  log("DX12 overlay recreated after resize");
+  log(LogLevel::info, "DX12 overlay recreated after resize");
 }
 void Dx12Renderer::set_image(Image image) {
   image_ = std::move(image);
 }
-void Dx12Renderer::set_logger(void (*logger)(const char*)) {
+void Dx12Renderer::set_logger(LogCallback logger) {
   logger_ = logger;
 }
-void Dx12Renderer::log(const char* message) const {
+void Dx12Renderer::log(LogLevel level, const char* message) const {
   if (logger_) {
-    logger_(message);
+    logger_(level, message);
   }
 }
 

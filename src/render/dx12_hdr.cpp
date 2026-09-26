@@ -37,7 +37,7 @@ bool Dx12Renderer::initialize_hdr(DXGI_FORMAT format) {
                         "vs_5_0", D3DCOMPILE_ENABLE_STRICTNESS, 0, &vs, nullptr)) ||
       FAILED(D3DCompile(kShader, std::strlen(kShader), nullptr, nullptr, nullptr, "ps_main",
                         "ps_5_0", D3DCOMPILE_ENABLE_STRICTNESS, 0, &ps, nullptr))) {
-    log("HDR icon shader initialization failed");
+    log(LogLevel::error, "HDR icon shader initialization failed");
     return false;
   }
   D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline{};

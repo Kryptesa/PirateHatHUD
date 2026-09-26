@@ -1,0 +1,133 @@
+#include "platform/config.hpp"
+#include "platform/logger.hpp"
+#include <windows.h>
+#include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <string>
+#include <string_view>
+#include <thread>
+#include <vector>
+#define CHECK(c)                                                                                   \
+  do {                                                                                             \
+    if (!(c)) {                                                                                    \
+      return __LINE__;                                                                             \
+    }                                                                                              \
+  } while (false)
+namespace {
+namespace fs = std::filesystem;
+std::vector<fs::path> logs(const fs::path& folder) {
+  std::vector<fs::path> result;
+  for (const auto& entry : fs::directory_iterator(folder)) {
+    if (entry.path().filename().wstring().starts_with(L"PirateHatHUD_20") &&
+        entry.path().extension() == L".log") {
+      result.push_back(entry.path());
+    }
+  }
+  std::sort(result.begin(), result.end());
+  return result;
+}
+std::string read(const fs::path& path) {
+  std::ifstream file(path, std::ios::binary);
+  return {std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+}
+} // namespace
+int main() {
+  using namespace phi;
+  const auto folder =
+      fs::current_path() / ("logger-fixture-" + std::to_string(GetCurrentProcessId()));
+  CHECK(fs::create_directory(folder));
+  struct Cleanup {
+    fs::path folder;
+    ~Cleanup() {
+      close_log();
+      std::error_code error;
+      fs::remove_all(folder, error);
+    }
+  } cleanup{folder};
+  std::ofstream(folder / "PirateHatHUD.log") << "legacy";
+  std::ofstream(folder / "PirateHatHUD_notes.log") << "unrelated";
+  LogConfig config;
+  CHECK(open_log(folder.wstring(), config));
+  log(LogLevel::debug, "hidden");
+  log(LogLevel::info, "startup");
+  log(LogLevel::error, "failure");
+  close_log();
+  auto files = logs(folder);
+  CHECK(files.size() == 1);
+  auto text = read(files.back());
+  CHECK(text.find("hidden") == std::string::npos);
+  CHECK(text.find("[INFO] startup") != std::string::npos);
+  CHECK(text.find("[ERROR] failure") != std::string::npos);
+  CHECK(text.find(" UTC]") != std::string::npos);
+  CHECK(files.back().filename().wstring().size() ==
+        std::wstring_view(L"PirateHatHUD_2026-09-27_18-42-03-123.log").size());
+  const auto oldest = files.front();
+  for (int i = 0; i < 4; ++i) {
+    CHECK(open_log(folder.wstring(), config));
+    log(LogLevel::info, "next session");
+    close_log();
+  }
+  CHECK(logs(folder).size() == 3);
+  CHECK(!fs::exists(oldest));
+  CHECK(read(folder / "PirateHatHUD.log") == "legacy");
+  CHECK(read(folder / "PirateHatHUD_notes.log") == "unrelated");
+  config.max_file_size = 512;
+  config.max_files = 2;
+  config.level = LogLevel::debug;
+  CHECK(open_log(folder.wstring(), config));
+  std::vector<std::thread> writers;
+  for (int i = 0; i < 4; ++i) {
+    writers.emplace_back([] {
+      for (int j = 0; j < 30; ++j) {
+        log(LogLevel::debug, "concurrent record");
+      }
+    });
+  }
+  for (auto& writer : writers) {
+    writer.join();
+  }
+  const std::string huge(10000, 'x');
+  log(LogLevel::error, huge.c_str());
+  close_log();
+  files = logs(folder);
+  CHECK(files.size() == 2);
+  for (const auto& file : files) {
+    CHECK(fs::file_size(file) <= config.max_file_size);
+    CHECK(read(file).back() == '\n');
+  }
+  CHECK(read(files.back()).find("[truncated]") != std::string::npos);
+  config.max_files = 1;
+  config.level = LogLevel::error;
+  CHECK(open_log(folder.wstring(), config));
+  log(LogLevel::warn, "filtered warning");
+  log(LogLevel::error, "error only");
+  close_log();
+  CHECK(logs(folder).size() == 1);
+  CHECK(read(logs(folder).front()).find("filtered warning") == std::string::npos);
+  CHECK(read(logs(folder).front()).find("error only") != std::string::npos);
+  config.level = LogLevel::off;
+  const auto before = logs(folder);
+  CHECK(open_log(folder.wstring(), config));
+  log(LogLevel::error, "disabled");
+  close_log();
+  CHECK(logs(folder) == before);
+  config.level = LogLevel::info;
+  CHECK(!open_log((folder / "missing").wstring(), config));
+  log(LogLevel::error, "safe after failure");
+  CHECK(open_log(folder.wstring(), config));
+  close_log();
+  const auto ini = folder / "settings.ini";
+  std::ofstream(ini) << "[logging]\nlevel=DeBuG\nmax_file_size_mb=7\nmax_files=4\n";
+  auto settings = read_config(ini.wstring()).logging;
+  CHECK(settings.level == LogLevel::debug);
+  CHECK(settings.max_file_size == 7 * 1024 * 1024);
+  CHECK(settings.max_files == 4);
+  std::ofstream(ini) << "[logging]\nlevel=nonsense\nmax_file_size_mb=-1\nmax_files=0\n";
+  settings = read_config(ini.wstring()).logging;
+  CHECK(settings.level == LogLevel::info);
+  CHECK(settings.max_file_size == 5 * 1024 * 1024);
+  CHECK(settings.max_files == 3);
+  CHECK(read_config((folder / "missing.ini").wstring()).logging.level == LogLevel::info);
+}

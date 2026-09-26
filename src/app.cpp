@@ -16,7 +16,7 @@ struct ExitState {
 };
 void report_exception(const char* message) noexcept {
   try {
-    log(message);
+    log(LogLevel::error, message);
   } catch (...) {
     // Diagnostics must never interrupt cleanup.
   }
@@ -33,9 +33,9 @@ public:
       }
     }
   }
-  void open(const std::wstring& path) {
+  void open(const std::wstring& path, const LogConfig& config) {
     attempted_ = true;
-    open_log(path);
+    open_log(path, config);
   }
 
 private:
@@ -67,7 +67,8 @@ public:
     set_overlay_log(log);
     const bool overlay_started = start_overlay();
     exit_.retain |= overlay_started;
-    log(overlay_started ? "DX12 hooks installed; waiting for swapchain"
+    log(overlay_started ? LogLevel::info : LogLevel::error,
+        overlay_started ? "DX12 hooks installed; waiting for swapchain"
                         : "DX12 hooks unavailable; overlay disabled");
     exit_.retain |= observer_.start();
     minimap_.start();
@@ -80,11 +81,11 @@ public:
       const auto actions = poll_hotkeys(config.toggle_key, config.unload_key);
       if (actions.toggle) {
         indicator_.toggle();
-        log("Indicator toggled by hotkey");
+        log(LogLevel::info, "Indicator toggled by hotkey");
       }
       set_overlay_hud(indicator_.hud_state());
       if (actions.unload) {
-        log("Stop requested by hotkey");
+        log(LogLevel::info, "Stop requested by hotkey");
         break;
       }
       // Keep menu visibility sampling responsive without busy-waiting. Windows may
@@ -143,26 +144,27 @@ AppExitDisposition run_app(HMODULE module) noexcept {
       }
       std::wstring folder(path, length);
       folder.resize(folder.find_last_of(L"\\/") + 1);
-      logging.open(folder + L"PirateHatHUD.log");
-      log(PHI_VERSION);
       const auto config_path = folder + L"PirateHatHUD.ini";
       const auto legacy_config_path = folder + L"config.ini";
       const bool legacy_config =
           GetFileAttributesW(config_path.c_str()) == INVALID_FILE_ATTRIBUTES &&
           GetFileAttributesW(legacy_config_path.c_str()) != INVALID_FILE_ATTRIBUTES;
       const auto config = read_config(legacy_config ? legacy_config_path : config_path);
+      logging.open(folder, config.logging);
+      log(LogLevel::info, PHI_VERSION);
       if (legacy_config) {
-        log("Using legacy config.ini; rename it to PirateHatHUD.ini before installing an update");
+        log(LogLevel::warn,
+            "Using legacy config.ini; rename it to PirateHatHUD.ini before installing an update");
       }
       const auto icon_path = folder + L"PirateHatHUD.png";
       const bool custom_icon = GetFileAttributesW(icon_path.c_str()) != INVALID_FILE_ATTRIBUTES;
       if (!prepare_overlay_icon(custom_icon ? icon_path.c_str() : nullptr)) {
-        log("Embedded icon or PirateHatHUD.png invalid; mod not started");
+        log(LogLevel::error, "Embedded icon or PirateHatHUD.png invalid; mod not started");
       } else {
         AppSession session(config, exit);
         session.run(config);
       }
-      log(exit.retain ? "Stopped; DLL retained" : "Stopped; DLL unload allowed");
+      log(LogLevel::info, exit.retain ? "Stopped; DLL retained" : "Stopped; DLL unload allowed");
     } catch (const std::exception& error) {
       report_exception("Application stopped after a C++ exception");
       report_exception(error.what());

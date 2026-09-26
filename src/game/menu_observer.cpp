@@ -50,22 +50,22 @@ struct MenuObserver::Impl {
   uintptr_t module = 0;
   bool claimed = false;
   bool running = false;
-  void (*logger)(const char*) = nullptr;
+  LogCallback logger = nullptr;
   void publish(MenuState value) {
     current = value;
     if (value != published) {
       auto previous = published;
       published = value;
       if (logger) {
-        logger(value == MenuState::open     ? "Menu open"
-               : value == MenuState::closed ? "Menu closed"
-                                            : "Menu unknown; icon hidden");
+        logger(LogLevel::debug, value == MenuState::open     ? "Menu open"
+                                : value == MenuState::closed ? "Menu closed"
+                                                             : "Menu unknown; icon hidden");
       }
       changes.publish({previous, value});
     }
   }
 };
-MenuObserver::MenuObserver(void (*logger)(const char*)) : impl_(std::make_unique<Impl>()) {
+MenuObserver::MenuObserver(LogCallback logger) : impl_(std::make_unique<Impl>()) {
   impl_->logger = logger;
 }
 MenuObserver::~MenuObserver() {
@@ -88,7 +88,8 @@ bool MenuObserver::start() {
   auto scan = find_hook_sites(module, true);
   if (scan.status != ScanStatus::found) {
     if (impl.logger) {
-      impl.logger("Menu hooks unavailable: instruction pair missing, ambiguous or invalid image");
+      impl.logger(LogLevel::warn,
+                  "Menu hooks unavailable: instruction pair missing, ambiguous or invalid image");
     }
     stop();
     return false;
@@ -120,7 +121,8 @@ bool MenuObserver::start() {
   }
   impl.running = true;
   if (impl.logger) {
-    impl.logger("Menu hooks active (2.03.02 UI root slot); identity resolved by script RTTI");
+    impl.logger(LogLevel::info,
+                "Menu hooks active (2.03.02 UI root slot); identity resolved by script RTTI");
   }
   return true;
 }

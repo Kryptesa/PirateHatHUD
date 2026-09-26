@@ -61,10 +61,10 @@ ComPtr<ID3D12CommandQueue> selected_queue;
 ComPtr<ID3D12CommandQueue> fallback_queue;
 bool fallback_ambiguous{};
 bool fallback_logged{};
-void (*logger)(const char*){};
-void overlay_log(const char* message) {
+LogCallback logger{};
+void overlay_log(LogLevel level, const char* message) {
   if (logger) {
-    logger(message);
+    logger(level, message);
   }
 }
 Dx12Renderer* renderer{};
@@ -84,7 +84,7 @@ void remember_swap(IDXGISwapChain* swap, IUnknown* object) {
   color_spaces.erase(swap);
   selected_swap = swap;
   selected_queue = queue;
-  overlay_log("DX12 swapchain and present queue captured");
+  overlay_log(LogLevel::info, "DX12 swapchain and present queue captured");
 }
 HRESULT WINAPI on_create(IDXGIFactory* factory, IUnknown* device, DXGI_SWAP_CHAIN_DESC* desc,
                          IDXGISwapChain** out) {
@@ -179,11 +179,11 @@ HRESULT WINAPI on_present(IDXGISwapChain* swap, UINT interval, UINT flags) {
                   ? selected_queue.Get()
                   : (!selected_swap && !fallback_ambiguous ? fallback_queue.Get() : nullptr);
           if (queue && !selected_swap && !fallback_logged) {
-            overlay_log("DX12 using single observed direct queue fallback");
+            overlay_log(LogLevel::info, "DX12 using single observed direct queue fallback");
             fallback_logged = true;
           }
           if (same_device(queue, device.Get()) && !renderer->initialize(swap, queue)) {
-            overlay_log("DX12 overlay initialization failed");
+            overlay_log(LogLevel::error, "DX12 overlay initialization failed");
             renderer->shutdown();
           }
         }
@@ -264,8 +264,7 @@ void* method(void* object, size_t index) {
   return (*reinterpret_cast<void***>(object))[index];
 }
 } // namespace
-bool start_hooks(Dx12Renderer& target, HudSnapshot hud_snapshot,
-                 void (*log_callback)(const char*)) {
+bool start_hooks(Dx12Renderer& target, HudSnapshot hud_snapshot, LogCallback log_callback) {
   if (activation_attempted || renderer) {
     return false;
   }

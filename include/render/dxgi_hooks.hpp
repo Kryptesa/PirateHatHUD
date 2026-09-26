@@ -1,9 +1,10 @@
 #pragma once
+#include "core/log.hpp"
 #include "render/dx12_renderer.hpp"
 
 namespace phi::render {
 using HudSnapshot = HudState (*)();
-bool start_hooks(Dx12Renderer& renderer, HudSnapshot snapshot, void (*logger)(const char*));
+bool start_hooks(Dx12Renderer& renderer, HudSnapshot snapshot, LogCallback logger);
 struct HooksStopResult {
   bool hooks_disabled;
   bool callbacks_drained;

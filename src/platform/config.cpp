@@ -43,6 +43,22 @@ Config read_config(const std::wstring& path) {
   config.toggle_key = key_from_name(key, config.toggle_key);
   GetPrivateProfileStringW(L"hotkeys", L"unload", L"", key, 16, path.c_str());
   config.unload_key = key_from_name(key, config.unload_key);
+  wchar_t level[32]{};
+  GetPrivateProfileStringW(L"logging", L"level", L"info", level, 32, path.c_str());
+  constexpr const wchar_t* levels[] = {L"trace", L"debug", L"info", L"warn", L"error", L"off"};
+  for (int i = 0; i < 6; ++i) {
+    if (_wcsicmp(level, levels[i]) == 0) {
+      config.logging.level = static_cast<LogLevel>(i);
+    }
+  }
+  const auto size = GetPrivateProfileIntW(L"logging", L"max_file_size_mb", 5, path.c_str());
+  if (size >= 1 && size <= 100) {
+    config.logging.max_file_size = static_cast<std::size_t>(size) * 1024 * 1024;
+  }
+  const auto count = GetPrivateProfileIntW(L"logging", L"max_files", 3, path.c_str());
+  if (count >= 1 && count <= 20) {
+    config.logging.max_files = count;
+  }
   return config;
 }
 } // namespace phi

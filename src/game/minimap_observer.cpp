@@ -40,9 +40,9 @@ struct MinimapObserver::Impl {
   uintptr_t module = 0;
   bool running = false;
   bool logged_sample = false;
-  void (*logger)(const char*) = nullptr;
+  LogCallback logger = nullptr;
 };
-MinimapObserver::MinimapObserver(void (*logger)(const char*)) : impl_(std::make_unique<Impl>()) {
+MinimapObserver::MinimapObserver(LogCallback logger) : impl_(std::make_unique<Impl>()) {
   impl_->logger = logger;
 }
 MinimapObserver::~MinimapObserver() {
@@ -65,7 +65,8 @@ bool MinimapObserver::start() {
       nt.OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC &&
       nt.OptionalHeader.SizeOfImage >= detail::kMinimapRootRva + sizeof(uintptr_t);
   if (impl_->logger) {
-    impl_->logger(impl_->running ? "Minimap observer started (RVA/chain tested on 2.03.02 only)"
+    impl_->logger(impl_->running ? LogLevel::info : LogLevel::warn,
+                  impl_->running ? "Minimap observer started (RVA/chain tested on 2.03.02 only)"
                                  : "Minimap observer unavailable: executable/root slot invalid");
   }
   return impl_->running;
@@ -75,10 +76,10 @@ void MinimapObserver::poll() {
       impl_->running ? detail::sample_minimap(impl_->module, read_memory) : MinimapState::unknown;
   if (impl_->logger && (!impl_->logged_sample || impl_->sampled != impl_->published)) {
     impl_->logged_sample = true;
-    impl_->logger(impl_->sampled == MinimapState::unknown
-                      ? "Minimap sample unavailable; icon hidden"
-                  : impl_->sampled == MinimapState::visible ? "Minimap visible"
-                                                            : "Minimap hidden");
+    impl_->logger(LogLevel::debug, impl_->sampled == MinimapState::unknown
+                                       ? "Minimap sample unavailable; icon hidden"
+                                   : impl_->sampled == MinimapState::visible ? "Minimap visible"
+                                                                             : "Minimap hidden");
   }
   if (impl_->sampled != impl_->published) {
     const auto previous = impl_->published;

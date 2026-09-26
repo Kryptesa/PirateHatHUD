@@ -67,7 +67,7 @@ Hotkeys accept `F8`, `F9`, `F10`, or `F11`. The default position (`x=350`, `y=-3
 
 1. Check that `PirateHatHUD.asi` and `PirateHatHUD.ini` are side by side and the ASI loader is active. If you added `PirateHatHUD.png`, remove it temporarily to test the embedded icon.
 2. Set `force_show=1`, restart the game, and load a save. Enable the minimap and close menus. This tests the overlay without requiring the hat or an active treasure state. Press `F9` to check the toggle.
-3. Open `PirateHatHUD.log` beside the ASI. `DX12 hooks installed; waiting for swapchain` means the graphics hooks started. `DX12 swapchain and present queue captured` and `DX12 overlay initialized` indicate that the renderer reached the game swapchain. `State hooks disabled` means the game's instruction pattern was missing or ambiguous, so normal treasure detection is unavailable.
+3. Open the newest `PirateHatHUD_YYYY-MM-DD_HH-MM-SS-mmm.log` beside the ASI. `DX12 hooks installed; waiting for swapchain` means the graphics hooks started. `DX12 swapchain and present queue captured` and `DX12 overlay initialized` indicate that the renderer reached the game swapchain. `State hooks disabled` means the game's instruction pattern was missing or ambiguous, so normal treasure detection is unavailable.
 4. If the test icon works, restore `force_show=0` and check it while wearing the Pirate King Hat near treasure. If it fails only with DLSS or Frame Generation, record those settings along with the game version and log when reporting the issue.
 
 Minimap diagnostics distinguish `Minimap visible`, `Minimap hidden` and `Minimap sample unavailable; icon hidden`. An unavailable sample hides the icon even with `force_show=1`; polling retries automatically. The root RVA and fixed array slots were verified on 2.03.02 only and may need updating after game changes.
@@ -184,3 +184,14 @@ Menu object resolution uses script RTTI; the UI root slot is specific to game 2.
 In-game verification remains required for Esc/M/I, cutscenes, disabled minimap,
 startup with an open menu, F9/F10 and a fresh game process. Adjust the delay after
 measuring any remaining map closing animation.
+
+### Logging
+
+`[logging]` in `PirateHatHUD.ini` controls `level` (`trace`, `debug`, `info`, `warn`,
+`error`, `off`), `max_file_size_mb` (1?100, default 5), and `max_files` (1?20,
+default 3, including the current file). Invalid values fall back to defaults.
+The default `info` records startup, shutdown and important actions. Set `debug` to
+capture treasure, minimap and menu transitions. Settings apply on the next launch.
+Files use UTC timestamps with milliseconds and rotate at startup or the size limit.
+Only matching timestamp log files are pruned; legacy `PirateHatHUD.log` is left alone
+and can be removed manually. Logging I/O failures do not stop the mod.

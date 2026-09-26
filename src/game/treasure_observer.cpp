@@ -81,7 +81,7 @@ const char* state_name(TreasureState state) {
 } // namespace
 
 struct TreasureObserver::Impl {
-  void (*logger)(const char*);
+  LogCallback logger;
   detail::ObserverHooks<safetyhook::MidHook> hooks;
   Signal<TreasureStateChanged> changes;
   bool claimed = false;
@@ -92,17 +92,16 @@ struct TreasureObserver::Impl {
   std::uintptr_t last_base = 0;
   ULONGLONG last_base_log = 0;
 
-  explicit Impl(void (*callback)(const char*)) : logger(callback) {}
+  explicit Impl(LogCallback callback) : logger(callback) {}
 
-  void log(const char* text) const {
+  void log(LogLevel level, const char* text) const {
     if (logger) {
-      logger(text);
+      logger(level, text);
     }
   }
 };
 
-TreasureObserver::TreasureObserver(void (*logger)(const char*))
-    : impl_(std::make_unique<Impl>(logger)) {}
+TreasureObserver::TreasureObserver(LogCallback logger) : impl_(std::make_unique<Impl>(logger)) {}
 
 TreasureObserver::~TreasureObserver() {
   stop();
@@ -114,12 +113,12 @@ bool TreasureObserver::start() {
     return true;
   }
   if (impl.hooks.result().module_must_remain_loaded) {
-    impl.log("State hooks disabled: observer retired until process exit");
+    impl.log(LogLevel::warn, "State hooks disabled: observer retired until process exit");
     return false;
   }
   bool unclaimed = false;
   if (!g_observer_claimed.compare_exchange_strong(unclaimed, true)) {
-    impl.log("State hooks disabled: another treasure observer is active");
+    impl.log(LogLevel::warn, "State hooks disabled: another treasure observer is active");
     return false;
   }
   impl.claimed = true;
@@ -129,7 +128,7 @@ bool TreasureObserver::start() {
     const char* reason = scan.status == ScanStatus::ambiguous  ? "ambiguous"
                          : scan.status == ScanStatus::no_match ? "no pair"
                                                                : "invalid image";
-    impl.log((std::string("State hooks disabled: ") + reason).c_str());
+    impl.log(LogLevel::warn, (std::string("State hooks disabled: ") + reason).c_str());
     stop();
     return false;
   }
@@ -137,12 +136,12 @@ bool TreasureObserver::start() {
   found << "Unique instruction pair at RVA 0x" << std::hex
         << (scan.sites.enter - reinterpret_cast<std::uintptr_t>(module)) << " and RVA 0x"
         << (scan.sites.leave - reinterpret_cast<std::uintptr_t>(module));
-  impl.log(found.str().c_str());
+  impl.log(LogLevel::debug, found.str().c_str());
   // Prepare both hooks before allowing either to execute callbacks.
   auto enter = safetyhook::MidHook::create(reinterpret_cast<void*>(scan.sites.enter), capture_state,
                                            safetyhook::MidHook::StartDisabled);
   if (!enter) {
-    impl.log("Enter mid-hook failed");
+    impl.log(LogLevel::error, "Enter mid-hook failed");
     stop();
     return false;
   }
@@ -150,7 +149,7 @@ bool TreasureObserver::start() {
   auto leave = safetyhook::MidHook::create(reinterpret_cast<void*>(scan.sites.leave), capture_state,
                                            safetyhook::MidHook::StartDisabled);
   if (!leave) {
-    impl.log("Leave mid-hook failed");
+    impl.log(LogLevel::error, "Leave mid-hook failed");
     stop();
     return false;
   }
@@ -163,12 +162,12 @@ bool TreasureObserver::start() {
   impl.last_base_log = 0;
   g_capturing.store(true, std::memory_order_release);
   if (!impl.hooks.enable()) {
-    impl.log("State mid-hook activation failed");
+    impl.log(LogLevel::error, "State mid-hook activation failed");
     stop();
     return false;
   }
   impl.running = true;
-  impl.log("State mid-hooks active; waiting for RSI/state transitions");
+  impl.log(LogLevel::info, "State mid-hooks active; waiting for RSI/state transitions");
   return true;
 }
 
@@ -185,7 +184,7 @@ void TreasureObserver::poll() {
         std::ostringstream line;
         line << "Treasure pre-instruction state " << pre << " base=0x" << std::hex << base
              << std::dec << " hook_events=" << events;
-        impl.log(line.str().c_str());
+        impl.log(LogLevel::debug, line.str().c_str());
       }
       impl.last_events = events;
     }
@@ -195,7 +194,7 @@ void TreasureObserver::poll() {
       line << "Treasure state " << state_name(impl.current) << " base=0x" << std::hex << base
            << " state_address=0x" << (base ? base + patterns::kStateOffset : 0) << std::dec
            << " hook_events=" << events;
-      impl.log(line.str().c_str());
+      impl.log(LogLevel::debug, line.str().c_str());
       impl.last_base_log = now;
     }
     impl.last_base = base;

@@ -1,4 +1,5 @@
 #pragma once
+#include "core/log.hpp"
 
 #include "core/signal.hpp"
 
@@ -27,7 +28,7 @@ struct ObserverStopResult {
 // The containing DLL must remain loaded until process exit.
 class TreasureObserver {
 public:
-  explicit TreasureObserver(void (*logger)(const char*) = nullptr);
+  explicit TreasureObserver(LogCallback logger = nullptr);
   ~TreasureObserver();
 
   TreasureObserver(const TreasureObserver&) = delete;

@@ -1,4 +1,5 @@
 #pragma once
+#include "core/log.hpp"
 #include "render/image.hpp"
 #include "render/frame_ring.hpp"
 #include "render/wait_policy.hpp"
@@ -27,7 +28,7 @@ public:
   Dx12Renderer(const Dx12Renderer&) = delete;
   Dx12Renderer& operator=(const Dx12Renderer&) = delete;
   void set_image(Image image);
-  void set_logger(void (*logger)(const char*));
+  void set_logger(LogCallback logger);
   bool ready() const {
     return state_ == RendererState::ready;
   }
@@ -70,11 +71,11 @@ private:
   bool initialize_hdr(DXGI_FORMAT format);
   void draw_hdr(ID3D12GraphicsCommandList* list, const HudState& hud, UINT width, UINT height,
                 DXGI_COLOR_SPACE_TYPE color_space);
-  void log(const char* message) const;
+  void log(LogLevel level, const char* message) const;
 
   RendererState state_{RendererState::waiting};
   Image image_;
-  void (*logger_)(const char*){};
+  LogCallback logger_{};
   IDXGISwapChain* swap{};
   HWND window{};
   ComPtr<ID3D12Device> device;

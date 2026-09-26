@@ -10,7 +10,7 @@ namespace {
 std::unique_ptr<render::Dx12Renderer> g_renderer;
 std::mutex g_hud_mutex;
 HudState g_hud;
-void (*g_logger)(const char*){};
+LogCallback g_logger{};
 bool g_started = false;
 bool g_start_attempted = false;
 OverlayStopResult g_stop_result;
@@ -47,7 +47,7 @@ OverlayStopResult stop_overlay() noexcept {
   g_start_attempted = false;
   return g_stop_result;
 }
-void set_overlay_log(void (*logger)(const char*)) {
+void set_overlay_log(LogCallback logger) {
   g_logger = logger;
   if (g_renderer) {
     g_renderer->set_logger(logger);
