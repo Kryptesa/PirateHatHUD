@@ -53,7 +53,8 @@ add_library(PirateHatHUD SHARED src/main.cpp src/app.cpp src/overlay.cpp
   src/render/dx12_texture.cpp src/render/image.cpp src/render/hud_draw.cpp
   src/platform/config.cpp src/platform/hotkeys.cpp src/platform/logger.cpp)
 target_include_directories(PirateHatHUD PRIVATE include)
-target_compile_definitions(PirateHatHUD PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
+target_compile_definitions(PirateHatHUD PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE
+  PHI_VERSION="${PROJECT_VERSION}")
 target_compile_options(PirateHatHUD PRIVATE /W4 /EHsc)
 target_link_libraries(PirateHatHUD PRIVATE game_observers treasure_indicator safetyhook
   imgui_static d3d12 dxgi ole32 windowscodecs)
@@ -95,7 +96,8 @@ if(BUILD_TESTING)
   add_test(NAME observer_hook_tests COMMAND observer_hook_tests)
   add_executable(app_tests tests/app_tests.cpp src/app.cpp)
   target_link_libraries(app_tests PRIVATE treasure_indicator)
-  target_compile_definitions(app_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+  target_compile_definitions(app_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX
+    PHI_VERSION="${PROJECT_VERSION}")
   add_test(NAME app_tests COMMAND app_tests)
   add_executable(render_wait_tests tests/render_wait_tests.cpp)
   target_include_directories(render_wait_tests PRIVATE include)

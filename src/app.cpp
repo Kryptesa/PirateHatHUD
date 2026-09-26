@@ -118,7 +118,7 @@ AppExitDisposition run_app(HMODULE module) noexcept {
       std::wstring folder(path, length);
       folder.resize(folder.find_last_of(L"\\/") + 1);
       logging.open(folder + L"PirateHatHUD.log");
-      log("0.3.0-dx12-preview");
+      log(PHI_VERSION);
       const auto config = read_config(folder + L"config.ini");
       if (!prepare_overlay_icon((folder + L"icon.png").c_str())) {
         log("Required icon.png missing or invalid; mod not started");
