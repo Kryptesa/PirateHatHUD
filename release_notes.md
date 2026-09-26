@@ -1,39 +1,49 @@
-# Pirate Hat HUD 0.4.0
+# Pirate Hat HUD 0.5.0
 
-This release improves how the icon follows the game's HUD and makes the overlay
-more reliable when changing graphics settings.
+Treasure detection now plays a short sound as well as showing the chest icon.
+The default icon and sound are embedded in the ASI; no extra asset files are needed.
 
 ## What's new
 
-The chest icon hides when you open the main menu or turn off the minimap. When you
-return to the game, it waits one second before appearing again. Change
-`show_delay_ms` in the INI if you'd prefer a shorter delay, or set it to `0`.
-Test mode follows these rules too.
+The sound plays once when the Pirate King Hat starts detecting treasure. The first
+active state after loading also notifies once when gameplay becomes ready. It does
+not repeat while the perk stays active or on subsequent exits from menus.
 
-Frame handling has been improved to reduce flicker. The overlay can recover when
-the game replaces its swapchain, and auxiliary windows no longer take over its
-rendering target. Menu detection also handles quick open/close transitions and
-unavailable game memory more consistently.
+Sound is suppressed while the mod is disabled, the minimap is hidden or unavailable,
+a menu is open or unavailable, or the game is unfocused. Audio runs on a separate
+worker so starting or stopping playback does not hold up HUD observation.
 
-The default icon is now built into the ASI. Custom icons still work: put a file
-named `PirateHatHUD_treasure.png` beside it. Logs now have configurable levels and rotate
-automatically instead of growing indefinitely.
+F9 now toggles both the icon and sound. To turn off sound independently, set
+`enabled=0` under `[sound]` in `PirateHatHUD.ini`. `cooldown_ms` sets the minimum
+interval between notifications (0?60000 ms; default 1000).
+
+To use your own sound, manually place `PirateHatHUD_treasure.wav` beside the ASI.
+Supported files are mono or stereo PCM WAV, 8-bit or 16-bit, 8?192 kHz, up to 8 MiB.
+Remove the override to restore the built-in sound, and restart the game after changes.
 
 ## Updating
 
-Back up your settings, import `PirateHatHUD-0.4.0.zip` into CDUMM, and restart the
-game. If you're upgrading from a version that used `config.ini`, copy your settings
-into `PirateHatHUD.ini`.
+Back up your settings, close the game and import `PirateHatHUD-0.5.0.zip` into CDUMM
+with the existing mod enabled. Restart the game. Existing INI files without a
+`[sound]` section use the defaults: sound enabled, 1000 ms cooldown.
 
-F9 toggles the icon. F10 stops the mod until the next game launch.
+F10 stops the mod until the next game launch. See the [README](README.md) for
+installation, settings and troubleshooting.
 
-See the [README](README.md) for installation, settings and troubleshooting.
+## Credits
 
-## Compatibility
+- Icons by [Icons8](https://icons8.com/).
+- Sound: "Subscribe alert - metal dings" by Roy's Noise, via [Uppbeat](https://uppbeat.io/).
 
-The UI memory layout is based on Crimson Desert 2.03.02. Game updates may require
-new offsets or instruction patterns.
+## Compatibility and validation
 
+Windows x64 and DirectX 12. The UI memory layout is based on Crimson Desert 2.03.02;
+game updates may require new offsets or instruction patterns.
 SDR, scRGB and HDR10 output are supported. For HDR10, the mod needs to see the game's
 color-space change; if the icon looks wrong, try switching HDR off and back on.
 Swapchain recovery supports replacements within the same game window.
+
+Release validation includes architecture checks, formatting and all 21 CTest tests.
+In-game feedback confirmed sound playback, improved icon responsiveness and the
+first notification after loading. The game version and graphics settings for that
+feedback were not recorded.

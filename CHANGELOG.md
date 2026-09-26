@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0 — 2026-09-27
+
+- Added a single sound notification when treasure detection becomes active.
+  The first active state after loading also notifies once when gameplay is ready.
+- Embedded the default sound in the ASI, so no separate WAV installation is needed.
+  An optional `PirateHatHUD_treasure.wav` beside the ASI overrides it.
+- Added `[sound] enabled` and `cooldown_ms`; F9 toggles both the icon and sound.
+- Suppressed sound in menus, with a hidden or unknown minimap, while the mod is
+  disabled, and while the game is unfocused. Later menu exits do not replay it.
+- Moved audio device calls off the HUD polling thread to keep observation responsive.
+- Added icon and sound credits and regression tests for notification and audio lifetime.
+
 ## 0.4.0 — 2026-09-27
 
 - The icon now hides when the minimap is off or the main menu is open. It returns
