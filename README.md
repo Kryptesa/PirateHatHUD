@@ -1,7 +1,8 @@
 # Pirate Hat HUD
 
 A small HUD mod for Crimson Desert. When the Pirate King Hat detects treasure nearby,
-a chest icon appears on screen. It hides while the minimap is off or a menu is open,
+a chest icon appears on screen and a short sound plays when detection becomes active.
+The icon hides while the minimap is off or a menu is open,
 and returns after a short delay when you get back to the game.
 
 **Current version: 0.4.0** · Windows x64 · DirectX 12
@@ -13,8 +14,8 @@ With [CDUMM](https://github.com/faisalkindi/CrimsonDesert-UltimateModsManager), 
 sure the ASI loader is enabled. Restart the game.
 
 If you use another ASI loader, put `PirateHatHUD.asi` and `PirateHatHUD.ini` together
-in its plugin folder. The default icon is built into the mod, so you don't need to
-copy a PNG.
+in its plugin folder. The default icon and sound are built into the mod, so you don't
+need to copy a PNG or WAV.
 
 When updating, back up your INI first and check that you don't have a second copy
 of the ASI installed. Older versions used `config.ini`; move those settings into
@@ -38,6 +39,10 @@ y=-310
 scale_percent=100
 show_delay_ms=1000
 
+[sound]
+enabled=1
+cooldown_ms=1000
+
 [hotkeys]
 toggle=F9
 unload=F10
@@ -48,7 +53,7 @@ max_file_size_mb=5
 max_files=3
 ```
 
-- **F9** toggles the icon. Set `enabled=0` to start with it off.
+- **F9** toggles the icon and sound. Set `[indicator] enabled=0` to start with them off.
 - **F10** stops the mod for the rest of the session. Restart the game to use it again.
 - **Position:** `x` counts from the left. A negative `y` counts up from the bottom;
   zero or a positive value counts down from the top. The defaults were chosen for
@@ -59,6 +64,14 @@ max_files=3
   Values up to `60000` are accepted.
 - **Test mode:** `force_show=1` shows the icon without needing the hat or nearby
   treasure. It still hides in menus and when the minimap is off.
+- **Sound:** `[sound] enabled=0` disables the notification. `cooldown_ms` sets the
+  minimum interval between sounds (0 to 60000 ms; default 1000).
+
+The sound plays once when observed treasure detection changes from inactive to active.
+Starting with an already active perk is silent. Detection while the mod is disabled,
+the game is unfocused, a menu is open or unknown, or the minimap is hidden or unknown
+is silent and is not replayed later. Sound is independent of the icon's return delay;
+`force_show` does not trigger it.
 
 Hotkeys can be set to F8, F9, F10 or F11.
 
@@ -79,6 +92,14 @@ draws every icon as a square. Its on-screen size is 56 × 56 pixels at
 CDUMM won't install this file for you or remove it when you uninstall the mod.
 If the image can't be loaded, the mod won't start; remove it to go back to the
 built-in icon.
+
+### Custom sound
+
+The default sound is embedded in the ASI. To override it, place a short PCM WAV named
+`PirateHatHUD_treasure.wav` next to the ASI, then restart the game. Remove the file to
+restore the embedded sound. Custom sounds must be installed manually.
+Supported files are mono or stereo, 8-bit or 16-bit PCM, 8–192 kHz, up to 8 MiB.
+An invalid custom WAV disables sound only and writes a warning to the log.
 
 ## Troubleshooting
 
@@ -134,6 +155,11 @@ cmake -DCHECK=ON -P cmake/Format.cmake
 See [AGENTS.md](AGENTS.md) for contribution guidelines and
 [docs/architecture.md](docs/architecture.md) for module boundaries and hook lifetimes.
 The mod reads the game's treasure state; it doesn't change the counter.
+
+## Credits
+
+- Icons by [Icons8](https://icons8.com/).
+- Sound: "Subscribe alert - metal dings" by Roy's Noise, via [Uppbeat](https://uppbeat.io/).
 
 ## License
 

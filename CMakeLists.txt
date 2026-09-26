@@ -24,9 +24,10 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 set(PHI_ICON_RESOURCE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.png")
+set(PHI_SOUND_RESOURCE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/assets/treasure.wav")
 configure_file(assets/icon.rc.in "${CMAKE_CURRENT_BINARY_DIR}/generated/icon.rc" @ONLY)
 set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/generated/icon.rc"
-  PROPERTIES OBJECT_DEPENDS "${PHI_ICON_RESOURCE_PATH}")
+  PROPERTIES OBJECT_DEPENDS "${PHI_ICON_RESOURCE_PATH};${PHI_SOUND_RESOURCE_PATH}")
 configure_file(cmake/modinfo.json.in "${CMAKE_CURRENT_BINARY_DIR}/generated/modinfo.json" @ONLY)
 include(FetchContent)
 set(SAFETYHOOK_FETCH_ZYDIS ON CACHE BOOL "Fetch Zydis" FORCE)
@@ -51,7 +52,7 @@ target_compile_definitions(game_observers PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX U
 target_compile_options(game_observers PRIVATE /W4 /EHsc)
 target_link_libraries(game_observers PRIVATE safetyhook)
 
-add_library(treasure_indicator STATIC src/features/treasure_indicator.cpp)
+add_library(treasure_indicator STATIC src/features/treasure_indicator.cpp src/features/treasure_sound.cpp)
 target_include_directories(treasure_indicator PUBLIC include)
 target_compile_options(treasure_indicator PRIVATE /W4 /EHsc)
 
@@ -60,19 +61,20 @@ add_library(PirateHatHUD SHARED "${CMAKE_CURRENT_BINARY_DIR}/generated/icon.rc"
   src/render/dxgi_hooks.cpp src/render/dx12_renderer.cpp src/render/dx12_frames.cpp
   src/render/dx12_texture.cpp src/render/dx12_hdr.cpp src/render/hdr_bytecode.cpp
   src/render/image.cpp src/render/hud_draw.cpp
-  src/platform/config.cpp src/platform/hotkeys.cpp src/platform/logger.cpp)
+  src/platform/config.cpp src/platform/hotkeys.cpp src/platform/logger.cpp src/platform/sound.cpp)
 target_include_directories(PirateHatHUD PRIVATE include)
 target_compile_definitions(PirateHatHUD PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE
   PHI_VERSION="${PROJECT_VERSION}")
 target_compile_options(PirateHatHUD PRIVATE /W4 /EHsc)
 target_link_libraries(PirateHatHUD PRIVATE game_observers treasure_indicator safetyhook
-  imgui_static d3d12 dxgi d3dcompiler ole32 windowscodecs)
+  imgui_static d3d12 dxgi d3dcompiler ole32 windowscodecs winmm)
 set_target_properties(PirateHatHUD PROPERTIES PREFIX "" SUFFIX ".asi")
 
 add_custom_command(TARGET PirateHatHUD POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:PirateHatHUD>" "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/PirateHatHUD.asi"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/config.ini" "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/PirateHatHUD.ini"
+  COMMAND ${CMAKE_COMMAND} -E rm -f "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/PirateHatHUD_treasure.wav"
   COMMAND ${CMAKE_COMMAND} -E rm -f "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/config.ini" "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/icon.png"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_BINARY_DIR}/generated/modinfo.json" "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/modinfo.json"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/LICENSE" "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/LICENSE"
@@ -121,6 +123,15 @@ if(BUILD_TESTING)
   add_executable(indicator_tests tests/indicator_tests.cpp)
   target_link_libraries(indicator_tests PRIVATE treasure_indicator)
   add_test(NAME indicator_tests COMMAND indicator_tests)
+  add_executable(treasure_sound_tests tests/treasure_sound_tests.cpp)
+  target_link_libraries(treasure_sound_tests PRIVATE treasure_indicator)
+  add_test(NAME treasure_sound_tests COMMAND treasure_sound_tests)
+  add_executable(sound_tests tests/sound_tests.cpp src/platform/sound.cpp
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/icon.rc")
+  target_include_directories(sound_tests PRIVATE include)
+  target_compile_definitions(sound_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+  target_link_libraries(sound_tests PRIVATE winmm)
+  add_test(NAME sound_tests COMMAND sound_tests)
   add_executable(observer_tests tests/observer_tests.cpp)
   target_link_libraries(observer_tests PRIVATE game_observers)
   target_compile_definitions(observer_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
@@ -175,4 +186,4 @@ endif()
 phi_check_target(game_observers safetyhook)
 phi_check_target(treasure_indicator)
 phi_check_target(PirateHatHUD game_observers treasure_indicator safetyhook
-  imgui_static d3d12 dxgi d3dcompiler ole32 windowscodecs)
+  imgui_static d3d12 dxgi d3dcompiler ole32 windowscodecs winmm)

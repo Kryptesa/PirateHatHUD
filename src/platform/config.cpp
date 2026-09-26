@@ -38,6 +38,13 @@ Config read_config(const std::wstring& path) {
   if (config.show_delay_ms < 0 || config.show_delay_ms > 60000) {
     config.show_delay_ms = defaults.show_delay_ms;
   }
+  config.sound_enabled =
+      GetPrivateProfileIntW(L"sound", L"enabled", defaults.sound_enabled, path.c_str()) != 0;
+  config.sound_cooldown_ms = static_cast<int>(
+      GetPrivateProfileIntW(L"sound", L"cooldown_ms", defaults.sound_cooldown_ms, path.c_str()));
+  if (config.sound_cooldown_ms < 0 || config.sound_cooldown_ms > 60000) {
+    config.sound_cooldown_ms = defaults.sound_cooldown_ms;
+  }
   wchar_t key[16]{};
   GetPrivateProfileStringW(L"hotkeys", L"toggle", L"", key, 16, path.c_str());
   config.toggle_key = key_from_name(key, config.toggle_key);

@@ -7,6 +7,8 @@ struct Config {
   bool enabled = true;
   bool force_show = false;
   int show_delay_ms = 1000;
+  bool sound_enabled = true;
+  int sound_cooldown_ms = 1000;
   int x = 350;
   int y = -310;
   float scale = 1.0f;

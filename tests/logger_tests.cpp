@@ -130,4 +130,21 @@ int main() {
   CHECK(settings.max_file_size == 5 * 1024 * 1024);
   CHECK(settings.max_files == 3);
   CHECK(read_config((folder / "missing.ini").wstring()).logging.level == LogLevel::info);
+  const auto defaults = read_config((folder / "missing.ini").wstring());
+  CHECK(defaults.sound_enabled);
+  CHECK(defaults.sound_cooldown_ms == 1000);
+  std::ofstream(ini) << "[sound]\nenabled=0\ncooldown_ms=2500\n";
+  auto sound_settings = read_config(ini.wstring());
+  CHECK(!sound_settings.sound_enabled);
+  CHECK(sound_settings.sound_cooldown_ms == 2500);
+  std::ofstream(ini) << "[sound]\nenabled=1\ncooldown_ms=0\n";
+  sound_settings = read_config(ini.wstring());
+  CHECK(sound_settings.sound_enabled);
+  CHECK(sound_settings.sound_cooldown_ms == 0);
+  std::ofstream(ini) << "[sound]\ncooldown_ms=60000\n";
+  CHECK(read_config(ini.wstring()).sound_cooldown_ms == 60000);
+  std::ofstream(ini) << "[sound]\ncooldown_ms=-1\n";
+  CHECK(read_config(ini.wstring()).sound_cooldown_ms == 1000);
+  std::ofstream(ini) << "[sound]\ncooldown_ms=60001\n";
+  CHECK(read_config(ini.wstring()).sound_cooldown_ms == 1000);
 }

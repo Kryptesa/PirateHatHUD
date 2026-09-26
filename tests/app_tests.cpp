@@ -6,6 +6,7 @@
 #include "platform/config.hpp"
 #include "platform/hotkeys.hpp"
 #include "platform/logger.hpp"
+#include "platform/sound.hpp"
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
@@ -33,6 +34,12 @@ struct Scenario {
   bool hud_visible = false;
   phi::MinimapState minimap_state = phi::MinimapState::visible;
   bool force_show = false;
+  bool enabled = true;
+  bool sound_enabled = true;
+  bool foreground = true;
+  bool sound_valid = true;
+  unsigned polls = 0;
+  std::vector<phi::TreasureState> treasure_states = {phi::TreasureState::active};
   bool overlay_started = false;
   bool observer_started = false;
   bool observer_retained = false;
@@ -170,7 +177,8 @@ bool TreasureObserver::start() {
 }
 void TreasureObserver::poll() {
   step("poll");
-  impl_->changes.publish({TreasureState::unknown, TreasureState::active});
+  const auto index = std::min<std::size_t>(scenario.polls++, scenario.treasure_states.size() - 1);
+  impl_->changes.publish({TreasureState::unknown, scenario.treasure_states[index]});
 }
 ObserverStopResult TreasureObserver::stop() noexcept {
   if (!impl_->stopped) {
@@ -214,12 +222,35 @@ Config read_config(const std::wstring& path) {
   step("config");
   Config config;
   config.force_show = scenario.force_show;
+  config.enabled = scenario.enabled;
+  config.sound_enabled = scenario.sound_enabled;
   config.show_delay_ms = 0;
   return config;
 }
 HotkeyActions poll_hotkeys(int, int) {
   step("hotkeys");
-  return {false, true};
+  return {false, scenario.polls >= scenario.treasure_states.size()};
+}
+bool game_is_foreground() {
+  return scenario.foreground;
+}
+SoundPlayer::~SoundPlayer() {
+  stop();
+}
+bool SoundPlayer::prepare(const std::wstring&) {
+  step("sound_prepare");
+  return scenario.sound_valid;
+}
+bool SoundPlayer::prepare_embedded() {
+  step("sound_prepare");
+  return scenario.sound_valid;
+}
+bool SoundPlayer::play() noexcept {
+  scenario.calls.emplace_back("sound_play");
+  return scenario.sound_valid;
+}
+void SoundPlayer::stop() noexcept {
+  scenario.calls.emplace_back("sound_stop");
 }
 bool prepare_overlay_icon(const wchar_t* path) {
   scenario.embedded_icon = path == nullptr;
@@ -317,12 +348,53 @@ int main() {
   CHECK(before("clear_logger", "close_log"));
   CHECK(std::count(scenario.calls.begin(), scenario.calls.end(), "observer_stop") == 1);
   CHECK(std::count(scenario.calls.begin(), scenario.calls.end(), "overlay_stop") == 1);
+  CHECK(!has("sound_play")); // Startup with an already active perk remains silent.
+  CHECK(before("sound_stop", "overlay_stop"));
 
-  for (const auto* failure :
-       {"observer_construct", "subscribe", "hud", "set_logger", "overlay_start", "observer_start",
-        "poll", "subscriber", "minimap_subscribe", "minimap_start", "minimap_poll",
-        "minimap_subscriber", "menu_subscribe", "menu_start", "menu_poll", "hotkeys", "unknown",
-        "diagnostics", "hud_runtime"}) {
+  for (int suppression = 0; suppression < 7; ++suppression) {
+    scenario = {};
+    scenario.treasure_states = {phi::TreasureState::inactive, phi::TreasureState::active,
+                                phi::TreasureState::active, phi::TreasureState::active};
+    scenario.enabled = suppression != 1;
+    scenario.sound_enabled = suppression != 2;
+    scenario.foreground = suppression != 3;
+    if (suppression == 4) {
+      scenario.menu_state = phi::MenuState::open;
+    }
+    if (suppression == 5) {
+      scenario.minimap_state = phi::MinimapState::hidden;
+    }
+    scenario.force_show = suppression == 6;
+    CHECK(run() == AppExitDisposition::unload_allowed);
+    CHECK(std::count(scenario.calls.begin(), scenario.calls.end(), "sound_play") ==
+          (suppression == 0 || suppression == 6 ? 1 : 0));
+    CHECK(scenario.cleanup_order_valid);
+  }
+  scenario = {};
+  scenario.sound_valid = false;
+  CHECK(run() == AppExitDisposition::unload_allowed);
+  CHECK(has("overlay_start") && has("observer_start"));
+
+  for (const auto* failure : {"observer_construct",
+                              "subscribe",
+                              "hud",
+                              "set_logger",
+                              "overlay_start",
+                              "observer_start",
+                              "poll",
+                              "subscriber",
+                              "minimap_subscribe",
+                              "minimap_start",
+                              "minimap_poll",
+                              "minimap_subscriber",
+                              "menu_subscribe",
+                              "menu_start",
+                              "menu_poll",
+                              "hotkeys",
+                              "unknown",
+                              "diagnostics",
+                              "hud_runtime",
+                              "sound_prepare"}) {
     scenario = {};
     scenario.fail = failure;
     CHECK(run() == AppExitDisposition::unload_allowed);

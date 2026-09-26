@@ -46,8 +46,11 @@ in the same task, including any constraints passed to delegated agents.
   points: `include/game/treasure_observer.hpp` `include/game/minimap_observer.hpp` and `include/game/menu_observer.hpp`. No HUD, configuration or DirectX dependency.
 - `core/signal.hpp`: reusable typed synchronous signals and move-only RAII subscriptions.
 - `treasure_indicator`: presentation policy for this mod, producing a `HudState`.
+- `features/treasure_sound`: notification policy using observer state values and a
+  steady-clock cooldown, independent of HUD visibility and return delay.
 - `overlay`: DX12 resources and drawing from a coherent `HudState` snapshot.
-- `platform`: INI configuration, Windows hotkeys and file logging.
+- `platform`: INI configuration, Windows hotkeys, file logging and asynchronous WAV
+  playback through `platform/sound`.
 - `app`: composition, polling and exception-safe shutdown. `main.cpp` starts the worker
   and unloads only when the application explicitly permits it.
 
@@ -223,6 +226,26 @@ snapshot. Immediate means the first owner-thread publication after a captured si
 the game's +25B transition itself is delayed relative to input.
 
 Menu implementation evidence and remaining game checks: [menu observation](menu-observation.md).
+
+## Treasure sound
+
+Application composition combines minimap, menu, mod enablement and foreground state
+into playback eligibility, then passes this and sampled treasure state to the
+sound policy, configured with sound enablement and cooldown. Only
+an observed inactive-to-active transition can request playback; unknown-to-active at
+startup does not. Disabled sound/mod, hidden or unknown minimap, open or unknown menu,
+an unfocused game and cooldown suppress the request without deferring it. The policy
+does not consume HUD visibility, show_delay_ms or force_show.
+
+The application owns the platform WAV player and connects policy requests to it.
+Playback is asynchronous on the application thread; game hooks still capture data only.
+The default WAV is embedded as RCDATA resource 102 in the ASI. An optional external
+`PirateHatHUD_treasure.wav` overrides it; no standalone WAV is packaged. Both paths
+validate PCM bytes before playback. Sound policy tests cover transitions, suppression and cooldown;
+actual playback, focus changes and notification timing require in-game verification.
+The player preloads bounded, validated PCM RIFF bytes and retains them until a
+synchronous PlaySound stop completes. WinMM PlaySound playback is process-wide:
+another mod using the same API can compete with playback or be affected by stopping it.
 
 ## Logging
 

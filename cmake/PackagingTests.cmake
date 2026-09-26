@@ -5,7 +5,7 @@ foreach(name PirateHatHUD.asi PirateHatHUD.ini modinfo.json LICENSE THIRD_PARTY_
     message(FATAL_ERROR "Missing distribution file: ${name}")
   endif()
 endforeach()
-foreach(name config.ini icon.png)
+foreach(name config.ini icon.png PirateHatHUD_treasure.wav)
   if(EXISTS "${STAGE_DIR}/${name}")
     message(FATAL_ERROR "Legacy distribution file remains: ${name}")
   endif()

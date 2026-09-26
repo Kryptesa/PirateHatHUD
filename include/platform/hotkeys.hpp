@@ -24,4 +24,5 @@ private:
   bool down_ = false;
 };
 HotkeyActions poll_hotkeys(int toggle_key, int unload_key);
+bool game_is_foreground();
 } // namespace phi
