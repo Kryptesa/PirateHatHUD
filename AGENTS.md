@@ -13,7 +13,7 @@ PirateHatHUD is a Windows x64 C++23 ASI mod for Crimson Desert. `src/main.cpp` i
 - Keep DLL entry points and application composition separate from feature and graphics implementations. Split by responsibility, not an arbitrary file-length limit.
 - Update architecture documentation and checker rules together when intentionally changing a boundary. Do not weaken a check solely to make a failing change pass.
 - When delegating, include the relevant architectural constraints and owned paths in each task. Review the integrated dependency graph and file layout before completing the task.
-- Run `architecture-check` and CTest before completion. Report any checks that could not run and any behavior requiring in-game verification.
+- Run `architecture-check` and CTest before completing tasks that change project code, tests, build configuration, or architecture checker rules. Discussion, planning, read-only investigation, and documentation-only changes do not require these checks unless the user explicitly requests them. For tasks requiring validation, report any checks that could not run and any behavior requiring in-game verification.
 
 ## Build, Test, and Development Commands
 
