@@ -122,6 +122,9 @@ turning HDR off and back on so the mod can pick up the game's color-space settin
 
 ## Building
 
+Game research tools, event investigation notes and a compatibility checklist are in
+[tools/game-research](tools/game-research/README.md).
+
 You'll need Visual Studio 2022 or Build Tools with the x64 C++ toolchain, a Windows
 SDK, the C++ CMake tools, and Git. From PowerShell:
 
