@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.28)
 project(PirateHatHUD VERSION 0.3.0 LANGUAGES CXX)
 
+include(cmake/Architecture.cmake)
+add_custom_target(architecture-check ALL
+  COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Architecture.cmake"
+  VERBATIM)
+
 set(CLANG_FORMAT "" CACHE FILEPATH "Path to clang-format 20.1.8")
 add_custom_target(format
   COMMAND ${CMAKE_COMMAND} "-DCLANG_FORMAT=${CLANG_FORMAT}"
@@ -65,6 +70,11 @@ add_custom_command(TARGET PirateHatHUD POST_BUILD
 
 include(CTest)
 if(BUILD_TESTING)
+  add_test(NAME architecture_check COMMAND ${CMAKE_COMMAND}
+    -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Architecture.cmake")
+  add_test(NAME architecture_checker_tests COMMAND ${CMAKE_COMMAND}
+    "-DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/architecture-tests"
+    -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/ArchitectureTests.cmake")
   add_executable(scanner_tests tests/scanner_tests.cpp src/pattern_scan.cpp)
   target_include_directories(scanner_tests PRIVATE include)
   target_compile_definitions(scanner_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
@@ -85,3 +95,8 @@ if(BUILD_TESTING)
   target_link_libraries(image_tests PRIVATE ole32 windowscodecs)
   add_test(NAME image_tests COMMAND image_tests "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.png")
 endif()
+
+phi_check_target(game_observers safetyhook)
+phi_check_target(treasure_indicator)
+phi_check_target(PirateHatHUD game_observers treasure_indicator safetyhook
+  imgui_static d3d12 dxgi ole32 windowscodecs)

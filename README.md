@@ -74,6 +74,15 @@ The compiled ASI is `build/Release/PirateHatHUD.asi`. The ready-to-install folde
 
 ## Code style
 
+Architecture rules live in [AGENTS.md](AGENTS.md) and the
+[module architecture](docs/architecture.md). The default build checks header/source
+placement and module includes, and configuration validates production target links.
+CTest includes checker regression cases. To check layout and includes without a build:
+
+```powershell
+cmake -P cmake/Architecture.cmake
+```
+
 C++ code uses clang-format **20.1.8**, with LLVM style, two-space indentation,
 a 100-column limit, and expanded control statements. The shared `.clang-format`
 and `.editorconfig` files keep editor and command-line formatting consistent.

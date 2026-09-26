@@ -3,6 +3,44 @@
 The project builds one ASI and two static libraries. Modules are linked into the ASI;
 they are not dynamically loaded plugins.
 
+## Required layout and dependencies
+
+All project headers belong under `include/`; implementations belong under `src/`.
+Module directories match across these roots. Internal headers use this same layout;
+only explicitly documented interfaces are intended for library consumers.
+
+| Module | Allowed project dependencies | External dependencies |
+| --- | --- | --- |
+| `core` | Its own headers | Standard library |
+| `game` / `game_observers` | Its own headers, `core`, scanner and patterns | Windows, SafetyHook |
+| `features` / `treasure_indicator` | Its own headers, `game/treasure_observer.hpp`, `render/hud_state.hpp` | Standard library |
+| `render` | Its own headers, including `HudState` | Windows, DX12/DXGI, WIC, ImGui, SafetyHook for graphics hooks |
+| `overlay` facade | Its own header, `render` | Standard library |
+| `platform` | Its own headers | Standard library, Windows |
+| `app` and DLL entry | All modules for composition | Windows, standard library |
+
+The current feature interface includes the observer header for state types; it does
+not create or manage observers. If more features need those types, extract a small
+game-state header and update this contract and the checker together.
+
+Game observers must not include rendering or mod configuration. Rendering receives
+HUD state and must not read game memory or include game observers. Platform utilities
+must not acquire game or graphics responsibilities. Application composition wires
+the modules and owns their lifetimes. Adding a module requires an explicit place in
+this matrix and `phi_module()` in `cmake/Architecture.cmake`.
+
+The checker enforces direct literal project includes, layout, selected external
+header restrictions, and the actual direct/interface link dependencies of the three
+production CMake targets. It is not a full C++ dependency analyzer: macro-generated
+includes, transitive standard-library includes, forward declarations and behavioral
+thread/lifetime contracts still require review. Do not use those gaps to bypass a boundary.
+
+Run `cmake --build build --target architecture-check`, or run
+`cmake -P cmake/Architecture.cmake` without configuring. The default build runs source
+checks; CMake configuration validates target links. CTest runs both the source checker
+and its regression cases. Changes to boundaries must update documentation and checks
+in the same task, including any constraints passed to delegated agents.
+
 - `game_observers`: game-specific scanning, hooks and safe memory reads. Public entry
   point: `include/game/treasure_observer.hpp`. No HUD, configuration or DirectX dependency.
 - `core/signal.hpp`: reusable typed synchronous signals and move-only RAII subscriptions.
