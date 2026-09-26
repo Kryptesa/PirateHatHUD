@@ -56,3 +56,35 @@ Tests use CTest with a standalone C++ executable and `CHECK` assertions; no exte
 ## Commit & Pull Request Guidelines
 
 History uses short imperative subjects such as “Add DX12 diagnostic icon overlay”; follow that convention. Keep changes focused. PRs should explain behavior changes and validation, link relevant issues, and include screenshots for HUD changes. Update documentation when configuration or installation changes. Preserve third-party notices and bundled licenses when changing distribution.
+
+### Release commits
+
+- Write release commit messages in English. Use exactly `Release X.Y.Z` as the
+  subject, for example `Release 0.6.0`. Do not add `Prepare`, a `v` prefix,
+  feature summaries or punctuation to the subject.
+- Use this format for the commit that finalizes a mod version and its release
+  documentation. Ordinary feature and fix commits keep the imperative style above.
+  The version is the mod version, not the supported game version.
+- Keep release commits focused on the version bump, changelog, release notes and
+  packaging/documentation adjustments needed for that release. Commit substantial
+  feature implementations and fixes separately before finalizing the release.
+- In the body, use the three labels shown below. Summarize the main user-facing
+  changes, actual validation results, and game compatibility or remaining in-game
+  checks. Never report an unperformed check as passed.
+- Keep the version in `CMakeLists.txt`, `README.md`, `CHANGELOG.md` and
+  `release_notes.md` consistent. Generated package metadata derives its version
+  from CMake; do not introduce a second version source.
+- When creating a release tag, use `vX.Y.Z` pointing to the release commit.
+  Creating the commit alone does not publish a release.
+- Apply this convention to future releases. Do not rewrite existing commits or
+  tags solely to normalize their names.
+
+Message template (replace every placeholder with actual results):
+
+```text
+Release X.Y.Z
+
+Changes: <main user-facing changes; details are in CHANGELOG.md>
+Validation: <build, architecture-check, formatting and test results>
+Compatibility: <verified game version/scenarios and outstanding in-game checks>
+```
