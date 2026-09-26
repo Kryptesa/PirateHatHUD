@@ -36,6 +36,8 @@ ReleaseResult Dx12Renderer::shutdown() noexcept {
   }
   release_buffers();
   icon_texture.Reset();
+  hdr_pipeline.Reset();
+  hdr_root.Reset();
   icon_upload.Reset();
   icon_gpu = {};
   icon_pending = false;
@@ -124,7 +126,8 @@ bool Dx12Renderer::replace_swapchain(IDXGISwapChain* candidate,
   log("DX12 overlay recovered on replacement swapchain");
   return true;
 }
-void Dx12Renderer::render(IDXGISwapChain* target_swap, const HudState& hud) {
+void Dx12Renderer::render(IDXGISwapChain* target_swap, const HudState& hud,
+                          DXGI_COLOR_SPACE_TYPE color_space) {
   if (!ready() || this->swap != target_swap || !queue || untracked_submission) {
     return;
   }
@@ -154,10 +157,14 @@ void Dx12Renderer::render(IDXGISwapChain* target_swap, const HudState& hud) {
     return;
   }
   const bool upload_icon = record_icon_upload(list.Get());
+  const bool hdr = color_space == DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709 ||
+                   color_space == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020;
   ImGui_ImplDX12_NewFrame();
   ImGui_ImplWin32_NewFrame();
   ImGui::NewFrame();
-  draw_hud(hud, icon_gpu);
+  if (!hdr) {
+    draw_hud(hud, icon_gpu);
+  }
   ImGui::Render();
   auto* draw_data = ImGui::GetDrawData();
   // The backend returns before consuming a ring slot for a minimized window.
@@ -185,6 +192,11 @@ void Dx12Renderer::render(IDXGISwapChain* target_swap, const HudState& hud) {
   list->SetDescriptorHeaps(1, &srv);
   ExternalTextureDraw external_textures(*draw_data);
   ImGui_ImplDX12_RenderDrawData(draw_data, list.Get());
+  if (hdr && hud.visible) {
+    const auto buffer_desc = frame.buffer->GetDesc();
+    draw_hdr(list.Get(), hud, static_cast<UINT>(buffer_desc.Width), buffer_desc.Height,
+             color_space);
+  }
   std::swap(barrier.Transition.StateBefore, barrier.Transition.StateAfter);
   list->ResourceBarrier(1, &barrier);
   if (FAILED(list->Close())) {

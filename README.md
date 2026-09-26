@@ -57,7 +57,7 @@ unload=F10
 | `force_show` | `1` draws the icon for testing when the minimap is visible, regardless of treasure state or treasure pattern scan results. Return it to `0` for normal play. |
 | `x` | Horizontal position in pixels from the left edge. |
 | `y` | Negative values count pixels up from the bottom; zero and positive values count down from the top. |
-| `scale_percent` | Icon size from `25` to `400`. Values outside this range use `100`. |
+| `scale_percent` | Icon scale from `25` to `400`; `100` draws 56 × 56 pixels. Values outside this range use `100`. |
 | `toggle` | Enable or disable the indicator for the current session. Visibility still follows treasure/minimap state. Default: `F9`. |
 | `unload` | Disable observation and rendering for the current session. Default: `F10`. The DLL and required hook allocations remain loaded until game exit after hook activation. |
 
@@ -164,6 +164,12 @@ API, thread and lifetime contracts, reuse boundaries, and validation limits.
 The mod scans executable sections of `CrimsonDesert.exe` for a unique pair of treasure-counter instructions. It attaches observation hooks at the matching instructions, captures the counter address, and reads the counter to decide when to show the icon. It does not write to or freeze the counter. A missing or ambiguous match disables state observation and is logged.
 
 The overlay draws `icon.png` through a DirectX 12 swapchain hook. The counter hooks were confirmed on Crimson Desert 1.0.0.2976 (EXE SHA-256 `57da440d72f4db974f25fef047cf84c4dadd999a88cb2a3c5af4c9bd67fde1e7`); other game builds may need updated patterns. See [release notes](release_notes.md) and the [changelog](CHANGELOG.md) for version history.
+
+The icon supports SDR, scRGB and HDR10 output. HDR icon white is fixed at 203 nits.
+HDR10 requires the mod to observe the game's color-space selection; if the mod
+starts after that selection, toggle HDR off and on in the game. Translucent edges
+in HDR10 use approximate blending in PQ space. Verify color, brightness, HDR
+switching, resize, force_show and F9/F10 behavior in game.
 
 The icon follows minimap visibility and its display setting. The memory chain was tested on game 2.03.02; see [minimap observation](docs/minimap-observation.md) for version limitations and required integration checks.
 

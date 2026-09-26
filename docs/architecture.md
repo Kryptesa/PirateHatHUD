@@ -62,6 +62,11 @@ library API:
 - `dx12_renderer`: owns GPU/ImGui state, initialization, rendering and resize lifecycle.
 - `dx12_frames`: frame buffers, fences and descriptor allocation for that renderer.
 - `dx12_texture`: icon GPU allocation and upload commands for that renderer.
+- `dx12_hdr` and `hdr_shader`: icon-only HDR pipeline, converting sRGB to linear
+  scRGB or Rec.2020/ST.2084 at 203 nits. Graphics hooks track successful
+  SetColorSpace1 calls per swapchain. FP16 defaults to scRGB; pre-existing 10-bit
+  chains remain SDR until their color-space selection is observed. HDR10 alpha
+  blending is performed in PQ space and is approximate at translucent edges.
 - `image`: WIC decoding of files or the embedded PNG resource into CPU RGBA pixels, independent of DX12 and hooks.
 - `hud_draw`: emits the ImGui draw command using HUD placement and a texture handle.
 

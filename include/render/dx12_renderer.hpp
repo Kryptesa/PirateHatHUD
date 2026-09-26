@@ -36,7 +36,7 @@ public:
   }
   bool initialize(IDXGISwapChain* swap, ID3D12CommandQueue* queue);
   bool replace_swapchain(IDXGISwapChain* swap, ID3D12CommandQueue* queue);
-  void render(IDXGISwapChain* swap, const HudState& hud);
+  void render(IDXGISwapChain* swap, const HudState& hud, DXGI_COLOR_SPACE_TYPE color_space);
   bool before_resize(IDXGISwapChain* swap);
   void after_resize(IDXGISwapChain* swap, HRESULT result, UINT count = 0,
                     IUnknown* const* queues = nullptr);
@@ -67,6 +67,9 @@ private:
   bool initialize_backend(const DXGI_SWAP_CHAIN_DESC& desc);
   bool load_icon();
   bool record_icon_upload(ID3D12GraphicsCommandList* list);
+  bool initialize_hdr(DXGI_FORMAT format);
+  void draw_hdr(ID3D12GraphicsCommandList* list, const HudState& hud, UINT width, UINT height,
+                DXGI_COLOR_SPACE_TYPE color_space);
   void log(const char* message) const;
 
   RendererState state_{RendererState::waiting};
@@ -79,6 +82,8 @@ private:
   ComPtr<ID3D12DescriptorHeap> rtv_heap, srv_heap;
   ComPtr<ID3D12Fence> fence;
   ComPtr<ID3D12Resource> icon_texture, icon_upload;
+  ComPtr<ID3D12RootSignature> hdr_root;
+  ComPtr<ID3D12PipelineState> hdr_pipeline;
   D3D12_PLACED_SUBRESOURCE_FOOTPRINT icon_footprint{};
   D3D12_GPU_DESCRIPTOR_HANDLE icon_gpu{};
   bool icon_pending{};

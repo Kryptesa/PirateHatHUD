@@ -3,12 +3,13 @@
 #include <atomic>
 #include <mutex>
 #include <utility>
+#include <unordered_map>
 
 namespace phi::render {
 namespace {
 struct HookStorage {
   safetyhook::InlineHook present_hook, resize_hook, resize1_hook, create_hook, create_hwnd_hook,
-      create_core_hook, create_composition_hook, execute_hook;
+      create_core_hook, create_composition_hook, execute_hook, color_hook;
 };
 // Activated trampoline code can remain on thread stacks beyond the C++ callback
 // count. Keep its allocation alive, including through static destruction.
@@ -21,11 +22,13 @@ auto& create_hwnd_hook = hooks.create_hwnd_hook;
 auto& create_core_hook = hooks.create_core_hook;
 auto& create_composition_hook = hooks.create_composition_hook;
 auto& execute_hook = hooks.execute_hook;
+auto& color_hook = hooks.color_hook;
 bool activation_attempted{};
 HooksStopResult stop_result{true, true, true, false};
 std::atomic<unsigned> callbacks{0};
 std::atomic<bool> stopping{false};
 std::mutex mutex;
+std::unordered_map<IDXGISwapChain*, DXGI_COLOR_SPACE_TYPE> color_spaces;
 thread_local bool overlay_submit = false;
 struct CallbackGuard {
   CallbackGuard() {
@@ -78,6 +81,7 @@ void remember_swap(IDXGISwapChain* swap, IUnknown* object) {
     return;
   }
   std::lock_guard lock(mutex);
+  color_spaces.erase(swap);
   selected_swap = swap;
   selected_queue = queue;
   overlay_log("DX12 swapchain and present queue captured");
@@ -146,6 +150,17 @@ void WINAPI on_execute(ID3D12CommandQueue* queue, UINT count, ID3D12CommandList*
   });
   execute_hook.call<void>(queue, count, lists);
 }
+HRESULT WINAPI on_color(IDXGISwapChain3* swap, DXGI_COLOR_SPACE_TYPE space) {
+  CallbackGuard callback;
+  const auto hr = color_hook.call<HRESULT>(swap, space);
+  own_work([&] {
+    if (!stopping && SUCCEEDED(hr)) {
+      std::lock_guard lock(mutex);
+      color_spaces[swap] = space;
+    }
+  });
+  return hr;
+}
 HRESULT WINAPI on_present(IDXGISwapChain* swap, UINT interval, UINT flags) {
   CallbackGuard callback;
   own_work([&] {
@@ -174,7 +189,17 @@ HRESULT WINAPI on_present(IDXGISwapChain* swap, UINT interval, UINT flags) {
         }
       }
       if (renderer && renderer->ready() && renderer->handles(swap)) {
-        renderer->render(swap, snapshot());
+        DXGI_SWAP_CHAIN_DESC desc{};
+        swap->GetDesc(&desc);
+        // FP16 defaults to scRGB. A pre-existing 10-bit chain is ambiguous;
+        // retain SDR until a successful SetColorSpace1 is observed.
+        auto space = desc.BufferDesc.Format == DXGI_FORMAT_R16G16B16A16_FLOAT
+                         ? DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709
+                         : DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709;
+        if (const auto it = color_spaces.find(swap); it != color_spaces.end()) {
+          space = it->second;
+        }
+        renderer->render(swap, snapshot(), space);
       }
     }
   });
@@ -297,7 +322,9 @@ bool start_hooks(Dx12Renderer& target, HudSnapshot hud_snapshot,
                                                 Flags::StartDisabled);
         auto e = safetyhook::InlineHook::create(method(queue.Get(), 10), on_execute,
                                                 Flags::StartDisabled);
-        if (p && r && r1 && c && h && k && m && e) {
+        auto color =
+            safetyhook::InlineHook::create(method(swap3.Get(), 38), on_color, Flags::StartDisabled);
+        if (p && r && r1 && c && h && k && m && e && color) {
           present_hook = std::move(*p);
           resize_hook = std::move(*r);
           resize1_hook = std::move(*r1);
@@ -306,11 +333,12 @@ bool start_hooks(Dx12Renderer& target, HudSnapshot hud_snapshot,
           create_core_hook = std::move(*k);
           create_composition_hook = std::move(*m);
           execute_hook = std::move(*e);
+          color_hook = std::move(*color);
           activation_attempted = true;
           stop_result.module_must_remain_loaded = true;
           ok = create_hook.enable() && create_hwnd_hook.enable() && create_core_hook.enable() &&
                create_composition_hook.enable() && execute_hook.enable() && resize_hook.enable() &&
-               resize1_hook.enable() && present_hook.enable();
+               resize1_hook.enable() && color_hook.enable() && present_hook.enable();
         } else {
           if (p) {
             p->reset();
@@ -336,6 +364,9 @@ bool start_hooks(Dx12Renderer& target, HudSnapshot hud_snapshot,
           if (e) {
             e->reset();
           }
+          if (color) {
+            color->reset();
+          }
         }
       }
     }
@@ -360,7 +391,7 @@ HooksStopResult stop_hooks() noexcept {
   }
   bool disabled = true;
   for (auto* hook : {&create_hook, &create_hwnd_hook, &create_core_hook, &create_composition_hook,
-                     &execute_hook, &resize_hook, &resize1_hook, &present_hook}) {
+                     &execute_hook, &resize_hook, &resize1_hook, &color_hook, &present_hook}) {
     try {
       if (*hook && !hook->disable()) {
         disabled = false;
@@ -388,6 +419,7 @@ HooksStopResult stop_hooks() noexcept {
     selected_queue.Reset();
     fallback_queue.Reset();
     selected_swap = nullptr;
+    color_spaces.clear();
     fallback_ambiguous = false;
     fallback_logged = false;
     renderer = nullptr;
@@ -402,6 +434,7 @@ HooksStopResult stop_hooks() noexcept {
       create_core_hook.reset();
       create_composition_hook.reset();
       execute_hook.reset();
+      color_hook.reset();
     }
   } catch (...) {
     stop_result.gpu_resources_released = false;

@@ -132,7 +132,7 @@ bool Dx12Renderer::initialize_backend(const DXGI_SWAP_CHAIN_DESC& desc) {
   if (imgui) {
     backend_frames.reset(frames.size());
   }
-  return imgui;
+  return imgui && initialize_hdr(desc.BufferDesc.Format);
 }
 
 } // namespace phi::render
