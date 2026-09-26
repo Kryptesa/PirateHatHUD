@@ -1,5 +1,5 @@
 /build/
-/dist/*.zip
+/dist/
 *.log
 *.obj
 *.pdb

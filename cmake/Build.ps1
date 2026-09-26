@@ -17,8 +17,9 @@ if (-not $vsRoot) {
 $cmakeRoot = Join-Path $vsRoot 'Common7/IDE/CommonExtensions/Microsoft/CMake'
 $cmake = Join-Path $cmakeRoot 'CMake/bin/cmake.exe'
 $ctest = Join-Path $cmakeRoot 'CMake/bin/ctest.exe'
+$cpack = Join-Path $cmakeRoot 'CMake/bin/cpack.exe'
 $ninja = Join-Path $cmakeRoot 'Ninja/ninja.exe'
-foreach ($tool in @($cmake, $ctest, $ninja)) {
+foreach ($tool in @($cmake, $ctest, $cpack, $ninja)) {
   if (-not (Test-Path -LiteralPath $tool)) {
     throw "Missing $tool. Install the Visual Studio C++ CMake tools component."
   }
@@ -57,6 +58,13 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'Architecture check failed.' }
   & $ctest --test-dir $buildRoot -C $Configuration --output-on-failure
   if ($LASTEXITCODE -ne 0) { throw 'Tests failed.' }
+  $packageArguments = @('--config', (Join-Path $buildRoot 'CPackConfig.cmake'),
+    '-C', $Configuration)
+  if ($Configuration -ne 'Release') {
+    $packageArguments += @('-B', (Join-Path $projectRoot "dist/$Configuration"))
+  }
+  & $cpack @packageArguments
+  if ($LASTEXITCODE -ne 0) { throw 'Packaging failed.' }
 } finally {
   Get-ChildItem Env: | Where-Object { -not $savedEnvironment.ContainsKey($_.Name) } |
     ForEach-Object { [Environment]::SetEnvironmentVariable($_.Name, $null, 'Process') }

@@ -19,10 +19,8 @@ You need the Windows x64 version of Crimson Desert and a compatible ASI loader. 
    └── icon.png
    ```
 
-2. With DMM, import the ZIP containing the `PirateHatHUD` folder, or place that folder in DMM's `mods` directory. Enable the mod and mount it with the ASI loader enabled. For a standalone ASI loader, put all three files in the loader's plugin directory, side by side.
+2. With DMM, extract the ZIP and place the complete `PirateHatHUD` folder in DMM's `mods` directory. Enable the plugin with the ASI loader enabled. Check the game's `bin64` directory afterwards: `PirateHatHUD.asi`, `config.ini`, and `icon.png` must be side by side. If DMM leaves out `icon.png` or `config.ini`, copy those files from the extracted folder into `bin64` manually. Importing the ASI alone does not install the required image. For a standalone ASI loader, put all three files in the loader's plugin directory, side by side.
 3. Start the game and enable the minimap. The icon should appear near it when the Pirate King Hat's treasure state is active and the minimap is visible.
-
-The icon file is required. If it is missing or invalid, the mod logs an error and unloads. After changing `config.ini`, restart the game. For current DMM setup steps, see the [mod manager page](https://www.nexusmods.com/crimsondesert/mods/633).
 
 ## Configure
 
@@ -72,9 +70,10 @@ Install Visual Studio 2022 with **Desktop development with C++**, a Windows SDK,
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64
 cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure
+cmake --build build --config Release --target package
 ```
 
-The compiled ASI is `build/Release/PirateHatHUD.asi`. The ready-to-install folder is `build/Release/PirateHatHUD/`; it includes the ASI, configuration, icon, and third-party license files. The project uses C++23 and the static MSVC runtime.
+The versioned installation archive is `dist/PirateHatHUD-0.3.0.zip`; it includes the ASI, configuration, icon, and third-party license files inside the `PirateHatHUD/` folder. The compiled ASI and staging folder remain in `build/Release/`. The archive version comes from `project(... VERSION ...)` in CMake. The project uses C++23 and the static MSVC runtime.
 
 For a sandbox where MSBuild fails with `FileTracker` / `E_ACCESSDENIED`, use the
 Ninja build helper from a regular PowerShell session:
@@ -87,7 +86,9 @@ Ninja build helper from a regular PowerShell session:
 
 The helper finds Visual Studio or Build Tools with the x64 C++ tools and bundled
 CMake/Ninja, initializes MSVC for the current process, then configures, builds,
-runs `architecture-check`, and runs CTest. It restores the caller's environment
+runs `architecture-check`, runs CTest, and packages the mod in `dist` only after
+all checks pass. Release produces `dist/PirateHatHUD-0.3.0.zip`; other configurations
+use a matching subfolder such as `dist/Debug/`. It restores the caller's environment
 afterwards. Install the **C++ CMake tools for Windows** component if it is missing.
 The separate Ninja build uses `build/ninja/`; the Release bundle is
 `build/ninja/Release/PirateHatHUD/`. Existing dependency sources in `build/_deps/`
