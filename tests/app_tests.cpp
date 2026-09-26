@@ -348,8 +348,14 @@ int main() {
   CHECK(before("clear_logger", "close_log"));
   CHECK(std::count(scenario.calls.begin(), scenario.calls.end(), "observer_stop") == 1);
   CHECK(std::count(scenario.calls.begin(), scenario.calls.end(), "overlay_stop") == 1);
-  CHECK(!has("sound_play")); // Startup with an already active perk remains silent.
+  CHECK(!has("sound_play")); // Immediate unload suppresses audio.
   CHECK(before("sound_stop", "overlay_stop"));
+
+  scenario = {};
+  scenario.treasure_states = {phi::TreasureState::active, phi::TreasureState::active,
+                              phi::TreasureState::active};
+  CHECK(run() == AppExitDisposition::unload_allowed);
+  CHECK(std::count(scenario.calls.begin(), scenario.calls.end(), "sound_play") == 1);
 
   for (int suppression = 0; suppression < 7; ++suppression) {
     scenario = {};

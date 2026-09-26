@@ -14,14 +14,30 @@ int main() {
   const auto t = TreasureSound::Clock::time_point{};
 
   TreasureSound sound;
-  CHECK(!sound.update(TreasureState::active, true, t)); // Startup is silent.
-  CHECK(!sound.update(TreasureState::inactive, true, t));
-  CHECK(sound.update(TreasureState::active, true, t));
+  CHECK(!sound.update(TreasureState::unknown, true, t));
+  CHECK(sound.update(TreasureState::active, true, t)); // First detection after loading notifies.
+  CHECK(!sound.update(TreasureState::active, true, t));
+  CHECK(!sound.update(TreasureState::inactive, true, t + 1s));
+  CHECK(sound.update(TreasureState::active, true, t + 1s));
   CHECK(!sound.update(TreasureState::active, true, t + 2s)); // No repeats while active.
   CHECK(!sound.update(TreasureState::unknown, true, t + 3s));
   CHECK(!sound.update(TreasureState::active, true, t + 3s)); // Recovery is silent too.
   CHECK(!sound.update(TreasureState::inactive, true, t + 3s));
   CHECK(sound.update(TreasureState::active, true, t + 3s));
+
+  TreasureSound loading;
+  CHECK(!loading.update(TreasureState::unknown, false, t));
+  CHECK(!loading.update(TreasureState::active, false, t)); // Loading/menu still suppress audio.
+  CHECK(!loading.update(TreasureState::active, false, t + 1s));
+  CHECK(loading.update(TreasureState::active, true, t + 2s)); // First eligible gameplay sample.
+  CHECK(!loading.update(TreasureState::active, false, t + 3s));
+  CHECK(!loading.update(TreasureState::active, true, t + 4s)); // No replay on later menu exits.
+
+  TreasureSound empty_loading;
+  CHECK(!empty_loading.update(TreasureState::active, false, t));
+  CHECK(!empty_loading.update(TreasureState::inactive, true, t + 1s));
+  CHECK(!empty_loading.update(TreasureState::inactive, true, t + 2s));
+  CHECK(empty_loading.update(TreasureState::active, true, t + 3s));
 
   TreasureSound gated;
   CHECK(!gated.update(TreasureState::inactive, true, t));

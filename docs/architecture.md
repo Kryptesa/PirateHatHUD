@@ -231,9 +231,11 @@ Menu implementation evidence and remaining game checks: [menu observation](menu-
 
 Application composition combines minimap, menu, mod enablement and foreground state
 into playback eligibility, then passes this and sampled treasure state to the
-sound policy, configured with sound enablement and cooldown. Only
-an observed inactive-to-active transition can request playback; unknown-to-active at
-startup does not. Disabled sound/mod, hidden or unknown minimap, open or unknown menu,
+sound policy, configured with sound enablement and cooldown. The first known treasure
+sample with playback eligibility initializes the policy and notifies once if active,
+including startup from unknown or waiting for loading/menu gating to clear. Later,
+only an observed inactive-to-active transition can request playback; recovery from
+unknown remains silent. Disabled sound/mod, hidden or unknown minimap, open or unknown menu,
 an unfocused game and cooldown suppress the request without deferring it. The policy
 does not consume HUD visibility, show_delay_ms or force_show.
 

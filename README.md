@@ -68,7 +68,8 @@ max_files=3
   minimum interval between sounds (0 to 60000 ms; default 1000).
 
 The sound plays once when observed treasure detection changes from inactive to active.
-Starting with an already active perk is silent. Detection while the mod is disabled,
+On startup, an already active perk also notifies once when gameplay first becomes
+eligible for sound. After this initial sample, detection while the mod is disabled,
 the game is unfocused, a menu is open or unknown, or the minimap is hidden or unknown
 is silent and is not replayed later. Sound is independent of the icon's return delay;
 `force_show` does not trigger it.
