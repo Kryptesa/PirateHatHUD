@@ -43,6 +43,8 @@ target_include_directories(treasure_indicator PUBLIC include)
 target_compile_options(treasure_indicator PRIVATE /W4 /EHsc)
 
 add_library(PirateHatHUD SHARED src/main.cpp src/app.cpp src/overlay.cpp
+  src/render/dxgi_hooks.cpp src/render/dx12_renderer.cpp src/render/dx12_frames.cpp
+  src/render/dx12_texture.cpp src/render/image.cpp src/render/hud_draw.cpp
   src/platform/config.cpp src/platform/hotkeys.cpp src/platform/logger.cpp)
 target_include_directories(PirateHatHUD PRIVATE include)
 target_compile_definitions(PirateHatHUD PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
@@ -77,4 +79,9 @@ if(BUILD_TESTING)
   target_link_libraries(observer_tests PRIVATE game_observers)
   target_compile_definitions(observer_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
   add_test(NAME observer_tests COMMAND observer_tests)
+  add_executable(image_tests tests/image_tests.cpp src/render/image.cpp)
+  target_include_directories(image_tests PRIVATE include)
+  target_compile_definitions(image_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+  target_link_libraries(image_tests PRIVATE ole32 windowscodecs)
+  add_test(NAME image_tests COMMAND image_tests "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.png")
 endif()

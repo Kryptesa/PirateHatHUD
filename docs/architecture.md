@@ -11,6 +11,27 @@ they are not dynamically loaded plugins.
 - `platform`: INI configuration, Windows hotkeys and file logging.
 - `app`: composition, polling and shutdown. `main.cpp` only starts the worker and unloads.
 
+## Renderer internals
+
+`src/overlay.cpp` is a small application-facing facade. Implementations live under
+`src/render`, and their headers live under `include/render`, following the project-wide
+header/source layout. The application uses `include/overlay.hpp` and `HudState`; the
+DX12 and hook headers describe internal renderer implementation rather than a public
+library API:
+
+- `dxgi_hooks`: hook installation/removal, swapchain/queue selection and callback draining.
+- `dx12_renderer`: owns GPU/ImGui state, initialization, rendering and resize lifecycle.
+- `dx12_frames`: frame buffers, fences and descriptor allocation for that renderer.
+- `dx12_texture`: icon GPU allocation and upload commands for that renderer.
+- `image`: WIC decoding into CPU RGBA pixels, independent of DX12 and hooks.
+- `hud_draw`: emits the ImGui draw command using HUD placement and a texture handle.
+
+The hook module serializes renderer access with its graphics mutex. The facade uses a
+separate mutex for HUD snapshots, so publishing HUD state does not wait for GPU fences.
+Descriptor callbacks recover their renderer from ImGui backend UserData rather than a
+global graphics object. Image preparation and logger configuration happen before start;
+logger clearing happens after stop. The facade prevents image replacement while running.
+
 ## Using an observer
 
 ```cpp
@@ -62,6 +83,6 @@ full in-game DLL unload safety is not established by these unit tests.
 ## Validation
 
 CTest covers scanning, typed subscription lifetime/dispatch behavior, indicator policy,
-and observer startup failure without the game. Game-hook activation and DX12 drawing
+observer startup failure without the game, and WIC image decoding/retry. Game-hook activation and DX12 drawing
 require in-game verification: force_show, toggle/unload, normal treasure detection,
 game version, graphics settings and logs.
