@@ -1,8 +1,14 @@
 #include "platform/sound.hpp"
 #include <Windows.h>
 #include <array>
+#include <chrono>
+#include <condition_variable>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <future>
+#include <mutex>
+#include <thread>
 #include <type_traits>
 
 #define CHECK(c)                                                                                   \
@@ -13,6 +19,53 @@
   } while (false)
 
 namespace {
+struct BlockingAudio {
+  std::mutex mutex;
+  std::condition_variable changed;
+  bool release_play = false;
+  bool release_stop = false;
+  bool bytes_valid = true;
+  unsigned plays = 0;
+  unsigned stops = 0;
+  std::thread::id worker;
+
+  bool wait_for(unsigned expected_plays, unsigned expected_stops) {
+    std::unique_lock lock(mutex);
+    return changed.wait_for(lock, std::chrono::seconds(2),
+                            [&] { return plays >= expected_plays && stops >= expected_stops; });
+  }
+  void release(bool play, bool stop) {
+    {
+      std::lock_guard lock(mutex);
+      release_play |= play;
+      release_stop |= stop;
+    }
+    changed.notify_all();
+  }
+} audio;
+
+bool blocking_playback(const std::uint8_t* bytes) noexcept {
+  std::unique_lock lock(audio.mutex);
+  audio.worker = std::this_thread::get_id();
+  if (bytes) {
+    ++audio.plays;
+    audio.changed.notify_all();
+    audio.changed.wait(lock, [] { return audio.release_play; });
+    audio.bytes_valid &= std::memcmp(bytes, "RIFF", 4) == 0;
+  } else {
+    ++audio.stops;
+    audio.changed.notify_all();
+    audio.changed.wait(lock, [] { return audio.release_stop; });
+  }
+  return true;
+}
+
+struct ReleaseAudio {
+  ~ReleaseAudio() {
+    audio.release(true, true);
+  }
+};
+
 struct Fixture {
   std::filesystem::path path =
       std::filesystem::temp_directory_path() /
@@ -72,5 +125,31 @@ int main() {
   CHECK(!player.prepare(fixture.path.wstring() + L".missing"));
   CHECK(fixture.write(valid));
   CHECK(player.prepare(fixture.path.wstring()));
+  {
+    phi::SoundPlayer threaded(blocking_playback);
+    ReleaseAudio release_on_failure;
+    CHECK(threaded.prepare(fixture.path.wstring()));
+    CHECK(threaded.play());
+    CHECK(audio.wait_for(1, 0));
+    // Slow audio startup must not make stop wait on the device or its mutex.
+    auto stop = std::async(std::launch::async, [&] { threaded.stop(); });
+    const bool stop_ready =
+        stop.wait_for(std::chrono::milliseconds(500)) == std::future_status::ready;
+    audio.release(true, false);
+    stop.get();
+    CHECK(stop_ready);
+    CHECK(audio.wait_for(1, 1));
+    // Slow audio shutdown must not prevent a new notification being queued.
+    auto play = std::async(std::launch::async, [&] { return threaded.play(); });
+    const bool play_ready =
+        play.wait_for(std::chrono::milliseconds(500)) == std::future_status::ready;
+    audio.release(false, true);
+    CHECK(play.get());
+    CHECK(play_ready);
+    CHECK(audio.wait_for(2, 1));
+  } // Destruction joins the worker and stops playback before freeing PCM bytes.
+  CHECK(audio.plays == 2 && audio.stops == 2);
+  CHECK(audio.bytes_valid);
+  CHECK(audio.worker != std::this_thread::get_id());
   return 0;
 }

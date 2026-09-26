@@ -238,13 +238,20 @@ an unfocused game and cooldown suppress the request without deferring it. The po
 does not consume HUD visibility, show_delay_ms or force_show.
 
 The application owns the platform WAV player and connects policy requests to it.
-Playback is asynchronous on the application thread; game hooks still capture data only.
+The application thread queues playback/stop commands to a dedicated audio worker;
+game hooks still capture data only. Device calls never run on the polling thread or
+under the command mutex. A single pending command keeps the latest request, without
+building a backlog; a stop cancels a play that has not started yet. Preparation and
+destruction join any existing worker, which stops playback before PCM bytes are freed.
+The worker is always joined before application exit and possible DLL unload.
 The default WAV is embedded as RCDATA resource 102 in the ASI. An optional external
 `PirateHatHUD_treasure.wav` overrides it; no standalone WAV is packaged. Both paths
 validate PCM bytes before playback. Sound policy tests cover transitions, suppression and cooldown;
 actual playback, focus changes and notification timing require in-game verification.
 The player preloads bounded, validated PCM RIFF bytes and retains them until a
-synchronous PlaySound stop completes. WinMM PlaySound playback is process-wide:
+synchronous PlaySound stop completes on the audio worker. Tests use a blocked audio
+backend to verify that play/stop requests remain responsive and cleanup drains playback.
+WinMM PlaySound playback is process-wide:
 another mod using the same API can compete with playback or be affected by stopping it.
 
 ## Logging

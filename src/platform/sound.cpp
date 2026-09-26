@@ -10,6 +10,14 @@ namespace phi {
 namespace {
 constexpr std::size_t kMaxWaveBytes = 8 * 1024 * 1024;
 
+bool play_wave(const std::uint8_t* bytes) noexcept {
+  if (!bytes) {
+    return PlaySoundW(nullptr, nullptr, 0) != FALSE;
+  }
+  return PlaySoundW(reinterpret_cast<LPCWSTR>(bytes), nullptr,
+                    SND_MEMORY | SND_ASYNC | SND_NODEFAULT | SND_NOSTOP) != FALSE;
+}
+
 std::uint16_t read_u16(std::span<const std::uint8_t> bytes, std::size_t offset) {
   return static_cast<std::uint16_t>(bytes[offset] | (bytes[offset + 1] << 8));
 }
@@ -69,11 +77,11 @@ bool valid_wave(std::span<const std::uint8_t> bytes) {
 } // namespace
 
 SoundPlayer::~SoundPlayer() {
-  stop();
+  finish_worker();
 }
 
 bool SoundPlayer::prepare_embedded() {
-  stop();
+  finish_worker();
   wave_.clear();
   HMODULE module = nullptr;
   if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
@@ -92,11 +100,12 @@ bool SoundPlayer::prepare_embedded() {
     return false;
   }
   wave_.assign(bytes, bytes + size);
+  start_worker();
   return true;
 }
 
 bool SoundPlayer::prepare(const std::wstring& path) {
-  stop();
+  finish_worker();
   wave_.clear();
   std::ifstream input(std::filesystem::path(path), std::ios::binary | std::ios::ate);
   if (!input) {
@@ -113,24 +122,72 @@ bool SoundPlayer::prepare(const std::wstring& path) {
     return false;
   }
   wave_ = std::move(bytes);
+  start_worker();
   return true;
 }
 
 bool SoundPlayer::play() noexcept {
-  if (wave_.empty()) {
+  if (!worker_.joinable()) {
     return false;
   }
-  const bool played = PlaySoundW(reinterpret_cast<LPCWSTR>(wave_.data()), nullptr,
-                                 SND_MEMORY | SND_ASYNC | SND_NODEFAULT | SND_NOSTOP) != FALSE;
-  started_ = started_ || played;
-  return played;
+  {
+    std::lock_guard lock(mutex_);
+    pending_ = Command::play;
+  }
+  wake_.notify_one();
+  return true;
 }
 
 void SoundPlayer::stop() noexcept {
-  if (started_) {
-    // The synchronous stop finishes the asynchronous operation before bytes can be released.
-    PlaySoundW(nullptr, nullptr, 0);
-    started_ = false;
+  if (worker_.joinable()) {
+    {
+      std::lock_guard lock(mutex_);
+      pending_ = Command::stop;
+    }
+    wake_.notify_one();
+  }
+}
+
+void SoundPlayer::start_worker() {
+  pending_ = Command::none;
+  worker_ = std::thread([this] { run_worker(); });
+}
+
+void SoundPlayer::finish_worker() noexcept {
+  if (worker_.joinable()) {
+    {
+      std::lock_guard lock(mutex_);
+      pending_ = Command::shutdown;
+    }
+    wake_.notify_one();
+    worker_.join();
+  }
+}
+
+void SoundPlayer::run_worker() noexcept {
+  const auto playback = playback_ ? playback_ : play_wave;
+  bool started = false;
+  for (;;) {
+    Command command;
+    {
+      std::unique_lock lock(mutex_);
+      wake_.wait(lock, [this] { return pending_ != Command::none; });
+      command = pending_;
+      pending_ = Command::none;
+    }
+    // Never hold the command mutex across device operations. Only the latest
+    // pending command is kept, so a stop cancels any play not yet started.
+    if (command == Command::play) {
+      started = playback(wave_.data()) || started;
+    } else {
+      if (started) {
+        playback(nullptr);
+        started = false;
+      }
+      if (command == Command::shutdown) {
+        return;
+      }
+    }
   }
 }
 } // namespace phi
