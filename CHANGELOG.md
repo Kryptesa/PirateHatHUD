@@ -1,11 +1,14 @@
 # Changelog
 
-## Unreleased — minimap visibility
+## Unreleased — CDUMM packaging and minimap visibility
 
+- Package a matching `PirateHatHUD.ini` for CDUMM ASI import and config discovery; read legacy `config.ini` only if the named file is absent.
+- Embed the default PNG into the ASI, with an optional manual `PirateHatHUD.png` override, so installation needs no external image.
+- Generate `modinfo.json` from the CMake version and include the project's MIT license alongside dependency licenses.
 - Hide the treasure icon while the minimap is hidden, including menus and the game's minimap display setting. Preserve treasure state so the icon can return when the minimap reappears.
 - Apply the same minimap requirement to `force_show`; hide the icon when observation is unavailable.
 - Add a read-only, polling minimap observer with guarded pointer reads and startup/state diagnostics. The version-specific chain was verified in Cheat Engine on Crimson Desert 2.03.02 across menus, inventory, teleport and a game restart.
-- Release build, architecture-check, formatting and all 12 CTest tests pass. The compiled minimap/HUD integration still needs in-game verification; no root signature or automatic version detection is implemented.
+- Release build, architecture-check, formatting and all 13 CTest tests pass. The compiled minimap/HUD integration still needs in-game verification; no root signature or automatic version detection is implemented.
 
 ## 0.3.0 — DX12 overlay preview
 

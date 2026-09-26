@@ -8,23 +8,35 @@ The icon is shown only while the minimap is visible. Menus that hide the minimap
 
 ## Install
 
-You need the Windows x64 version of Crimson Desert and a compatible ASI loader. For Desert Mod Manager (DMM), use its ASI loader support.
+You need the Windows x64 version of Crimson Desert. With [CDUMM](https://github.com/faisalkindi/CrimsonDesert-UltimateModsManager), import the complete `PirateHatHUD-0.3.0.zip` using drag and drop, then enable the plugin on the ASI page with the ASI loader enabled. Restart the game after installing, updating or changing the plugin's enabled state.
 
-1. Download or build the mod. Keep these three files together:
+The archive contains:
 
-   ```text
-   PirateHatHUD/
-   ├── PirateHatHUD.asi
-   ├── config.ini
-   └── icon.png
-   ```
+```text
+PirateHatHUD/
+|-- PirateHatHUD.asi
+|-- PirateHatHUD.ini
+|-- modinfo.json
+|-- LICENSE
+|-- THIRD_PARTY_NOTICES.md
+|-- LICENSE-*.txt
+```
 
-2. With DMM, extract the ZIP and place the complete `PirateHatHUD` folder in DMM's `mods` directory. Enable the plugin with the ASI loader enabled. Check the game's `bin64` directory afterwards: `PirateHatHUD.asi`, `config.ini`, and `icon.png` must be side by side. If DMM leaves out `icon.png` or `config.ini`, copy those files from the extracted folder into `bin64` manually. Importing the ASI alone does not install the required image. For a standalone ASI loader, put all three files in the loader's plugin directory, side by side.
-3. Start the game and enable the minimap. The icon should appear near it when the Pirate King Hat's treasure state is active and the minimap is visible.
+CDUMM installs `PirateHatHUD.asi` and its matching `PirateHatHUD.ini` into the game's `bin64` directory. The standard icon is embedded in the ASI; no external PNG is required. Metadata and licenses remain in the distribution archive. `modinfo.json` describes the package; the ASI page may obtain version information separately rather than displaying these fields.
+
+For a standalone ASI loader, copy `PirateHatHUD.asi` and `PirateHatHUD.ini` side by side into its plugin directory. Start the game with the minimap enabled; the icon appears when the Pirate King Hat's treasure state is active and the minimap is visible.
+
+### Updating an older installation
+
+The reviewed CDUMM `AsiManager` code has an uninstall limitation after updating a disabled plugin and later enabling it: the ASI can remain behind. Enable the plugin before importing an update, with the game closed; after uninstalling, check that neither `PirateHatHUD.asi` nor `PirateHatHUD.asi.disabled` remains in `bin64`.
+
+Back up your old `config.ini` before importing the new ZIP. After installation, copy your settings into `PirateHatHUD.ini` (or replace it with your backed-up config). The new config takes precedence; `config.ini` is read only when `PirateHatHUD.ini` is absent. The mod does not modify or delete the old config or `icon.png`, because other plugins may use those generic names. Remove an old duplicate ASI installation before enabling the new one.
+
+To use a custom icon, manually place `PirateHatHUD.png` beside the ASI. It overrides the embedded icon; an invalid image prevents startup and is logged. Rename an old custom `icon.png` to `PirateHatHUD.png` to preserve it. CDUMM's ASI importer does not install PNG files, and does not track this manually added override or the runtime log for removal.
 
 ## Configure
 
-Edit `config.ini` beside `PirateHatHUD.asi`:
+Edit `PirateHatHUD.ini` beside `PirateHatHUD.asi`:
 
 ```ini
 [indicator]
@@ -53,7 +65,7 @@ Hotkeys accept `F8`, `F9`, `F10`, or `F11`. The default position (`x=350`, `y=-3
 
 ## If the icon does not appear
 
-1. Check that `PirateHatHUD.asi`, `config.ini`, and `icon.png` are in the same directory and that the ASI loader is active.
+1. Check that `PirateHatHUD.asi` and `PirateHatHUD.ini` are side by side and the ASI loader is active. If you added `PirateHatHUD.png`, remove it temporarily to test the embedded icon.
 2. Set `force_show=1`, restart the game, and load a save. Enable the minimap and close menus. This tests the overlay without requiring the hat or an active treasure state. Press `F9` to check the toggle.
 3. Open `PirateHatHUD.log` beside the ASI. `DX12 hooks installed; waiting for swapchain` means the graphics hooks started. `DX12 swapchain and present queue captured` and `DX12 overlay initialized` indicate that the renderer reached the game swapchain. `State hooks disabled` means the game's instruction pattern was missing or ambiguous, so normal treasure detection is unavailable.
 4. If the test icon works, restore `force_show=0` and check it while wearing the Pirate King Hat near treasure. If it fails only with DLSS or Frame Generation, record those settings along with the game version and log when reporting the issue.
@@ -73,7 +85,7 @@ ctest --test-dir build -C Release --output-on-failure
 cmake --build build --config Release --target package
 ```
 
-The versioned installation archive is `dist/PirateHatHUD-0.3.0.zip`; it includes the ASI, configuration, icon, and third-party license files inside the `PirateHatHUD/` folder. The compiled ASI and staging folder remain in `build/Release/`. The archive version comes from `project(... VERSION ...)` in CMake. The project uses C++23 and the static MSVC runtime.
+The versioned installation archive is `dist/PirateHatHUD-0.3.0.zip`; it includes the ASI with its embedded icon, named configuration, package metadata, and license files inside the `PirateHatHUD/` folder. The compiled ASI and staging folder remain in `build/Release/`. The archive version comes from `project(... VERSION ...)` in CMake. The project uses C++23 and the static MSVC runtime.
 
 For a sandbox where MSBuild fails with `FileTracker` / `E_ACCESSDENIED`, use the
 Ninja build helper from a regular PowerShell session:

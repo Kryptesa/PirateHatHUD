@@ -1,0 +1,6 @@
+{
+  "name": "Pirate Hat HUD",
+  "version": "@PROJECT_VERSION@",
+  "author": "Kryptesa",
+  "description": "Shows a treasure chest icon while the Pirate King Hat detects treasure and the minimap is visible. Windows x64 ASI plugin."
+}

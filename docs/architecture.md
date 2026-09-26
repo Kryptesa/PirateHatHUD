@@ -62,7 +62,7 @@ library API:
 - `dx12_renderer`: owns GPU/ImGui state, initialization, rendering and resize lifecycle.
 - `dx12_frames`: frame buffers, fences and descriptor allocation for that renderer.
 - `dx12_texture`: icon GPU allocation and upload commands for that renderer.
-- `image`: WIC decoding into CPU RGBA pixels, independent of DX12 and hooks.
+- `image`: WIC decoding of files or the embedded PNG resource into CPU RGBA pixels, independent of DX12 and hooks.
 - `hud_draw`: emits the ImGui draw command using HUD placement and a texture handle.
 
 The hook module serializes renderer access with its graphics mutex. The facade uses a

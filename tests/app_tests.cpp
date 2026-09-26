@@ -6,6 +6,8 @@
 #include "platform/hotkeys.hpp"
 #include "platform/logger.hpp"
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -20,6 +22,9 @@
 namespace {
 struct Scenario {
   std::string fail;
+  std::wstring config_path;
+  std::wstring icon_path;
+  bool embedded_icon = false;
   std::vector<std::string> calls;
   bool icon_valid = true;
   phi::Signal<phi::MinimapStateChanged>* minimap_signal = nullptr;
@@ -168,7 +173,8 @@ void close_log() {
 void log(const char*) {
   step("log");
 }
-Config read_config(const std::wstring&) {
+Config read_config(const std::wstring& path) {
+  scenario.config_path = path;
   step("config");
   Config config;
   config.force_show = scenario.force_show;
@@ -178,7 +184,9 @@ HotkeyActions poll_hotkeys(int, int) {
   step("hotkeys");
   return {false, true};
 }
-bool prepare_overlay_icon(const wchar_t*) {
+bool prepare_overlay_icon(const wchar_t* path) {
+  scenario.embedded_icon = path == nullptr;
+  scenario.icon_path = path ? path : L"";
   step("icon");
   return scenario.icon_valid;
 }
@@ -222,6 +230,43 @@ OverlayStopResult stop_overlay() noexcept {
 
 int main() {
   using phi::AppExitDisposition;
+  wchar_t module_path[MAX_PATH]{};
+  CHECK(GetModuleFileNameW(nullptr, module_path, MAX_PATH) > 0);
+  const auto folder = std::filesystem::path(module_path).parent_path();
+  const auto config_path = folder / L"PirateHatHUD.ini";
+  const auto legacy_path = folder / L"config.ini";
+  const auto icon_path = folder / L"PirateHatHUD.png";
+  if (!std::filesystem::exists(config_path) && !std::filesystem::exists(legacy_path) &&
+      !std::filesystem::exists(icon_path)) {
+    struct Fixtures {
+      std::vector<std::filesystem::path> paths;
+      ~Fixtures() {
+        for (const auto& path : paths) {
+          std::error_code error;
+          std::filesystem::remove(path, error);
+        }
+      }
+      void create(const std::filesystem::path& path) {
+        paths.push_back(path);
+        std::ofstream file(path);
+        file << "fixture";
+      }
+    } fixtures;
+    scenario = {};
+    CHECK(run() == AppExitDisposition::unload_allowed);
+    CHECK(scenario.config_path == config_path.wstring());
+    CHECK(scenario.embedded_icon);
+    fixtures.create(legacy_path);
+    scenario = {};
+    CHECK(run() == AppExitDisposition::unload_allowed);
+    CHECK(scenario.config_path == legacy_path.wstring());
+    fixtures.create(config_path);
+    fixtures.create(icon_path);
+    scenario = {};
+    CHECK(run() == AppExitDisposition::unload_allowed);
+    CHECK(scenario.config_path == config_path.wstring());
+    CHECK(!scenario.embedded_icon && scenario.icon_path == icon_path.wstring());
+  }
   scenario = {};
   CHECK(run() == AppExitDisposition::unload_allowed);
   CHECK(scenario.cleanup_order_valid);

@@ -129,9 +129,19 @@ AppExitDisposition run_app(HMODULE module) noexcept {
       folder.resize(folder.find_last_of(L"\\/") + 1);
       logging.open(folder + L"PirateHatHUD.log");
       log(PHI_VERSION);
-      const auto config = read_config(folder + L"config.ini");
-      if (!prepare_overlay_icon((folder + L"icon.png").c_str())) {
-        log("Required icon.png missing or invalid; mod not started");
+      const auto config_path = folder + L"PirateHatHUD.ini";
+      const auto legacy_config_path = folder + L"config.ini";
+      const bool legacy_config =
+          GetFileAttributesW(config_path.c_str()) == INVALID_FILE_ATTRIBUTES &&
+          GetFileAttributesW(legacy_config_path.c_str()) != INVALID_FILE_ATTRIBUTES;
+      const auto config = read_config(legacy_config ? legacy_config_path : config_path);
+      if (legacy_config) {
+        log("Using legacy config.ini; rename it to PirateHatHUD.ini before installing an update");
+      }
+      const auto icon_path = folder + L"PirateHatHUD.png";
+      const bool custom_icon = GetFileAttributesW(icon_path.c_str()) != INVALID_FILE_ATTRIBUTES;
+      if (!prepare_overlay_icon(custom_icon ? icon_path.c_str() : nullptr)) {
+        log("Embedded icon or PirateHatHUD.png invalid; mod not started");
       } else {
         AppSession session(config, exit);
         session.run(config);

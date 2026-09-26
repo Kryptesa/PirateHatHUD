@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(PirateHatHUD VERSION 0.3.0 LANGUAGES CXX)
+project(PirateHatHUD VERSION 0.3.0 LANGUAGES CXX RC)
 
 include(cmake/Architecture.cmake)
 add_custom_target(architecture-check ALL
@@ -23,6 +23,9 @@ endif()
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+set(PHI_ICON_RESOURCE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.png")
+configure_file(assets/icon.rc.in "${CMAKE_CURRENT_BINARY_DIR}/generated/icon.rc" @ONLY)
+configure_file(cmake/modinfo.json.in "${CMAKE_CURRENT_BINARY_DIR}/generated/modinfo.json" @ONLY)
 include(FetchContent)
 set(SAFETYHOOK_FETCH_ZYDIS ON CACHE BOOL "Fetch Zydis" FORCE)
 FetchContent_Declare(safetyhook GIT_REPOSITORY https://github.com/cursey/safetyhook.git GIT_TAG origin/main)
@@ -48,7 +51,8 @@ add_library(treasure_indicator STATIC src/features/treasure_indicator.cpp)
 target_include_directories(treasure_indicator PUBLIC include)
 target_compile_options(treasure_indicator PRIVATE /W4 /EHsc)
 
-add_library(PirateHatHUD SHARED src/main.cpp src/app.cpp src/overlay.cpp
+add_library(PirateHatHUD SHARED "${CMAKE_CURRENT_BINARY_DIR}/generated/icon.rc"
+  src/main.cpp src/app.cpp src/overlay.cpp
   src/render/dxgi_hooks.cpp src/render/dx12_renderer.cpp src/render/dx12_frames.cpp
   src/render/dx12_texture.cpp src/render/image.cpp src/render/hud_draw.cpp
   src/platform/config.cpp src/platform/hotkeys.cpp src/platform/logger.cpp)
@@ -63,8 +67,10 @@ set_target_properties(PirateHatHUD PROPERTIES PREFIX "" SUFFIX ".asi")
 add_custom_command(TARGET PirateHatHUD POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:PirateHatHUD>" "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/PirateHatHUD.asi"
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/config.ini" "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/config.ini"
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/assets/icon.png" "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/icon.png"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/config.ini" "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/PirateHatHUD.ini"
+  COMMAND ${CMAKE_COMMAND} -E rm -f "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/config.ini" "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/icon.png"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_BINARY_DIR}/generated/modinfo.json" "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/modinfo.json"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/LICENSE" "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/LICENSE"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/THIRD_PARTY_NOTICES.md" "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/THIRD_PARTY_NOTICES.md"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "${safetyhook_SOURCE_DIR}/LICENSE" "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/LICENSE-SafetyHook.txt"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "${imgui_SOURCE_DIR}/LICENSE.txt" "$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD/LICENSE-DearImGui.txt"
@@ -72,7 +78,8 @@ add_custom_command(TARGET PirateHatHUD POST_BUILD
 
 install(TARGETS PirateHatHUD RUNTIME DESTINATION PirateHatHUD COMPONENT Mod
   LIBRARY DESTINATION PirateHatHUD COMPONENT Mod)
-install(FILES config.ini assets/icon.png THIRD_PARTY_NOTICES.md
+install(FILES config.ini DESTINATION PirateHatHUD RENAME PirateHatHUD.ini COMPONENT Mod)
+install(FILES LICENSE THIRD_PARTY_NOTICES.md "${CMAKE_CURRENT_BINARY_DIR}/generated/modinfo.json"
   DESTINATION PirateHatHUD COMPONENT Mod)
 install(FILES "${safetyhook_SOURCE_DIR}/LICENSE" DESTINATION PirateHatHUD
   RENAME LICENSE-SafetyHook.txt COMPONENT Mod)
@@ -90,6 +97,10 @@ include(CPack)
 
 include(CTest)
 if(BUILD_TESTING)
+  add_test(NAME packaging_tests COMMAND ${CMAKE_COMMAND}
+    "-DSTAGE_DIR=$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD"
+    "-DEXPECTED_VERSION=${PROJECT_VERSION}"
+    -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/PackagingTests.cmake")
   add_test(NAME architecture_check COMMAND ${CMAKE_COMMAND}
     -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Architecture.cmake")
   add_test(NAME architecture_checker_tests COMMAND ${CMAKE_COMMAND}
@@ -127,7 +138,8 @@ if(BUILD_TESTING)
   target_include_directories(render_icon_tests PRIVATE include)
   target_link_libraries(render_icon_tests PRIVATE imgui_static)
   add_test(NAME render_icon_tests COMMAND render_icon_tests)
-  add_executable(image_tests tests/image_tests.cpp src/render/image.cpp)
+  add_executable(image_tests tests/image_tests.cpp src/render/image.cpp
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/icon.rc")
   target_include_directories(image_tests PRIVATE include)
   target_compile_definitions(image_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
   target_link_libraries(image_tests PRIVATE ole32 windowscodecs)

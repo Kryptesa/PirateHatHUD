@@ -14,5 +14,6 @@ struct OverlayStopResult {
 // A retained result forbids restart and physical DLL unload, including after partial start.
 OverlayStopResult stop_overlay() noexcept;
 void set_overlay_hud(const HudState& hud);
-bool prepare_overlay_icon(const wchar_t* path);
+// A null path selects the PNG embedded in this module; a path selects a file override.
+bool prepare_overlay_icon(const wchar_t* path = nullptr);
 } // namespace phi
