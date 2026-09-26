@@ -1,7 +1,11 @@
 #include "pattern_scan.hpp"
 #include "patterns.hpp"
 #include <array>
-#define CHECK(c) do { if (!(c)) return __LINE__; } while (false)
+#define CHECK(c)                                                                                   \
+  do {                                                                                             \
+    if (!(c))                                                                                      \
+      return __LINE__;                                                                             \
+  } while (false)
 #include <cstdint>
 #include <vector>
 

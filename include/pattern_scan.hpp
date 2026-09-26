@@ -4,7 +4,10 @@
 #include <cstdint>
 #include <span>
 namespace phi {
-struct HookSites { std::uintptr_t enter = 0; std::uintptr_t leave = 0; };
+struct HookSites {
+  std::uintptr_t enter = 0;
+  std::uintptr_t leave = 0;
+};
 enum class ScanStatus { found, invalid_image, no_match, ambiguous };
 struct ScanResult {
   HookSites sites{};
@@ -13,4 +16,4 @@ struct ScanResult {
 };
 ScanResult find_hook_sites(HMODULE game);
 ScanResult scan_code(std::span<const std::uint8_t> code, std::uintptr_t base);
-}
+} // namespace phi

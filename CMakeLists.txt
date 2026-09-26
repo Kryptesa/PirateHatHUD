@@ -1,6 +1,16 @@
 cmake_minimum_required(VERSION 3.28)
 project(PirateHatHUD VERSION 0.3.0 LANGUAGES CXX)
 
+set(CLANG_FORMAT "" CACHE FILEPATH "Path to clang-format 20.1.8")
+add_custom_target(format
+  COMMAND ${CMAKE_COMMAND} "-DCLANG_FORMAT=${CLANG_FORMAT}"
+    -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Format.cmake"
+  VERBATIM)
+add_custom_target(format-check
+  COMMAND ${CMAKE_COMMAND} "-DCLANG_FORMAT=${CLANG_FORMAT}" -DCHECK=ON
+    -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Format.cmake"
+  VERBATIM)
+
 if(NOT WIN32 OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
   message(FATAL_ERROR "PirateHatHUD requires Windows x64")
 endif()

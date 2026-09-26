@@ -72,6 +72,43 @@ ctest --test-dir build -C Release --output-on-failure
 
 The compiled ASI is `build/Release/PirateHatHUD.asi`. The ready-to-install folder is `build/Release/PirateHatHUD/`; it includes the ASI, configuration, icon, and third-party license files. The project uses C++23 and the static MSVC runtime.
 
+## Code style
+
+C++ code uses clang-format **20.1.8**, with LLVM style, two-space indentation,
+a 100-column limit, and expanded control statements. The shared `.clang-format`
+and `.editorconfig` files keep editor and command-line formatting consistent.
+Include order is preserved because Windows and COM headers can depend on it.
+Only project files in `src`, `include`, and `tests` are formatted; dependencies
+and generated files are excluded.
+
+Install the pinned formatter locally (Python and pip required):
+
+```powershell
+python -m pip install --target build/format-tools -r requirements-format.txt
+```
+
+After configuring the build, format or check without changing files:
+
+```powershell
+cmake --build build --target format
+cmake --build build --target format-check
+```
+
+You can also run these commands without configuring or downloading build dependencies:
+
+```powershell
+cmake -P cmake/Format.cmake
+cmake -DCHECK=ON -P cmake/Format.cmake
+```
+
+If the formatter is installed elsewhere, pass `-DCLANG_FORMAT="path/to/clang-format.exe"`
+at configure time or before `-P`. Editors should use the same version and the
+repository's `.clang-format`; enable format on save if desired.
+Use braces for new control-flow blocks, keep headers self-contained, and follow
+the existing naming conventions. Formatting changes should preserve behavior.
+
+See the [clang-format style reference](https://clang.llvm.org/docs/ClangFormatStyleOptions.html).
+
 ## How it works
 
 The mod scans executable sections of `CrimsonDesert.exe` for a unique pair of treasure-counter instructions. It attaches observation hooks at the matching instructions, captures the counter address, and reads the counter to decide when to show the icon. It does not write to or freeze the counter. A missing or ambiguous match disables state observation and is logged.
