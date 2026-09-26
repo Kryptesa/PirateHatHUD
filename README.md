@@ -1,42 +1,33 @@
-# Pirate Hat HUD for Crimson Desert
+# Pirate Hat HUD
 
-Pirate Hat HUD is an ASI mod that shows a small treasure chest icon when the Pirate King Hat detects nearby treasure. You can change the icon's position and size, toggle it during play, or disable the mod for the session with a hotkey.
+A small HUD mod for Crimson Desert. When the Pirate King Hat detects treasure nearby,
+a chest icon appears on screen. It hides while the minimap is off or a menu is open,
+and returns after a short delay when you get back to the game.
 
-The icon is shown only while the minimap is visible. Menus that hide the minimap and the game's minimap display setting also hide the icon, including in diagnostic mode. The current development build uses a minimap memory chain verified on Crimson Desert **2.03.02**; compiled feature integration still needs in-game validation.
+**Current version: 0.4.0** · Windows x64 · DirectX 12
 
-> **Status: 0.3.0 development build.** The user reported the existing icon drawing over menus near treasure. The new minimap gating builds and passes automated checks, but the compiled change still needs in-game verification. Treasure hooks were historically confirmed on 1.0.0.2976; the minimap chain was verified separately on 2.03.02. DLSS and Frame Generation validation is not recorded.
+## Installation
 
-## Install
+With [CDUMM](https://github.com/faisalkindi/CrimsonDesert-UltimateModsManager), drag
+`PirateHatHUD-0.4.0.zip` into the manager, enable the mod on the ASI page, and make
+sure the ASI loader is enabled. Restart the game.
 
-You need the Windows x64 version of Crimson Desert. With [CDUMM](https://github.com/faisalkindi/CrimsonDesert-UltimateModsManager), import the complete `PirateHatHUD-0.3.0.zip` using drag and drop, then enable the plugin on the ASI page with the ASI loader enabled. Restart the game after installing, updating or changing the plugin's enabled state.
+If you use another ASI loader, put `PirateHatHUD.asi` and `PirateHatHUD.ini` together
+in its plugin folder. The default icon is built into the mod, so you don't need to
+copy a PNG.
 
-The archive contains:
+When updating, back up your INI first and check that you don't have a second copy
+of the ASI installed. Older versions used `config.ini`; move those settings into
+`PirateHatHUD.ini`. The old filename is still accepted if the new file is missing.
 
-```text
-PirateHatHUD/
-|-- PirateHatHUD.asi
-|-- PirateHatHUD.ini
-|-- modinfo.json
-|-- LICENSE
-|-- THIRD_PARTY_NOTICES.md
-|-- LICENSE-*.txt
-```
+For CDUMM updates, close the game and enable the mod in the manager before importing
+the new archive. Updating a disabled mod can leave an extra ASI behind when it is
+later uninstalled. If that happens, check `bin64` for `PirateHatHUD.asi` and
+`PirateHatHUD.asi.disabled`.
 
-CDUMM installs `PirateHatHUD.asi` and its matching `PirateHatHUD.ini` into the game's `bin64` directory. The standard icon is embedded in the ASI; no external PNG is required. Metadata and licenses remain in the distribution archive. `modinfo.json` describes the package; the ASI page may obtain version information separately rather than displaying these fields.
+## Settings and hotkeys
 
-For a standalone ASI loader, copy `PirateHatHUD.asi` and `PirateHatHUD.ini` side by side into its plugin directory. Start the game with the minimap enabled; the icon appears when the Pirate King Hat's treasure state is active and the minimap is visible.
-
-### Updating an older installation
-
-The reviewed CDUMM `AsiManager` code has an uninstall limitation after updating a disabled plugin and later enabling it: the ASI can remain behind. Enable the plugin before importing an update, with the game closed; after uninstalling, check that neither `PirateHatHUD.asi` nor `PirateHatHUD.asi.disabled` remains in `bin64`.
-
-Back up your old `config.ini` before importing the new ZIP. After installation, copy your settings into `PirateHatHUD.ini` (or replace it with your backed-up config). The new config takes precedence; `config.ini` is read only when `PirateHatHUD.ini` is absent. The mod does not modify or delete the old config or `icon.png`, because other plugins may use those generic names. Remove an old duplicate ASI installation before enabling the new one.
-
-To use a custom icon, manually place `PirateHatHUD.png` beside the ASI. It overrides the embedded icon; an invalid image prevents startup and is logged. Rename an old custom `icon.png` to `PirateHatHUD.png` to preserve it. CDUMM's ASI importer does not install PNG files, and does not track this manually added override or the runtime log for removal.
-
-## Configure
-
-Edit `PirateHatHUD.ini` beside `PirateHatHUD.asi`:
+Edit `PirateHatHUD.ini` next to the ASI, then restart the game to apply your changes.
 
 ```ini
 [indicator]
@@ -45,153 +36,108 @@ force_show=0
 x=350
 y=-310
 scale_percent=100
+show_delay_ms=1000
 
 [hotkeys]
 toggle=F9
 unload=F10
+
+[logging]
+level=info
+max_file_size_mb=5
+max_files=3
 ```
 
-| Setting | Meaning |
-| --- | --- |
-| `enabled` | `1` enables the indicator subject to treasure and minimap visibility; `0` starts with it disabled. |
-| `force_show` | `1` draws the icon for testing when the minimap is visible, regardless of treasure state or treasure pattern scan results. Return it to `0` for normal play. |
-| `x` | Horizontal position in pixels from the left edge. |
-| `y` | Negative values count pixels up from the bottom; zero and positive values count down from the top. |
-| `scale_percent` | Icon scale from `25` to `400`; `100` draws 56 × 56 pixels. Values outside this range use `100`. |
-| `toggle` | Enable or disable the indicator for the current session. Visibility still follows treasure/minimap state. Default: `F9`. |
-| `unload` | Disable observation and rendering for the current session. Default: `F10`. The DLL and required hook allocations remain loaded until game exit after hook activation. |
+- **F9** toggles the icon. Set `enabled=0` to start with it off.
+- **F10** stops the mod for the rest of the session. Restart the game to use it again.
+- **Position:** `x` counts from the left. A negative `y` counts up from the bottom;
+  zero or a positive value counts down from the top. The defaults were chosen for
+  2560 × 1440, so you may want to adjust them for your HUD.
+- **Size:** `scale_percent=100` gives a 56 × 56 pixel icon. The allowed range is 25–400.
+- **Return delay:** `show_delay_ms` controls how long the icon waits after the minimap
+  is visible and the menu is closed. The default is one second; use `0` for no delay.
+  Values up to `60000` are accepted.
+- **Test mode:** `force_show=1` shows the icon without needing the hat or nearby
+  treasure. It still hides in menus and when the minimap is off.
 
-Hotkeys accept `F8`, `F9`, `F10`, or `F11`. The default position (`x=350`, `y=-310`) was chosen for 2560 × 1440; adjust it for your display and HUD layout.
+Hotkeys can be set to F8, F9, F10 or F11.
 
-## If the icon does not appear
+### Custom icon
 
-1. Check that `PirateHatHUD.asi` and `PirateHatHUD.ini` are side by side and the ASI loader is active. If you added `PirateHatHUD.png`, remove it temporarily to test the embedded icon.
-2. Set `force_show=1`, restart the game, and load a save. Enable the minimap and close menus. This tests the overlay without requiring the hat or an active treasure state. Press `F9` to check the toggle.
-3. Open the newest `PirateHatHUD_YYYY-MM-DD_HH-MM-SS-mmm.log` beside the ASI. `DX12 hooks installed; waiting for swapchain` means the graphics hooks started. `DX12 swapchain and present queue captured` and `DX12 overlay initialized` indicate that the renderer reached the game swapchain. `State hooks disabled` means the game's instruction pattern was missing or ambiguous, so normal treasure detection is unavailable.
-4. If the test icon works, restore `force_show=0` and check it while wearing the Pirate King Hat near treasure. If it fails only with DLSS or Frame Generation, record those settings along with the game version and log when reporting the issue.
+The default chest is embedded in the ASI and isn't included as a separate PNG
+in the archive. To use your own icon:
 
-Minimap diagnostics distinguish `Minimap visible`, `Minimap hidden` and `Minimap sample unavailable; icon hidden`. An unavailable sample hides the icon even with `force_show=1`; polling retries automatically. The root RVA and fixed array slots were verified on 2.03.02 only and may need updating after game changes.
+1. Save it as a **PNG**, preferably **128 × 128 pixels** with a transparent background.
+2. Name the file **`PirateHatHUD_treasure.png`** and place it next to **`PirateHatHUD.asi`**
+   (in the game's `bin64` folder when using CDUMM).
+3. Restart the game.
 
-The compiled minimap gating still needs in-game verification. Graphics proxies and generated frames may affect whether the icon is drawn. `force_show=1` is a diagnostic setting; it does not confirm that treasure detection works.
+Other sizes work too, up to **4096 × 4096 pixels**, but use a square image: the HUD
+draws every icon as a square. Its on-screen size is 56 × 56 pixels at
+`scale_percent=100`, regardless of the source image size.
 
-## Build from source
+CDUMM won't install this file for you or remove it when you uninstall the mod.
+If the image can't be loaded, the mod won't start; remove it to go back to the
+built-in icon.
 
-Install Visual Studio 2022 with **Desktop development with C++**, a Windows SDK, CMake 3.28 or newer, and Git. The first CMake configure downloads SafetyHook, Zydis, and Dear ImGui. Build the x64 Release configuration:
+## Troubleshooting
+
+If you don't see the icon, try `force_show=1`, restart the game, and load a save.
+Make sure the minimap is on, close any menus, wait a second, and try F9.
+If that works, set `force_show=0` and test again with the Pirate King Hat near treasure.
+
+Logs are saved next to the ASI as `PirateHatHUD_*.log`. Check the newest file first.
+Set `[logging] level=debug` for treasure, minimap and menu diagnostics. The default
+keeps three log files of up to 5 MB each. You can change the size to 1–100 MB and
+the file count to 1–20, or use `level=off` to disable logging.
+
+If you're reporting a problem, include the log, your game version, and graphics
+settings—especially HDR, DLSS and Frame Generation. A game update may change the
+memory layout the mod relies on. The UI offsets were checked on **2.03.02**.
+
+SDR, scRGB and HDR10 output are supported. If the icon looks wrong in HDR10, try
+turning HDR off and back on so the mod can pick up the game's color-space setting.
+
+## Building
+
+You'll need Visual Studio 2022 or Build Tools with the x64 C++ toolchain, a Windows
+SDK, the C++ CMake tools, and Git. From PowerShell:
+
+```powershell
+./cmake/Build.ps1
+```
+
+This builds Release, runs the architecture checks and tests, and creates
+`dist/PirateHatHUD-0.4.0.zip`. The unpacked mod is in
+`build/ninja/Release/PirateHatHUD/`. For Debug, add `-Configuration Debug`.
+Dependencies are downloaded on the first build; existing sources in `build/_deps/`
+are reused when available.
+
+To build with your own CMake installation (3.28 or newer):
 
 ```powershell
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64
 cmake --build build --config Release
+cmake --build build --config Release --target architecture-check
 ctest --test-dir build -C Release --output-on-failure
 cmake --build build --config Release --target package
 ```
 
-The versioned installation archive is `dist/PirateHatHUD-0.3.0.zip`; it includes the ASI with its embedded icon, named configuration, package metadata, and license files inside the `PirateHatHUD/` folder. The compiled ASI and staging folder remain in `build/Release/`. The archive version comes from `project(... VERSION ...)` in CMake. The project uses C++23 and the static MSVC runtime.
-
-For a sandbox where MSBuild fails with `FileTracker` / `E_ACCESSDENIED`, use the
-Ninja build helper from a regular PowerShell session:
-
-```powershell
-./cmake/Build.ps1
-# Optional configuration:
-./cmake/Build.ps1 -Configuration Debug
-```
-
-The helper finds Visual Studio or Build Tools with the x64 C++ tools and bundled
-CMake/Ninja, initializes MSVC for the current process, then configures, builds,
-runs `architecture-check`, runs CTest, and packages the mod in `dist` only after
-all checks pass. Release produces `dist/PirateHatHUD-0.3.0.zip`; other configurations
-use a matching subfolder such as `dist/Debug/`. It restores the caller's environment
-afterwards. Install the **C++ CMake tools for Windows** component if it is missing.
-The separate Ninja build uses `build/ninja/`; the Release bundle is
-`build/ninja/Release/PirateHatHUD/`. Existing dependency sources in `build/_deps/`
-are reused when available; missing dependencies require network access during
-configuration. This build uses MSVC directly through Ninja, avoiding MSBuild's
-FileTracker.
-
-## Code style
-
-Architecture rules live in [AGENTS.md](AGENTS.md) and the
-[module architecture](docs/architecture.md). The default build checks header/source
-placement and module includes, and configuration validates production target links.
-CTest includes checker regression cases. To check layout and includes without a build:
-
-```powershell
-cmake -P cmake/Architecture.cmake
-```
-
-C++ code uses clang-format **20.1.8**, with LLVM style, two-space indentation,
-a 100-column limit, and expanded control statements. The shared `.clang-format`
-and `.editorconfig` files keep editor and command-line formatting consistent.
-Include order is preserved because Windows and COM headers can depend on it.
-Only project files in `src`, `include`, and `tests` are formatted; dependencies
-and generated files are excluded.
-
-Install the pinned formatter locally (Python and pip required):
+The code uses C++23 and clang-format 20.1.8. To install and run the formatter:
 
 ```powershell
 python -m pip install --target build/format-tools -r requirements-format.txt
-```
-
-After configuring the build, format or check without changing files:
-
-```powershell
-cmake --build build --target format
-cmake --build build --target format-check
-```
-
-You can also run these commands without configuring or downloading build dependencies:
-
-```powershell
 cmake -P cmake/Format.cmake
 cmake -DCHECK=ON -P cmake/Format.cmake
 ```
 
-If the formatter is installed elsewhere, pass `-DCLANG_FORMAT="path/to/clang-format.exe"`
-at configure time or before `-P`. Editors should use the same version and the
-repository's `.clang-format`; enable format on save if desired.
-Use braces for new control-flow blocks, keep headers self-contained, and follow
-the existing naming conventions. Formatting changes should preserve behavior.
-
-See the [clang-format style reference](https://clang.llvm.org/docs/ClangFormatStyleOptions.html).
-
-## How it works
-
-The game observers are built as a separate static library with typed subscriptions.
-The mod's indicator consumes treasure and minimap state changes, while the DX12 renderer receives
-a complete HUD snapshot. See [module architecture](docs/architecture.md) for the public
-API, thread and lifetime contracts, reuse boundaries, and validation limits.
-
-The mod scans executable sections of `CrimsonDesert.exe` for a unique pair of treasure-counter instructions. It attaches observation hooks at the matching instructions, captures the counter address, and reads the counter to decide when to show the icon. It does not write to or freeze the counter. A missing or ambiguous match disables state observation and is logged.
-
-The overlay draws `icon.png` through a DirectX 12 swapchain hook. The counter hooks were confirmed on Crimson Desert 1.0.0.2976 (EXE SHA-256 `57da440d72f4db974f25fef047cf84c4dadd999a88cb2a3c5af4c9bd67fde1e7`); other game builds may need updated patterns. See [release notes](release_notes.md) and the [changelog](CHANGELOG.md) for version history.
-
-The icon supports SDR, scRGB and HDR10 output. HDR icon white is fixed at 203 nits.
-HDR10 requires the mod to observe the game's color-space selection; if the mod
-starts after that selection, toggle HDR off and on in the game. Translucent edges
-in HDR10 use approximate blending in PQ space. Verify color, brightness, HDR
-switching, resize, force_show and F9/F10 behavior in game.
-
-The icon follows minimap visibility and its display setting. The memory chain was tested on game 2.03.02; see [minimap observation](docs/minimap-observation.md) for version limitations and required integration checks.
+See [AGENTS.md](AGENTS.md) for contribution guidelines and
+[docs/architecture.md](docs/architecture.md) for module boundaries and hook lifetimes.
+The mod reads the game's treasure state; it doesn't change the counter.
 
 ## License
 
-The project code and original icon are licensed under the [MIT License](LICENSE). Dependencies have their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md). Include the dependency license files from the staged build folder when distributing a binary.
+[MIT](LICENSE). Third-party licenses are included in the archive and listed in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-`[indicator] show_delay_ms=1000` delays the icon's return until the minimap is visible
-and Root_MainMenu is closed for that interval (0..60000 ms). Hiding cancels the wait
-immediately. Unknown UI state hides the icon; `force_show` still obeys these UI gates.
-Menu object resolution uses script RTTI; the UI root slot is specific to game 2.03.02.
-In-game verification remains required for Esc/M/I, cutscenes, disabled minimap,
-startup with an open menu, F9/F10 and a fresh game process. Adjust the delay after
-measuring any remaining map closing animation.
-
-### Logging
-
-`[logging]` in `PirateHatHUD.ini` controls `level` (`trace`, `debug`, `info`, `warn`,
-`error`, `off`), `max_file_size_mb` (1?100, default 5), and `max_files` (1?20,
-default 3, including the current file). Invalid values fall back to defaults.
-The default `info` records startup, shutdown and important actions. Set `debug` to
-capture treasure, minimap and menu transitions. Settings apply on the next launch.
-Files use UTC timestamps with milliseconds and rotate at startup or the size limit.
-Only matching timestamp log files are pruned; legacy `PirateHatHUD.log` is left alone
-and can be removed manually. Logging I/O failures do not stop the mod.
+[Release notes](release_notes.md) · [Changelog](CHANGELOG.md)

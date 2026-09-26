@@ -1,6 +1,7 @@
 #pragma once
 #include "core/log.hpp"
 #include "render/image.hpp"
+#include "render/hdr_bytecode.hpp"
 #include "render/frame_ring.hpp"
 #include "render/wait_policy.hpp"
 #include "render/hud_state.hpp"
@@ -29,6 +30,9 @@ public:
   Dx12Renderer& operator=(const Dx12Renderer&) = delete;
   void set_image(Image image);
   void set_logger(LogCallback logger);
+  bool prepare_shaders() {
+    return hdr_bytecode_.prepare(logger_);
+  }
   bool ready() const {
     return state_ == RendererState::ready;
   }
@@ -75,6 +79,7 @@ private:
 
   RendererState state_{RendererState::waiting};
   Image image_;
+  HdrBytecode hdr_bytecode_;
   LogCallback logger_{};
   IDXGISwapChain* swap{};
   HWND window{};

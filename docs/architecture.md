@@ -13,15 +13,16 @@ only explicitly documented interfaces are intended for library consumers.
 | --- | --- | --- |
 | `core` | Its own headers | Standard library |
 | `game` / `game_observers` | Its own headers, `core`, scanner and patterns | Windows, SafetyHook |
-| `features` / `treasure_indicator` | Its own headers, `game/treasure_observer.hpp`, `game/minimap_observer.hpp`, `game/menu_observer.hpp`, `render/hud_state.hpp` | Standard library |
-| `render` | Its own headers, including `HudState`, `core` | Windows, DX12/DXGI, WIC, ImGui, SafetyHook for graphics hooks |
+| `features` / `treasure_indicator` | Its own headers, `game/observer_state.hpp`, `render/hud_state.hpp` | Standard library |
+| `render` | Its own headers, including `HudState`, `core` | Windows, DX12/DXGI, D3DCompiler, WIC, ImGui, SafetyHook for graphics hooks |
 | `overlay` facade | Its own header, `render`, `core` | Standard library |
 | `platform` | Its own headers, `core` | Standard library, Windows |
 | `app` and DLL entry | All modules for composition | Windows, standard library |
 
-The current feature interface includes the observer headers for state types; it does
-not create or manage observers. If more features need those types, extract a small
-game-state header and update this contract and the checker together.
+`game/observer_state.hpp` contains the shared state/event values and observer stop
+result, independent of observer objects, Windows and SafetyHook. Features consume
+these values without depending on observer lifecycle APIs. The source checker
+rejects feature includes of concrete observer headers.
 
 Game observers must not include rendering or mod configuration. Rendering receives
 HUD state and must not read game memory or include game observers. Platform utilities
@@ -67,8 +68,22 @@ library API:
   SetColorSpace1 calls per swapchain. FP16 defaults to scRGB; pre-existing 10-bit
   chains remain SDR until their color-space selection is observed. HDR10 alpha
   blending is performed in PQ space and is approximate at translucent edges.
+- `hdr_bytecode`: compiles and validates shader bytecode on the application thread
+  before hook activation. Bytecode survives resize and device replacement; graphics
+  callbacks create device resources but never invoke the shader compiler.
 - `image`: WIC decoding of files or the embedded PNG resource into CPU RGBA pixels, independent of DX12 and hooks.
 - `hud_draw`: emits the ImGui draw command using HUD placement and a texture handle.
+
+Swapchain creation records an explicit queue association but does not select a HUD
+target. The first eligible Present must belong to the foreground, visible, unowned
+top-level window in the current process. Selection then stays with that HWND while
+unfocused; a newer creation-observed chain can replace the target only when it presents
+to the same window. A late-discovered pre-existing chain cannot supersede it. Migration
+to a different HWND is not supported by the renderer. Private DXGI generation data
+prevents recycled COM addresses from inheriting queues/color spaces. The bounded
+registry retains queues, not swapchains, preserves the active record, and suppresses
+drawing when a known association has been lost. Fallback queue ambiguity is tracked
+separately for each device and fails closed on capacity overflow.
 
 The hook module serializes renderer access with its graphics mutex. The facade uses a
 separate mutex for HUD snapshots, so publishing HUD state does not wait for GPU fences.
@@ -186,6 +201,18 @@ Events and diagnostics run on the owner thread. Unknown or duplicate identities 
 showing. Menu hooks use the same process-lifetime retention and single-instance rules
 as treasure hooks. Replaced roots are resolved again; missed transitions during root
 replacement remain an in-game validation limitation.
+
+Menu identity resolution distinguishes successfully read empty links and other script
+types from failed reads. A failed read of any potentially relevant entry invalidates
+uniqueness and returns unknown even if another entry matched. Every poll still follows
+all live heap links and checks the entire array for duplicates. Only RTTI classifications
+whose vtable, locator and name are in non-writable, readable game image sections are
+cached. If only the locator is immutable, its resolved name address is cached and the
+writable name is read again every poll. Heap addresses and root ownership are never
+cached. Menu and minimap use the
+same guarded memory reader, while the treasure hook keeps its separate SEH capture path.
+Menu transitions use one atomic generation/opening latch; the poll decision is tested
+separately for transitions before, during and after sampling and unknown samples.
 
 The policy keeps independent treasure, minimap and menu states. Hidden/unknown minimap
 or open/unknown menu immediately cancels return eligibility. When minimap is visible

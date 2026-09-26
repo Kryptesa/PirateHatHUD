@@ -1,6 +1,6 @@
 #pragma once
 
-#include "game/treasure_observer.hpp"
+#include "game/observer_state.hpp"
 
 #include <memory>
 

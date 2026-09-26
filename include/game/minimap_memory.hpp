@@ -1,5 +1,5 @@
 #pragma once
-#include "game/minimap_observer.hpp"
+#include "game/observer_state.hpp"
 #include <array>
 #include <cstddef>
 #include <cstdint>

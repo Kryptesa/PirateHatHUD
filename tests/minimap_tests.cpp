@@ -1,4 +1,5 @@
 #include "game/minimap_memory.hpp"
+#include "game/minimap_observer.hpp"
 #include <cstring>
 #include <map>
 #include <vector>

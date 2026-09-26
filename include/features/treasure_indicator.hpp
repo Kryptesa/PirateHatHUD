@@ -1,10 +1,8 @@
 #pragma once
-#include "game/treasure_observer.hpp"
-#include "game/minimap_observer.hpp"
-#include "game/menu_observer.hpp"
+#include "game/observer_state.hpp"
+#include "render/hud_state.hpp"
 #include <chrono>
 #include <optional>
-#include "render/hud_state.hpp"
 
 namespace phi {
 // Updated and queried by the application thread; the renderer receives a copy of hud_state().

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(PirateHatHUD VERSION 0.3.0 LANGUAGES CXX RC)
+project(PirateHatHUD VERSION 0.4.0 LANGUAGES CXX RC)
 
 include(cmake/Architecture.cmake)
 add_custom_target(architecture-check ALL
@@ -30,7 +30,8 @@ set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/generated/icon.rc"
 configure_file(cmake/modinfo.json.in "${CMAKE_CURRENT_BINARY_DIR}/generated/modinfo.json" @ONLY)
 include(FetchContent)
 set(SAFETYHOOK_FETCH_ZYDIS ON CACHE BOOL "Fetch Zydis" FORCE)
-FetchContent_Declare(safetyhook GIT_REPOSITORY https://github.com/cursey/safetyhook.git GIT_TAG origin/main)
+FetchContent_Declare(safetyhook GIT_REPOSITORY https://github.com/cursey/safetyhook.git
+  GIT_TAG f44cc070a8340f2f26649553c49533475417304d)
 FetchContent_Declare(imgui GIT_REPOSITORY https://github.com/ocornut/imgui.git GIT_TAG v1.92.9b)
 FetchContent_MakeAvailable(safetyhook imgui)
 get_target_property(PHI_ZYDIS_SOURCE_DIR Zydis SOURCE_DIR)
@@ -43,7 +44,8 @@ add_library(imgui_static STATIC
 target_include_directories(imgui_static PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
 target_compile_definitions(imgui_static PRIVATE IMGUI_DISABLE_OBSOLETE_FUNCTIONS)
 
-add_library(game_observers STATIC src/game/treasure_observer.cpp src/game/minimap_observer.cpp src/game/menu_observer.cpp src/pattern_scan.cpp)
+add_library(game_observers STATIC src/game/treasure_observer.cpp src/game/minimap_observer.cpp
+  src/game/menu_observer.cpp src/game/memory_reader.cpp src/pattern_scan.cpp)
 target_include_directories(game_observers PUBLIC include)
 target_compile_definitions(game_observers PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
 target_compile_options(game_observers PRIVATE /W4 /EHsc)
@@ -56,14 +58,15 @@ target_compile_options(treasure_indicator PRIVATE /W4 /EHsc)
 add_library(PirateHatHUD SHARED "${CMAKE_CURRENT_BINARY_DIR}/generated/icon.rc"
   src/main.cpp src/app.cpp src/overlay.cpp
   src/render/dxgi_hooks.cpp src/render/dx12_renderer.cpp src/render/dx12_frames.cpp
-  src/render/dx12_texture.cpp src/render/dx12_hdr.cpp src/render/image.cpp src/render/hud_draw.cpp
+  src/render/dx12_texture.cpp src/render/dx12_hdr.cpp src/render/hdr_bytecode.cpp
+  src/render/image.cpp src/render/hud_draw.cpp
   src/platform/config.cpp src/platform/hotkeys.cpp src/platform/logger.cpp)
 target_include_directories(PirateHatHUD PRIVATE include)
 target_compile_definitions(PirateHatHUD PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE
   PHI_VERSION="${PROJECT_VERSION}")
 target_compile_options(PirateHatHUD PRIVATE /W4 /EHsc)
 target_link_libraries(PirateHatHUD PRIVATE game_observers treasure_indicator safetyhook
-  imgui_static d3d12 dxgi ole32 windowscodecs)
+  imgui_static d3d12 dxgi d3dcompiler ole32 windowscodecs)
 set_target_properties(PirateHatHUD PROPERTIES PREFIX "" SUFFIX ".asi")
 
 add_custom_command(TARGET PirateHatHUD POST_BUILD
@@ -128,6 +131,10 @@ if(BUILD_TESTING)
   add_executable(minimap_tests tests/minimap_tests.cpp)
   target_link_libraries(minimap_tests PRIVATE game_observers)
   add_test(NAME minimap_tests COMMAND minimap_tests)
+  add_executable(memory_reader_tests tests/memory_reader_tests.cpp)
+  target_link_libraries(memory_reader_tests PRIVATE game_observers)
+  target_compile_definitions(memory_reader_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+  add_test(NAME memory_reader_tests COMMAND memory_reader_tests)
   add_executable(observer_hook_tests tests/observer_hook_tests.cpp)
   target_include_directories(observer_hook_tests PRIVATE include)
   add_test(NAME observer_hook_tests COMMAND observer_hook_tests)
@@ -146,11 +153,14 @@ if(BUILD_TESTING)
   add_executable(render_wait_tests tests/render_wait_tests.cpp)
   target_include_directories(render_wait_tests PRIVATE include)
   add_test(NAME render_wait_tests COMMAND render_wait_tests)
+  add_executable(swapchain_tests tests/swapchain_tests.cpp)
+  target_include_directories(swapchain_tests PRIVATE include)
+  add_test(NAME swapchain_tests COMMAND swapchain_tests)
   add_executable(render_icon_tests tests/render_icon_tests.cpp)
   target_include_directories(render_icon_tests PRIVATE include)
   target_link_libraries(render_icon_tests PRIVATE imgui_static)
   add_test(NAME render_icon_tests COMMAND render_icon_tests)
-  add_executable(hdr_shader_tests tests/hdr_shader_tests.cpp)
+  add_executable(hdr_shader_tests tests/hdr_shader_tests.cpp src/render/hdr_bytecode.cpp)
   target_include_directories(hdr_shader_tests PRIVATE include)
   target_link_libraries(hdr_shader_tests PRIVATE d3dcompiler)
   add_test(NAME hdr_shader_tests COMMAND hdr_shader_tests)
@@ -165,4 +175,4 @@ endif()
 phi_check_target(game_observers safetyhook)
 phi_check_target(treasure_indicator)
 phi_check_target(PirateHatHUD game_observers treasure_indicator safetyhook
-  imgui_static d3d12 dxgi ole32 windowscodecs)
+  imgui_static d3d12 dxgi d3dcompiler ole32 windowscodecs)

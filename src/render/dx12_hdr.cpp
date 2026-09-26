@@ -1,11 +1,11 @@
 #include "render/dx12_renderer.hpp"
-#include "render/hdr_shader.hpp"
-#include <d3dcompiler.h>
-#include <cstring>
 
 namespace phi::render {
 
 bool Dx12Renderer::initialize_hdr(DXGI_FORMAT format) {
+  if (!hdr_bytecode_.vertex || !hdr_bytecode_.pixel) {
+    return false;
+  }
   D3D12_DESCRIPTOR_RANGE range{};
   range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
   range.NumDescriptors = 1;
@@ -28,22 +28,18 @@ bool Dx12Renderer::initialize_hdr(DXGI_FORMAT format) {
   root.pParameters = parameters;
   root.NumStaticSamplers = 1;
   root.pStaticSamplers = &sampler;
-  ComPtr<ID3DBlob> serialized, vs, ps;
+  ComPtr<ID3DBlob> serialized;
   if (FAILED(
           D3D12SerializeRootSignature(&root, D3D_ROOT_SIGNATURE_VERSION_1, &serialized, nullptr)) ||
       FAILED(device->CreateRootSignature(0, serialized->GetBufferPointer(),
-                                         serialized->GetBufferSize(), IID_PPV_ARGS(&hdr_root))) ||
-      FAILED(D3DCompile(kShader, std::strlen(kShader), nullptr, nullptr, nullptr, "vs_main",
-                        "vs_5_0", D3DCOMPILE_ENABLE_STRICTNESS, 0, &vs, nullptr)) ||
-      FAILED(D3DCompile(kShader, std::strlen(kShader), nullptr, nullptr, nullptr, "ps_main",
-                        "ps_5_0", D3DCOMPILE_ENABLE_STRICTNESS, 0, &ps, nullptr))) {
+                                         serialized->GetBufferSize(), IID_PPV_ARGS(&hdr_root)))) {
     log(LogLevel::error, "HDR icon shader initialization failed");
     return false;
   }
   D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline{};
   pipeline.pRootSignature = hdr_root.Get();
-  pipeline.VS = {vs->GetBufferPointer(), vs->GetBufferSize()};
-  pipeline.PS = {ps->GetBufferPointer(), ps->GetBufferSize()};
+  pipeline.VS = {hdr_bytecode_.vertex->GetBufferPointer(), hdr_bytecode_.vertex->GetBufferSize()};
+  pipeline.PS = {hdr_bytecode_.pixel->GetBufferPointer(), hdr_bytecode_.pixel->GetBufferSize()};
   auto& blend = pipeline.BlendState.RenderTarget[0];
   blend.BlendEnable = TRUE;
   blend.SrcBlend = D3D12_BLEND_SRC_ALPHA;

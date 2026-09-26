@@ -1,38 +1,9 @@
 #include "game/minimap_observer.hpp"
 #include "game/minimap_memory.hpp"
+#include "game/memory_reader.hpp"
 #include <Windows.h>
-#include <limits>
 
 namespace phi {
-namespace {
-bool read_memory(uintptr_t address, void* destination, size_t size) {
-  if (!address || size > std::numeric_limits<uintptr_t>::max() - address) {
-    return false;
-  }
-  MEMORY_BASIC_INFORMATION region{};
-  if (!VirtualQuery(reinterpret_cast<const void*>(address), &region, sizeof(region)) ||
-      region.State != MEM_COMMIT || (region.Protect & (PAGE_GUARD | PAGE_NOACCESS))) {
-    return false;
-  }
-  const auto protection = region.Protect & 0xFF;
-  if (protection != PAGE_READONLY && protection != PAGE_READWRITE && protection != PAGE_WRITECOPY &&
-      protection != PAGE_EXECUTE_READ && protection != PAGE_EXECUTE_READWRITE &&
-      protection != PAGE_EXECUTE_WRITECOPY) {
-    return false;
-  }
-  const auto base = reinterpret_cast<uintptr_t>(region.BaseAddress);
-  if (address < base || address - base > region.RegionSize ||
-      size > region.RegionSize - (address - base)) {
-    return false;
-  }
-  // ReadProcessMemory handles memory becoming inaccessible after VirtualQuery without
-  // dereferencing a racing game pointer in our process code.
-  SIZE_T copied = 0;
-  return ReadProcessMemory(GetCurrentProcess(), reinterpret_cast<const void*>(address), destination,
-                           size, &copied) &&
-         copied == size;
-}
-} // namespace
 struct MinimapObserver::Impl {
   Signal<MinimapStateChanged> changes;
   MinimapState sampled = MinimapState::unknown;
@@ -58,10 +29,10 @@ bool MinimapObserver::start() {
   IMAGE_NT_HEADERS64 nt{};
   uintptr_t nt_address = 0;
   impl_->running =
-      impl_->module && read_memory(impl_->module, &dos, sizeof(dos)) &&
+      impl_->module && detail::read_memory(impl_->module, &dos, sizeof(dos)) &&
       dos.e_magic == IMAGE_DOS_SIGNATURE && dos.e_lfanew > 0 &&
       detail::add_address(impl_->module, static_cast<uintptr_t>(dos.e_lfanew), nt_address) &&
-      read_memory(nt_address, &nt, sizeof(nt)) && nt.Signature == IMAGE_NT_SIGNATURE &&
+      detail::read_memory(nt_address, &nt, sizeof(nt)) && nt.Signature == IMAGE_NT_SIGNATURE &&
       nt.OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC &&
       nt.OptionalHeader.SizeOfImage >= detail::kMinimapRootRva + sizeof(uintptr_t);
   if (impl_->logger) {
@@ -72,8 +43,8 @@ bool MinimapObserver::start() {
   return impl_->running;
 }
 void MinimapObserver::poll() {
-  impl_->sampled =
-      impl_->running ? detail::sample_minimap(impl_->module, read_memory) : MinimapState::unknown;
+  impl_->sampled = impl_->running ? detail::sample_minimap(impl_->module, detail::read_memory)
+                                  : MinimapState::unknown;
   if (impl_->logger && (!impl_->logged_sample || impl_->sampled != impl_->published)) {
     impl_->logged_sample = true;
     impl_->logger(LogLevel::debug, impl_->sampled == MinimapState::unknown

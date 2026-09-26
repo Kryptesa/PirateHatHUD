@@ -47,6 +47,17 @@ try {
     $source = Join-Path $projectRoot "build/_deps/$dependency-src"
     $marker = if ($dependency -eq 'imgui') { 'imgui.h' } else { 'CMakeLists.txt' }
     if (Test-Path -LiteralPath (Join-Path $source $marker)) {
+      if ($dependency -eq 'safetyhook') {
+        $projectCmake = Get-Content -LiteralPath (Join-Path $projectRoot 'CMakeLists.txt') -Raw
+        if ($projectCmake -notmatch 'GIT_TAG\s+([0-9a-f]{40})') {
+          throw 'SafetyHook must be pinned to a full commit SHA before reusing cached sources.'
+        }
+        $expectedRevision = $Matches[1]
+        $cachedRevision = & git -C $source rev-parse HEAD
+        if ($LASTEXITCODE -ne 0 -or $cachedRevision -ne $expectedRevision) {
+          throw "Cached SafetyHook does not match pinned commit $expectedRevision. Update build/_deps/safetyhook-src or use a clean build."
+        }
+      }
       $configureArguments += "-DFETCHCONTENT_SOURCE_DIR_$($dependency.ToUpperInvariant())=$source"
     }
   }

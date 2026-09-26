@@ -1,15 +1,10 @@
 #pragma once
 #include "core/log.hpp"
 #include "core/signal.hpp"
-#include "game/treasure_observer.hpp"
+#include "game/observer_state.hpp"
 #include <functional>
 #include <memory>
 namespace phi {
-enum class MenuState { unknown, open, closed };
-struct MenuStateChanged {
-  MenuState previous;
-  MenuState current;
-};
 class MenuObserver {
 public:
   explicit MenuObserver(LogCallback logger = nullptr);

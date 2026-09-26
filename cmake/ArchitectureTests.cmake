@@ -42,7 +42,15 @@ if(result EQUAL 0 OR NOT "${error}" MATCHES "forbidden target dependency")
 endif()
 
 file(WRITE "${TEST_ROOT}/feature_to_minimap/include/game/minimap_observer.hpp" "#pragma once\n")
-check_case(feature_to_minimap include/features/good.hpp "#include \"game/minimap_observer.hpp\"\n" "PASS")
+check_case(feature_to_minimap include/features/bad.hpp "#include \"game/minimap_observer.hpp\"\n" "forbidden include")
+file(WRITE "${TEST_ROOT}/feature_to_state/include/game/observer_state.hpp" "#pragma once\n")
+check_case(feature_to_state include/features/good.hpp "#include \"game/observer_state.hpp\"\n" "PASS")
+foreach(observer treasure menu)
+  set(case "feature_to_${observer}_observer")
+  file(WRITE "${TEST_ROOT}/${case}/include/game/${observer}_observer.hpp" "#pragma once\n")
+  check_case("${case}" include/features/bad.hpp
+    "#include \"game/${observer}_observer.hpp\"\n" "forbidden include")
+endforeach()
 file(WRITE "${TEST_ROOT}/render_to_minimap/include/game/minimap_observer.hpp" "#pragma once\n")
 check_case(render_to_minimap include/render/bad.hpp "#include \"game/minimap_observer.hpp\"\n" "forbidden include")
 

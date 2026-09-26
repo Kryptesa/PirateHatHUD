@@ -1,4 +1,4 @@
-﻿#include "app.hpp"
+#include "app.hpp"
 #include "features/treasure_indicator.hpp"
 #include "game/treasure_observer.hpp"
 #include "game/minimap_observer.hpp"
@@ -156,10 +156,10 @@ AppExitDisposition run_app(HMODULE module) noexcept {
         log(LogLevel::warn,
             "Using legacy config.ini; rename it to PirateHatHUD.ini before installing an update");
       }
-      const auto icon_path = folder + L"PirateHatHUD.png";
+      const auto icon_path = folder + L"PirateHatHUD_treasure.png";
       const bool custom_icon = GetFileAttributesW(icon_path.c_str()) != INVALID_FILE_ATTRIBUTES;
       if (!prepare_overlay_icon(custom_icon ? icon_path.c_str() : nullptr)) {
-        log(LogLevel::error, "Embedded icon or PirateHatHUD.png invalid; mod not started");
+        log(LogLevel::error, "Embedded icon or PirateHatHUD_treasure.png invalid; mod not started");
       } else {
         AppSession session(config, exit);
         session.run(config);

@@ -20,10 +20,16 @@ MSVC x64 RTTI must exactly match
 `.?AVUIGamePlayControl_Root_MainMenu@uiCommonScript@pa@@`, with locator image
 base matching the game module. Multiple matches or read failures yield unknown.
 No heap address or fixed UI array index is used. The root slot remains version-specific.
+Null entries and links are accepted as empty slots; failed reads in non-null objects
+invalidate uniqueness even when another object matches. Script RTTI is cached only
+where its locator/vtable storage belongs to non-writable game-image sections and
+read-only mapped pages. Writable type names are still read on every poll. The entire
+live array and all heap links are traversed each time; no root ownership is cached.
 
 Startup reads +25B immediately; poll resolves current identity again and reads the
 state. Hook callbacks capture only atomics and never refer to the observer allocation.
 An opening is latched until poll, so a rapid open/close cancels the return deadline.
+Opening and transition generation share one atomic value, preventing split-flag races.
 Closing settles through memory sampling; a racing write may defer publication one poll.
 Only poll dispatches typed events and logs on the owner thread. Hook activation uses
 the existing ObserverHooks retention policy, including failed/partial activation.
@@ -32,6 +38,14 @@ Policy tests cover independent event order, 999/1000 ms boundary, cancellation,
 reopening, unknown sources and force_show gating. Memory tests cover identity,
 ambiguity, read failures, invalid bytes and startup outside the game. Application tests
 cover menu lifecycle, failures and DLL retention. These are not in-game verification.
+
+The deterministic two-object fixture uses 24 reads on the cold identity pass and 18
+after immutable RTTI is cached. Partial caching with a writable type name saves the
+locator reads while continuing to detect name failures and changes. These counts
+measure reader calls, not game CPU time; profile actual polling duration and UI array
+size in game before changing the polling interval or caching live root identities.
+The 257-entry fixture with two fully immutable script types reduces reader calls from
+2064 to 1293 while still inspecting every live entry and detecting duplicates.
 
 Pending compiled integration checks: Esc/M/I, cutscenes, minimap setting disabled,
 startup with an open menu, F9/F10, teleport and fresh process restart. Record game

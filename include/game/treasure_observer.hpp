@@ -2,23 +2,12 @@
 #include "core/log.hpp"
 
 #include "core/signal.hpp"
+#include "game/observer_state.hpp"
 
 #include <functional>
 #include <memory>
 
 namespace phi {
-
-enum class TreasureState { unknown, inactive, active };
-
-struct TreasureStateChanged {
-  TreasureState previous;
-  TreasureState current;
-};
-
-struct ObserverStopResult {
-  bool hooks_disabled;
-  bool module_must_remain_loaded;
-};
 
 // All public operations, including subscription destruction, belong to one owner thread.
 // Game hooks capture data only; subscribers run synchronously from poll().

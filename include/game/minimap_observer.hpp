@@ -1,15 +1,11 @@
 #pragma once
 #include "core/log.hpp"
 #include "core/signal.hpp"
+#include "game/observer_state.hpp"
 #include <functional>
 #include <memory>
 
 namespace phi {
-enum class MinimapState { unknown, hidden, visible };
-struct MinimapStateChanged {
-  MinimapState previous;
-  MinimapState current;
-};
 // Operations and subscriptions belong to the owner thread. poll() samples memory and
 // publishes changes synchronously; unknown means no valid sample. No game hooks.
 class MinimapObserver {

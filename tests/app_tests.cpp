@@ -272,7 +272,7 @@ int main() {
   const auto folder = std::filesystem::path(module_path).parent_path();
   const auto config_path = folder / L"PirateHatHUD.ini";
   const auto legacy_path = folder / L"config.ini";
-  const auto icon_path = folder / L"PirateHatHUD.png";
+  const auto icon_path = folder / L"PirateHatHUD_treasure.png";
   if (!std::filesystem::exists(config_path) && !std::filesystem::exists(legacy_path) &&
       !std::filesystem::exists(icon_path)) {
     struct Fixtures {

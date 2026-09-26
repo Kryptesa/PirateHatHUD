@@ -26,6 +26,9 @@ bool start_overlay() {
   if (g_stop_result.module_must_remain_loaded || !g_renderer) {
     return false;
   }
+  if (!g_renderer->prepare_shaders()) {
+    return false;
+  }
   g_start_attempted = true;
   g_started = render::start_hooks(*g_renderer, snapshot, g_logger);
   return g_started;

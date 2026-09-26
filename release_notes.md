@@ -1,15 +1,39 @@
-# Pirate Hat HUD 0.3.0 DX12 preview
+# Pirate Hat HUD 0.4.0
 
-## Current development build
+This release improves how the icon follows the game's HUD and makes the overlay
+more reliable when changing graphics settings.
 
-The distribution now targets CDUMM's ASI importer: `PirateHatHUD.asi` and `PirateHatHUD.ini` install together into `bin64`. The default icon is embedded because CDUMM does not copy PNG companions. An optional manually installed `PirateHatHUD.png` overrides it. Back up old settings before import and transfer them into `PirateHatHUD.ini`; the old generic `config.ini` is only a fallback when the new file is absent. The archive also includes generated `modinfo.json`, the project license and dependency notices/licenses. Release, architecture-check, formatting and all 13 CTest tests pass. ZIP contents, embedded ASI PNG bytes and install/config discovery/disable/enable/uninstall were checked using CDUMM's `AsiManager` in a temporary directory. An upstream uninstall limitation was reproduced after updating a disabled plugin and later enabling it; see README. CDUMM UI and in-game validation remain pending.
+## What's new
 
-The icon now follows minimap visibility: it hides in menus that hide the minimap and stays hidden when the minimap is disabled in game settings. This also applies to `force_show=1`. Treasure state is retained while hidden. Invalid or unavailable minimap observations hide the icon until reading recovers.
+The chest icon hides when you open the main menu or turn off the minimap. When you
+return to the game, it waits one second before appearing again. Change
+`show_delay_ms` in the INI if you'd prefer a shorter delay, or set it to `0`.
+Test mode follows these rules too.
 
-The minimap pointer chain was verified in Cheat Engine on game 2.03.02 across menu/inventory transitions, minimap settings, teleport and a full restart. Its root RVA and array slots are specific to the tested build; compatibility with other builds is not established. See [minimap observation](docs/minimap-observation.md) for the chain and limitations.
+Frame handling has been improved to reduce flicker. The overlay can recover when
+the game replaces its swapchain, and auxiliary windows no longer take over its
+rendering target. Menu detection also handles quick open/close transitions and
+unavailable game memory more consistently.
 
-The Release bundle is `build/ninja/Release/PirateHatHUD/`. Architecture-check, formatting and 13/13 CTest tests pass. In-game validation of the compiled feature remains pending: check normal treasure detection and `force_show`, menus, minimap settings, save/load, F9/F10 and relevant graphics settings. Record the game version and log with results.
+The default icon is now built into the ASI. Custom icons still work: put a file
+named `PirateHatHUD_treasure.png` beside it. Logs now have configurable levels and rotate
+automatically instead of growing indefinitely.
 
-## Original 0.3.0 preview validation
+## Updating
 
-The treasure counter scanner and read-only observer were confirmed in game on Crimson Desert 1.0.0.2976. This update replaces dormant DX11 code with a DX12 Present renderer and a force_show=1 diagnostic. The Release ASI compiles and scanner tests pass. The icon has not yet been observed in game, including with DLSS or Frame Generation. This is a test preview, not a confirmed Nexus main-file release.
+Back up your settings, import `PirateHatHUD-0.4.0.zip` into CDUMM, and restart the
+game. If you're upgrading from a version that used `config.ini`, copy your settings
+into `PirateHatHUD.ini`.
+
+F9 toggles the icon. F10 stops the mod until the next game launch.
+
+See the [README](README.md) for installation, settings and troubleshooting.
+
+## Compatibility
+
+The UI memory layout is based on Crimson Desert 2.03.02. Game updates may require
+new offsets or instruction patterns.
+
+SDR, scRGB and HDR10 output are supported. For HDR10, the mod needs to see the game's
+color-space change; if the icon looks wrong, try switching HDR off and back on.
+Swapchain recovery supports replacements within the same game window.
