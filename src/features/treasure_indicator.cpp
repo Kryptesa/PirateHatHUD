@@ -8,13 +8,18 @@ void TreasureIndicator::set_treasure_state(TreasureState state) {
   treasure_state_ = state;
 }
 
+void TreasureIndicator::set_minimap_state(MinimapState state) {
+  minimap_state_ = state;
+}
+
 void TreasureIndicator::toggle() {
   enabled_ = !enabled_;
 }
 
 HudState TreasureIndicator::hud_state() const {
   auto hud = hud_;
-  hud.visible = enabled_ && (force_show_ || treasure_state_ == TreasureState::active);
+  hud.visible = enabled_ && (force_show_ || treasure_state_ == TreasureState::active) &&
+                minimap_state_ == MinimapState::visible;
   return hud;
 }
 } // namespace phi

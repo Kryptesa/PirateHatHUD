@@ -2,7 +2,9 @@
 
 Pirate Hat HUD is an ASI mod that shows a small treasure chest icon when the Pirate King Hat detects nearby treasure. You can change the icon's position and size, toggle it during play, or disable the mod for the session with a hotkey.
 
-> **Status: 0.3.0 DX12 preview.** Treasure state detection was confirmed in game on Crimson Desert 1.0.0.2976. The DirectX 12 overlay builds, but its drawing has not yet been verified in game. Treat this as a test build, especially when using DLSS or Frame Generation.
+The icon is shown only while the minimap is visible. Menus that hide the minimap and the game's minimap display setting also hide the icon, including in diagnostic mode. The current development build uses a minimap memory chain verified on Crimson Desert **2.03.02**; compiled feature integration still needs in-game validation.
+
+> **Status: 0.3.0 development build.** The user reported the existing icon drawing over menus near treasure. The new minimap gating builds and passes automated checks, but the compiled change still needs in-game verification. Treasure hooks were historically confirmed on 1.0.0.2976; the minimap chain was verified separately on 2.03.02. DLSS and Frame Generation validation is not recorded.
 
 ## Install
 
@@ -18,7 +20,7 @@ You need the Windows x64 version of Crimson Desert and a compatible ASI loader. 
    ```
 
 2. With DMM, import the ZIP containing the `PirateHatHUD` folder, or place that folder in DMM's `mods` directory. Enable the mod and mount it with the ASI loader enabled. For a standalone ASI loader, put all three files in the loader's plugin directory, side by side.
-3. Start the game. The icon should appear near the minimap when the Pirate King Hat's treasure state is active.
+3. Start the game and enable the minimap. The icon should appear near it when the Pirate King Hat's treasure state is active and the minimap is visible.
 
 The icon file is required. If it is missing or invalid, the mod logs an error and unloads. After changing `config.ini`, restart the game. For current DMM setup steps, see the [mod manager page](https://www.nexusmods.com/crimsondesert/mods/633).
 
@@ -41,12 +43,12 @@ unload=F10
 
 | Setting | Meaning |
 | --- | --- |
-| `enabled` | `1` draws the icon; `0` starts with it hidden. |
-| `force_show` | `1` always draws the icon for testing, regardless of treasure state or pattern scan results. Return it to `0` for normal play. |
+| `enabled` | `1` enables the indicator subject to treasure and minimap visibility; `0` starts with it disabled. |
+| `force_show` | `1` draws the icon for testing when the minimap is visible, regardless of treasure state or treasure pattern scan results. Return it to `0` for normal play. |
 | `x` | Horizontal position in pixels from the left edge. |
 | `y` | Negative values count pixels up from the bottom; zero and positive values count down from the top. |
 | `scale_percent` | Icon size from `25` to `400`. Values outside this range use `100`. |
-| `toggle` | Show or hide the icon for the current session. Default: `F9`. |
+| `toggle` | Enable or disable the indicator for the current session. Visibility still follows treasure/minimap state. Default: `F9`. |
 | `unload` | Disable observation and rendering for the current session. Default: `F10`. The DLL and required hook allocations remain loaded until game exit after hook activation. |
 
 Hotkeys accept `F8`, `F9`, `F10`, or `F11`. The default position (`x=350`, `y=-310`) was chosen for 2560 × 1440; adjust it for your display and HUD layout.
@@ -54,11 +56,13 @@ Hotkeys accept `F8`, `F9`, `F10`, or `F11`. The default position (`x=350`, `y=-3
 ## If the icon does not appear
 
 1. Check that `PirateHatHUD.asi`, `config.ini`, and `icon.png` are in the same directory and that the ASI loader is active.
-2. Set `force_show=1`, restart the game, and load a save. This tests the overlay without requiring the hat or an active treasure state. Press `F9` to check the toggle.
+2. Set `force_show=1`, restart the game, and load a save. Enable the minimap and close menus. This tests the overlay without requiring the hat or an active treasure state. Press `F9` to check the toggle.
 3. Open `PirateHatHUD.log` beside the ASI. `DX12 hooks installed; waiting for swapchain` means the graphics hooks started. `DX12 swapchain and present queue captured` and `DX12 overlay initialized` indicate that the renderer reached the game swapchain. `State hooks disabled` means the game's instruction pattern was missing or ambiguous, so normal treasure detection is unavailable.
 4. If the test icon works, restore `force_show=0` and check it while wearing the Pirate King Hat near treasure. If it fails only with DLSS or Frame Generation, record those settings along with the game version and log when reporting the issue.
 
-The DX12 renderer has not been verified in game yet. Graphics proxies and generated frames may affect whether the icon is drawn. `force_show=1` is a diagnostic setting; it does not confirm that treasure detection works.
+Minimap diagnostics distinguish `Minimap visible`, `Minimap hidden` and `Minimap sample unavailable; icon hidden`. An unavailable sample hides the icon even with `force_show=1`; polling retries automatically. The root RVA and fixed array slots were verified on 2.03.02 only and may need updating after game changes.
+
+The compiled minimap gating still needs in-game verification. Graphics proxies and generated frames may affect whether the icon is drawn. `force_show=1` is a diagnostic setting; it does not confirm that treasure detection works.
 
 ## Build from source
 
@@ -139,14 +143,16 @@ See the [clang-format style reference](https://clang.llvm.org/docs/ClangFormatSt
 
 ## How it works
 
-The game observer is built as a separate static library with typed subscriptions.
-The mod's indicator consumes treasure state changes, while the DX12 renderer receives
+The game observers are built as a separate static library with typed subscriptions.
+The mod's indicator consumes treasure and minimap state changes, while the DX12 renderer receives
 a complete HUD snapshot. See [module architecture](docs/architecture.md) for the public
 API, thread and lifetime contracts, reuse boundaries, and validation limits.
 
 The mod scans executable sections of `CrimsonDesert.exe` for a unique pair of treasure-counter instructions. It attaches observation hooks at the matching instructions, captures the counter address, and reads the counter to decide when to show the icon. It does not write to or freeze the counter. A missing or ambiguous match disables state observation and is logged.
 
 The overlay draws `icon.png` through a DirectX 12 swapchain hook. The counter hooks were confirmed on Crimson Desert 1.0.0.2976 (EXE SHA-256 `57da440d72f4db974f25fef047cf84c4dadd999a88cb2a3c5af4c9bd67fde1e7`); other game builds may need updated patterns. See [release notes](release_notes.md) and the [changelog](CHANGELOG.md) for version history.
+
+The icon follows minimap visibility and its display setting. The memory chain was tested on game 2.03.02; see [minimap observation](docs/minimap-observation.md) for version limitations and required integration checks.
 
 ## License
 

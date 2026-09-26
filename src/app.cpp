@@ -1,6 +1,7 @@
 ﻿#include "app.hpp"
 #include "features/treasure_indicator.hpp"
 #include "game/treasure_observer.hpp"
+#include "game/minimap_observer.hpp"
 #include "overlay.hpp"
 #include "platform/config.hpp"
 #include "platform/hotkeys.hpp"
@@ -45,7 +46,7 @@ public:
   AppSession(const Config& config, ExitState& exit)
       : exit_(exit),
         indicator_(config.enabled, config.force_show, config.x, config.y, config.scale),
-        observer_(log) {}
+        observer_(log), minimap_(log) {}
   ~AppSession() noexcept {
     finish();
   }
@@ -53,6 +54,9 @@ public:
     subscription_ = observer_.subscribe([this](const TreasureStateChanged& event) {
       indicator_.set_treasure_state(event.current);
     });
+    minimap_subscription_ = minimap_.subscribe(
+        [this](const MinimapStateChanged& event) { indicator_.set_minimap_state(event.current); });
+    indicator_.set_minimap_state(minimap_.state());
     indicator_.set_treasure_state(observer_.state());
     set_overlay_hud(indicator_.hud_state());
     logger_configured_ = true;
@@ -62,8 +66,10 @@ public:
     log(overlay_started ? "DX12 hooks installed; waiting for swapchain"
                         : "DX12 hooks unavailable; overlay disabled");
     exit_.retain |= observer_.start();
+    minimap_.start();
     for (;;) {
       observer_.poll();
+      minimap_.poll();
       const auto actions = poll_hotkeys(config.toggle_key, config.unload_key);
       if (actions.toggle) {
         indicator_.toggle();
@@ -84,7 +90,9 @@ private:
     finished_ = true;
     const auto observer_stop = observer_.stop();
     exit_.retain |= observer_stop.module_must_remain_loaded || !observer_stop.hooks_disabled;
+    minimap_.stop();
     subscription_.reset();
+    minimap_subscription_.reset();
     // Failed starts can leave partially installed hooks; always ask both owners to stop.
     const auto overlay_stop = stop_overlay();
     exit_.retain |= overlay_stop.module_must_remain_loaded || !overlay_stop.hooks_disabled ||
@@ -100,7 +108,9 @@ private:
   ExitState& exit_;
   TreasureIndicator indicator_;
   TreasureObserver observer_;
+  MinimapObserver minimap_;
   Subscription subscription_;
+  Subscription minimap_subscription_;
   bool logger_configured_ = false;
   bool finished_ = false;
 };

@@ -40,4 +40,10 @@ execute_process(COMMAND "${CMAKE_COMMAND}" -S "${root}" -B "${root}/build"
 if(result EQUAL 0 OR NOT "${error}" MATCHES "forbidden target dependency")
   message(FATAL_ERROR "Forbidden target dependency was not detected: ${output}${error}")
 endif()
+
+file(WRITE "${TEST_ROOT}/feature_to_minimap/include/game/minimap_observer.hpp" "#pragma once\n")
+check_case(feature_to_minimap include/features/good.hpp "#include \"game/minimap_observer.hpp\"\n" "PASS")
+file(WRITE "${TEST_ROOT}/render_to_minimap/include/game/minimap_observer.hpp" "#pragma once\n")
+check_case(render_to_minimap include/render/bad.hpp "#include \"game/minimap_observer.hpp\"\n" "forbidden include")
+
 message(STATUS "Architecture checker regression tests passed")

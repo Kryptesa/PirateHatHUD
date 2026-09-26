@@ -1,5 +1,6 @@
-﻿#include "app.hpp"
+#include "app.hpp"
 #include "game/treasure_observer.hpp"
+#include "game/minimap_observer.hpp"
 #include "overlay.hpp"
 #include "platform/config.hpp"
 #include "platform/hotkeys.hpp"
@@ -21,6 +22,11 @@ struct Scenario {
   std::string fail;
   std::vector<std::string> calls;
   bool icon_valid = true;
+  phi::Signal<phi::MinimapStateChanged>* minimap_signal = nullptr;
+  unsigned minimap_subscriber_calls = 0;
+  bool hud_visible = false;
+  phi::MinimapState minimap_state = phi::MinimapState::visible;
+  bool force_show = false;
   bool overlay_started = false;
   bool observer_started = false;
   bool observer_retained = false;
@@ -65,6 +71,45 @@ phi::AppExitDisposition run() {
 } // namespace
 
 namespace phi {
+struct MinimapObserver::Impl {
+  Signal<MinimapStateChanged> changes;
+  bool stopped = false;
+};
+MinimapObserver::MinimapObserver(void (*)(const char*)) {
+  step("minimap_construct");
+  impl_ = std::make_unique<Impl>();
+  scenario.minimap_signal = &impl_->changes;
+}
+MinimapObserver::~MinimapObserver() {
+  stop();
+  scenario.minimap_signal = nullptr;
+}
+bool MinimapObserver::start() {
+  step("minimap_start");
+  return true;
+}
+void MinimapObserver::poll() {
+  step("minimap_poll");
+  impl_->changes.publish({MinimapState::unknown, scenario.minimap_state});
+}
+void MinimapObserver::stop() noexcept {
+  if (!impl_->stopped) {
+    impl_->stopped = true;
+    scenario.calls.emplace_back("minimap_stop");
+    scenario.cleanup_order_valid &= scenario.log_open;
+  }
+}
+MinimapState MinimapObserver::state() const {
+  return MinimapState::unknown;
+}
+Subscription MinimapObserver::subscribe(std::function<void(const MinimapStateChanged&)> callback) {
+  step("minimap_subscribe");
+  return impl_->changes.subscribe([callback = std::move(callback)](const auto& event) {
+    ++scenario.minimap_subscriber_calls;
+    step("minimap_subscriber");
+    callback(event);
+  });
+}
 struct TreasureObserver::Impl {
   Signal<TreasureStateChanged> changes;
   bool stopped = false;
@@ -125,18 +170,21 @@ void log(const char*) {
 }
 Config read_config(const std::wstring&) {
   step("config");
-  return {};
+  Config config;
+  config.force_show = scenario.force_show;
+  return config;
 }
 HotkeyActions poll_hotkeys(int, int) {
   step("hotkeys");
-  return {true, true};
+  return {false, true};
 }
 bool prepare_overlay_icon(const wchar_t*) {
   step("icon");
   return scenario.icon_valid;
 }
-void set_overlay_hud(const HudState&) {
+void set_overlay_hud(const HudState& hud) {
   step("hud");
+  scenario.hud_visible = hud.visible;
 }
 void set_overlay_log(void (*logger)(const char*)) {
   step(logger ? "set_logger" : "clear_logger");
@@ -148,6 +196,15 @@ bool start_overlay() {
 OverlayStopResult stop_overlay() noexcept {
   scenario.calls.emplace_back("overlay_stop");
   scenario.cleanup_order_valid &= scenario.log_open && has("observer_stop");
+  const auto minimap_callbacks = scenario.minimap_subscriber_calls;
+  if (scenario.minimap_signal) {
+    try {
+      scenario.minimap_signal->publish({MinimapState::visible, MinimapState::unknown});
+    } catch (...) {
+      scenario.cleanup_order_valid = false;
+    }
+  }
+  scenario.cleanup_order_valid &= minimap_callbacks == scenario.minimap_subscriber_calls;
   const auto callbacks = scenario.subscriber_calls;
   if (scenario.signal) {
     // A token reset must take effect before graphics shutdown begins.
@@ -168,6 +225,9 @@ int main() {
   scenario = {};
   CHECK(run() == AppExitDisposition::unload_allowed);
   CHECK(scenario.cleanup_order_valid);
+  CHECK(scenario.hud_visible);
+  CHECK(before("minimap_poll", "hotkeys"));
+  CHECK(before("minimap_stop", "overlay_stop"));
   CHECK(before("observer_stop", "overlay_stop"));
   CHECK(before("overlay_stop", "clear_logger"));
   CHECK(before("clear_logger", "close_log"));
@@ -176,7 +236,8 @@ int main() {
 
   for (const auto* failure :
        {"observer_construct", "subscribe", "hud", "set_logger", "overlay_start", "observer_start",
-        "poll", "subscriber", "hotkeys", "unknown", "diagnostics", "hud_runtime"}) {
+        "poll", "subscriber", "minimap_subscribe", "minimap_start", "minimap_poll",
+        "minimap_subscriber", "hotkeys", "unknown", "diagnostics", "hud_runtime"}) {
     scenario = {};
     scenario.fail = failure;
     CHECK(run() == AppExitDisposition::unload_allowed);
@@ -187,6 +248,20 @@ int main() {
       CHECK(before("overlay_stop", "close_log"));
     }
   }
+  for (auto state : {phi::MinimapState::hidden, phi::MinimapState::unknown}) {
+    scenario = {};
+    scenario.minimap_state = state;
+    scenario.force_show = true;
+    CHECK(run() == AppExitDisposition::unload_allowed);
+    CHECK(!scenario.hud_visible);
+    CHECK(scenario.cleanup_order_valid);
+  }
+  scenario = {};
+  scenario.fail = "minimap_construct";
+  CHECK(run() == AppExitDisposition::unload_allowed);
+  CHECK(has("observer_stop"));
+  CHECK(!has("overlay_stop"));
+  CHECK(has("close_log"));
   for (const auto* failure : {"open_log", "log", "config", "icon"}) {
     scenario = {};
     scenario.fail = failure;

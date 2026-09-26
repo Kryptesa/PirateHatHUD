@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — minimap visibility
+
+- Hide the treasure icon while the minimap is hidden, including menus and the game's minimap display setting. Preserve treasure state so the icon can return when the minimap reappears.
+- Apply the same minimap requirement to `force_show`; hide the icon when observation is unavailable.
+- Add a read-only, polling minimap observer with guarded pointer reads and startup/state diagnostics. The version-specific chain was verified in Cheat Engine on Crimson Desert 2.03.02 across menus, inventory, teleport and a game restart.
+- Release build, architecture-check, formatting and all 12 CTest tests pass. The compiled minimap/HUD integration still needs in-game verification; no root signature or automatic version detection is implemented.
+
 ## 0.3.0 — DX12 overlay preview
 
 - Add DXGI swapchain and D3D12 queue capture, per-backbuffer ImGui DX12 rendering, fences, resize handling, and F9/F10 control.

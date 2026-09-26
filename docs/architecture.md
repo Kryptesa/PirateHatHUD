@@ -13,13 +13,13 @@ only explicitly documented interfaces are intended for library consumers.
 | --- | --- | --- |
 | `core` | Its own headers | Standard library |
 | `game` / `game_observers` | Its own headers, `core`, scanner and patterns | Windows, SafetyHook |
-| `features` / `treasure_indicator` | Its own headers, `game/treasure_observer.hpp`, `render/hud_state.hpp` | Standard library |
+| `features` / `treasure_indicator` | Its own headers, `game/treasure_observer.hpp`, `game/minimap_observer.hpp`, `render/hud_state.hpp` | Standard library |
 | `render` | Its own headers, including `HudState` | Windows, DX12/DXGI, WIC, ImGui, SafetyHook for graphics hooks |
 | `overlay` facade | Its own header, `render` | Standard library |
 | `platform` | Its own headers | Standard library, Windows |
 | `app` and DLL entry | All modules for composition | Windows, standard library |
 
-The current feature interface includes the observer header for state types; it does
+The current feature interface includes the observer headers for state types; it does
 not create or manage observers. If more features need those types, extract a small
 game-state header and update this contract and the checker together.
 
@@ -42,7 +42,7 @@ and its regression cases. Changes to boundaries must update documentation and ch
 in the same task, including any constraints passed to delegated agents.
 
 - `game_observers`: game-specific scanning, hooks and safe memory reads. Public entry
-  point: `include/game/treasure_observer.hpp`. No HUD, configuration or DirectX dependency.
+  points: `include/game/treasure_observer.hpp` and `include/game/minimap_observer.hpp`. No HUD, configuration or DirectX dependency.
 - `core/signal.hpp`: reusable typed synchronous signals and move-only RAII subscriptions.
 - `treasure_indicator`: presentation policy for this mod, producing a `HudState`.
 - `overlay`: DX12 resources and drawing from a coherent `HudState` snapshot.
@@ -124,6 +124,15 @@ no global string-based bus is required.
 
 ## Reuse and lifecycle
 
+`MinimapObserver` installs no hooks. It samples a guarded pointer chain in `poll()`
+and publishes typed visibility changes on the owner thread. Unknown observations
+suppress the icon, including in force_show mode. Treasure state is retained while
+the minimap is hidden. Application composition polls both observers before
+publishing one HUD snapshot, then stops both observers and resets subscriptions
+before graphics shutdown. The minimap observer may restart after stop; treasure
+hook retirement rules do not apply to it. See [minimap observation](minimap-observation.md)
+for the 2.03.02 chain, fixed-slot limitations and validation evidence.
+
 Another mod can link `game_observers` without linking the indicator or ImGui. The static
 library still requires Windows x64, SafetyHook, and a compatible Crimson Desert build.
 Public observer types hide SafetyHook and game addresses. Scanner headers and patterns
@@ -148,6 +157,11 @@ Full in-game DLL unload safety is not established by these unit tests.
 CTest covers scanning, typed subscription lifetime/dispatch behavior, indicator policy,
 observer startup failure without the game, hook retention and partial activation,
 application cleanup under exceptions, bounded GPU wait policy, and WIC image decoding/retry.
+Minimap tests cover the pointer traversal, read failures, null pointers, address
+overflow, invalid visibility bytes and startup without the game. Indicator and app
+tests cover minimap gating, force_show and minimap lifecycle exceptions. The chain
+was separately verified in Cheat Engine on 2.03.02; compiled feature integration
+still requires in-game validation.
 Game-hook activation and DX12 drawing
 require in-game verification: force_show, toggle/unload, normal treasure detection,
 game version, graphics settings and logs.
