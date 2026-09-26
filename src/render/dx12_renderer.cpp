@@ -3,6 +3,7 @@
 #include <imgui.h>
 #include <backends/imgui_impl_dx12.h>
 #include <backends/imgui_impl_win32.h>
+#include <cstdio>
 #include <utility>
 
 namespace phi::render {
@@ -97,6 +98,32 @@ bool Dx12Renderer::initialize(IDXGISwapChain* target_swap, ID3D12CommandQueue* t
   log("DX12 overlay initialized");
   return true;
 }
+bool Dx12Renderer::replace_swapchain(IDXGISwapChain* candidate,
+                                     ID3D12CommandQueue* candidate_queue) {
+  // Only migrate to a captured swapchain for the same game window. Never release
+  // resources still used by an outstanding submission or restart after stop.
+  DXGI_SWAP_CHAIN_DESC desc{};
+  ComPtr<ID3D12Device> candidate_device;
+  if (state_ == RendererState::stopped || !window || !candidate || candidate == swap ||
+      FAILED(candidate->GetDesc(&desc)) || desc.OutputWindow != window ||
+      FAILED(candidate->GetDevice(IID_PPV_ARGS(&candidate_device))) ||
+      !same_device(candidate_queue, candidate_device.Get())) {
+    return false;
+  }
+  log("DX12 replacement swapchain detected; releasing old renderer");
+  if (shutdown() != ReleaseResult::released) {
+    log("DX12 swapchain replacement blocked; GPU resources retained");
+    return false;
+  }
+  state_ = RendererState::waiting;
+  if (!initialize(candidate, candidate_queue)) {
+    log("DX12 replacement swapchain initialization failed");
+    shutdown();
+    return false;
+  }
+  log("DX12 overlay recovered on replacement swapchain");
+  return true;
+}
 void Dx12Renderer::render(IDXGISwapChain* target_swap, const HudState& hud) {
   if (!ready() || this->swap != target_swap || !queue || untracked_submission) {
     return;
@@ -110,31 +137,36 @@ void Dx12Renderer::render(IDXGISwapChain* target_swap, const HudState& hud) {
     return;
   }
   auto& frame = frames[index];
-  // The ImGui backend cycles its own buffers by rendered frame count, which
-  // diverges from swapchain indices when frames are skipped. Ensure every prior
-  // overlay submission is complete before reusing either buffer ring.
-  const auto deadline = GetTickCount64();
-  for (const auto& pending : frames) {
-    const auto waited = wait_frame(pending, deadline);
-    if (waited == WaitResult::timeout) {
-      return;
-    }
-    if (waited != WaitResult::completed) {
-      fault();
-      return;
-    }
+  // Only wait for resources reused by this submission: the selected backbuffer
+  // allocator/list and the backend's next vertex/index buffer slot.
+  const auto waited =
+      wait_fence(backend_frames.required_fence(frame.fence_value), GetTickCount64());
+  if (waited == WaitResult::timeout) {
+    return;
   }
+  if (waited != WaitResult::completed) {
+    fault();
+    return;
+  }
+  auto& list = frame.list;
   if (FAILED(frame.allocator->Reset()) || FAILED(list->Reset(frame.allocator.Get(), nullptr))) {
     fault();
     return;
   }
-  const bool upload_icon = record_icon_upload();
+  const bool upload_icon = record_icon_upload(list.Get());
   ImGui_ImplDX12_NewFrame();
   ImGui_ImplWin32_NewFrame();
   ImGui::NewFrame();
   draw_hud(hud, icon_gpu);
   ImGui::Render();
   auto* draw_data = ImGui::GetDrawData();
+  // The backend returns before consuming a ring slot for a minimized window.
+  if (draw_data->DisplaySize.x <= 0.0f || draw_data->DisplaySize.y <= 0.0f) {
+    if (FAILED(list->Close())) {
+      fault();
+    }
+    return;
+  }
   // This HUD only draws the externally owned icon. Reject new font/texture users
   // before bypassing the backend's synchronous (unbounded) texture upload path.
   if (!icon_only(*draw_data, static_cast<ImTextureID>(icon_gpu.ptr))) {
@@ -156,6 +188,7 @@ void Dx12Renderer::render(IDXGISwapChain* target_swap, const HudState& hud) {
   std::swap(barrier.Transition.StateBefore, barrier.Transition.StateAfter);
   list->ResourceBarrier(1, &barrier);
   if (FAILED(list->Close())) {
+    fault(); // The backend consumed a slot; never continue with a divergent ring.
     return;
   }
   ID3D12CommandList* lists[] = {list.Get()};
@@ -167,6 +200,7 @@ void Dx12Renderer::render(IDXGISwapChain* target_swap, const HudState& hud) {
   const UINT64 value = fence_next++;
   if (SUCCEEDED(queue->Signal(fence.Get(), value))) {
     frame.fence_value = value;
+    backend_frames.submitted(value);
     untracked_submission = false;
   } else {
     untracked_submission = true;
@@ -184,6 +218,7 @@ bool Dx12Renderer::before_resize(IDXGISwapChain* candidate) {
   const auto result = wait_all();
   if (result != WaitResult::completed && result != WaitResult::device_lost) {
     fault();
+    log("DX12 resize wait failed; overlay resources retained");
     return false;
   }
   if (imgui) {
@@ -193,21 +228,53 @@ bool Dx12Renderer::before_resize(IDXGISwapChain* candidate) {
   descriptors.fill(false);
   descriptors[0] = true;
   release_buffers();
+  log("DX12 backbuffers released for resize");
   state_ = result == WaitResult::completed ? RendererState::resizing : RendererState::faulted;
   return result == WaitResult::completed;
 }
-void Dx12Renderer::after_resize(IDXGISwapChain* candidate, HRESULT result) {
+void Dx12Renderer::after_resize(IDXGISwapChain* candidate, HRESULT result, UINT count,
+                                IUnknown* const* queues) {
   if (!handles(candidate) || state_ != RendererState::resizing) {
     return;
   }
   DXGI_SWAP_CHAIN_DESC desc{};
-  if (FAILED(result) || FAILED(candidate->GetDesc(&desc)) || !create_buffers(candidate) ||
-      !initialize_backend(desc)) {
+  if (FAILED(result) || FAILED(candidate->GetDesc(&desc))) {
+    fault();
+    char message[128]{};
+    std::snprintf(message, sizeof(message),
+                  "DX12 swapchain resize failed (HRESULT 0x%08lX); overlay disabled",
+                  static_cast<unsigned long>(result));
+    log(message);
+    return;
+  }
+  if (queues) {
+    ComPtr<ID3D12CommandQueue> replacement;
+    if (!count || count != desc.BufferCount) {
+      fault();
+      log("DX12 resize queue count unsupported; overlay disabled");
+      return;
+    }
+    for (UINT i = 0; i < count; ++i) {
+      ComPtr<ID3D12CommandQueue> current;
+      if (!queues[i] || FAILED(queues[i]->QueryInterface(IID_PPV_ARGS(&current))) ||
+          current->GetDesc().Type != D3D12_COMMAND_LIST_TYPE_DIRECT ||
+          !same_device(current.Get(), device.Get()) ||
+          (replacement && replacement.Get() != current.Get())) {
+        fault();
+        log("DX12 resize queues unsupported; overlay disabled");
+        return;
+      }
+      replacement = current;
+    }
+    queue = replacement;
+  }
+  if (!create_buffers(candidate) || !initialize_backend(desc)) {
     fault();
     log("DX12 resize recreation failed; overlay disabled");
     return;
   }
   state_ = RendererState::ready;
+  log("DX12 overlay recreated after resize");
 }
 void Dx12Renderer::set_image(Image image) {
   image_ = std::move(image);

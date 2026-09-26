@@ -79,7 +79,11 @@ These process-lifetime allocations must not acquire automatic destructors that f
 during DLL detach.
 
 The renderer tracks waiting, ready, resizing, faulted and stopped states. Normal drawing
-skips an unfinished frame rather than blocking Present. Shutdown and resize use a shared
+checks only the current backbuffer's allocator/command list and the next ImGui vertex/index
+buffer slot, tracked by a separate submission ring. It skips drawing only if one of those
+resources is unfinished, rather than blocking Present or waiting for unrelated submissions.
+Each backbuffer owns its command list. Backend recreation resets the submission ring;
+minimized frames do not advance it. Shutdown and resize use a shared
 bounded fence-wait deadline; unresolved submissions retain their resources. Device loss
 stops drawing. Retaining backbuffer references can prevent ResizeBuffers from succeeding;
 this is an explicit failure mode, not a promise of recovery.

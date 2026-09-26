@@ -1,4 +1,5 @@
 #include "render/wait_policy.hpp"
+#include "render/frame_ring.hpp"
 #include <limits>
 
 #define CHECK(c)                                                                                   \
@@ -64,5 +65,30 @@ int main() {
   shared.complete_on_wake = false;
   CHECK(wait_for_fence(shared, 2, 1) == WaitResult::timeout);
   CHECK(shared.waits == 1);
+  FrameRing ring;
+  ring.reset(3);
+  // Three submissions can be in flight without waiting for unrelated slots.
+  CHECK(ring.required_fence(0) == 0);
+  ring.submitted(1);
+  CHECK(ring.required_fence(0) == 0);
+  ring.submitted(2);
+  CHECK(ring.required_fence(0) == 0);
+  ring.submitted(3);
+  // Present can skip or repeat swapchain indices: the backend ring stays separate.
+  CHECK(ring.required_fence(2) == 2);
+  CHECK(ring.required_fence(0) == 1);
+  Fence first_done;
+  first_done.value = 1; // Submissions 2/3 are still busy, but slot 0 is reusable.
+  CHECK(wait_for_fence(first_done, ring.required_fence(0), 0) == WaitResult::completed);
+  ring.submitted(4);
+  CHECK(ring.required_fence(0) == 2);
+  CHECK(wait_for_fence(first_done, ring.required_fence(0), 0) == WaitResult::timeout);
+  CHECK(ring.required_fence(0) == 2); // Skipping must not advance the backend ring.
+  CHECK(ring.required_fence(4) == 4); // Reusing an allocator can require a newer fence.
+  ring.reset(2);                      // Backend recreation starts at slot zero with no old fences.
+  CHECK(ring.required_fence(0) == 0);
+  ring.submitted(5);
+  ring.submitted(6);
+  CHECK(ring.required_fence(0) == 5);
   return 0;
 }

@@ -2,6 +2,10 @@
 
 ## Unreleased — CDUMM packaging and minimap visibility
 
+- Check only the reused backbuffer and ImGui buffer slot before drawing, allowing unrelated overlay submissions to remain in flight. Give each backbuffer its own command list and test ring tracking across skipped frames and backend recreation. The user confirmed on 2026-09-26 that the icon no longer flickers in game; graphics settings for this verification were not recorded.
+- Recover the overlay when the game replaces its swapchain for the same window after a graphics setting change. Drain old GPU submissions before releasing resources; log resize HRESULTs and replacement recovery. In-game HDR switching still needs verification.
+- Handle `ResizeBuffers1` as well as `ResizeBuffers`, releasing overlay backbuffers before resize and recreating them afterwards. Follow a replacement single present queue; disable drawing for unsupported multiple queues. In-game DLSS/Frame Generation switching still needs verification.
+- Add local date/time with millisecond precision to runtime log lines and log resize lifecycle results.
 - Package a matching `PirateHatHUD.ini` for CDUMM ASI import and config discovery; read legacy `config.ini` only if the named file is absent.
 - Embed the default PNG into the ASI, with an optional manual `PirateHatHUD.png` override, so installation needs no external image.
 - Generate `modinfo.json` from the CMake version and include the project's MIT license alongside dependency licenses.

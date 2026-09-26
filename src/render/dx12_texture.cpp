@@ -65,7 +65,7 @@ bool Dx12Renderer::load_icon() {
   return true;
 }
 
-bool Dx12Renderer::record_icon_upload() {
+bool Dx12Renderer::record_icon_upload(ID3D12GraphicsCommandList* list) {
   const bool upload_icon = icon_pending && icon_texture && icon_upload;
   if (upload_icon) {
     D3D12_TEXTURE_COPY_LOCATION destination{}, source{};

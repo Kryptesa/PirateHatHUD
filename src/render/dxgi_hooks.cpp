@@ -7,14 +7,15 @@
 namespace phi::render {
 namespace {
 struct HookStorage {
-  safetyhook::InlineHook present_hook, resize_hook, create_hook, create_hwnd_hook, create_core_hook,
-      create_composition_hook, execute_hook;
+  safetyhook::InlineHook present_hook, resize_hook, resize1_hook, create_hook, create_hwnd_hook,
+      create_core_hook, create_composition_hook, execute_hook;
 };
 // Activated trampoline code can remain on thread stacks beyond the C++ callback
 // count. Keep its allocation alive, including through static destruction.
 HookStorage& hooks = *new HookStorage;
 auto& present_hook = hooks.present_hook;
 auto& resize_hook = hooks.resize_hook;
+auto& resize1_hook = hooks.resize1_hook;
 auto& create_hook = hooks.create_hook;
 auto& create_hwnd_hook = hooks.create_hwnd_hook;
 auto& create_core_hook = hooks.create_core_hook;
@@ -151,6 +152,10 @@ HRESULT WINAPI on_present(IDXGISwapChain* swap, UINT interval, UINT flags) {
     if (!stopping && !(flags & DXGI_PRESENT_TEST)) {
       SubmitGuard submit;
       std::lock_guard lock(mutex);
+      if (renderer && swap == selected_swap && !renderer->handles(swap) &&
+          renderer->state() != RendererState::waiting) {
+        renderer->replace_swapchain(swap, selected_queue.Get());
+      }
       if (renderer && renderer->state() == RendererState::waiting) {
         ComPtr<ID3D12Device> device;
         if (SUCCEEDED(swap->GetDevice(IID_PPV_ARGS(&device)))) {
@@ -176,9 +181,24 @@ HRESULT WINAPI on_present(IDXGISwapChain* swap, UINT interval, UINT flags) {
   const auto result = present_hook.call<HRESULT>(swap, interval, flags);
   return result;
 }
-HRESULT WINAPI on_resize(IDXGISwapChain* swap, UINT count, UINT width, UINT height,
-                         DXGI_FORMAT format, UINT flags) {
+thread_local bool resize_active = false;
+template <class Function>
+HRESULT resize_swap(IDXGISwapChain* swap, Function&& original, UINT count = 0,
+                    IUnknown* const* queues = nullptr) {
   CallbackGuard callback;
+  // A DXGI implementation may route ResizeBuffers1 through ResizeBuffers.
+  // Only the outer call releases and recreates renderer resources.
+  if (resize_active) {
+    return original();
+  }
+  struct ResizeGuard {
+    ResizeGuard() {
+      resize_active = true;
+    }
+    ~ResizeGuard() {
+      resize_active = false;
+    }
+  } guard;
   bool prepared = false;
   own_work([&] {
     if (!stopping) {
@@ -188,16 +208,32 @@ HRESULT WINAPI on_resize(IDXGISwapChain* swap, UINT count, UINT width, UINT heig
       }
     }
   });
-  const auto hr = resize_hook.call<HRESULT>(swap, count, width, height, format, flags);
+  const auto hr = original();
   own_work([&] {
     if (!stopping && prepared) {
       std::lock_guard lock(mutex);
       if (renderer) {
-        renderer->after_resize(swap, hr);
+        renderer->after_resize(swap, hr, count, queues);
       }
     }
   });
   return hr;
+}
+HRESULT WINAPI on_resize(IDXGISwapChain* swap, UINT count, UINT width, UINT height,
+                         DXGI_FORMAT format, UINT flags) {
+  return resize_swap(
+      swap, [&] { return resize_hook.call<HRESULT>(swap, count, width, height, format, flags); });
+}
+HRESULT WINAPI on_resize1(IDXGISwapChain3* swap, UINT count, UINT width, UINT height,
+                          DXGI_FORMAT format, UINT flags, const UINT* node_masks,
+                          IUnknown* const* queues) {
+  return resize_swap(
+      swap,
+      [&] {
+        return resize1_hook.call<HRESULT>(swap, count, width, height, format, flags, node_masks,
+                                          queues);
+      },
+      count, queues);
 }
 void* method(void* object, size_t index) {
   return (*reinterpret_cast<void***>(object))[index];
@@ -225,6 +261,7 @@ bool start_hooks(Dx12Renderer& target, HudSnapshot hud_snapshot,
   ComPtr<ID3D12CommandQueue> queue;
   ComPtr<IDXGIFactory2> factory;
   ComPtr<IDXGISwapChain1> swap;
+  ComPtr<IDXGISwapChain3> swap3;
   bool ok = false;
   if (window &&
       SUCCEEDED(D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device)))) {
@@ -241,12 +278,15 @@ bool start_hooks(Dx12Renderer& target, HudSnapshot hud_snapshot,
       desc.SampleDesc.Count = 1;
       desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
       if (SUCCEEDED(factory->CreateSwapChainForHwnd(queue.Get(), window, &desc, nullptr, nullptr,
-                                                    &swap))) {
+                                                    &swap)) &&
+          SUCCEEDED(swap.As(&swap3))) {
         using Flags = safetyhook::InlineHook::Flags;
         auto p =
             safetyhook::InlineHook::create(method(swap.Get(), 8), on_present, Flags::StartDisabled);
         auto r =
             safetyhook::InlineHook::create(method(swap.Get(), 13), on_resize, Flags::StartDisabled);
+        auto r1 = safetyhook::InlineHook::create(method(swap3.Get(), 39), on_resize1,
+                                                 Flags::StartDisabled);
         auto c = safetyhook::InlineHook::create(method(factory.Get(), 10), on_create,
                                                 Flags::StartDisabled);
         auto h = safetyhook::InlineHook::create(method(factory.Get(), 15), on_create_hwnd,
@@ -257,9 +297,10 @@ bool start_hooks(Dx12Renderer& target, HudSnapshot hud_snapshot,
                                                 Flags::StartDisabled);
         auto e = safetyhook::InlineHook::create(method(queue.Get(), 10), on_execute,
                                                 Flags::StartDisabled);
-        if (p && r && c && h && k && m && e) {
+        if (p && r && r1 && c && h && k && m && e) {
           present_hook = std::move(*p);
           resize_hook = std::move(*r);
+          resize1_hook = std::move(*r1);
           create_hook = std::move(*c);
           create_hwnd_hook = std::move(*h);
           create_core_hook = std::move(*k);
@@ -269,13 +310,16 @@ bool start_hooks(Dx12Renderer& target, HudSnapshot hud_snapshot,
           stop_result.module_must_remain_loaded = true;
           ok = create_hook.enable() && create_hwnd_hook.enable() && create_core_hook.enable() &&
                create_composition_hook.enable() && execute_hook.enable() && resize_hook.enable() &&
-               present_hook.enable();
+               resize1_hook.enable() && present_hook.enable();
         } else {
           if (p) {
             p->reset();
           }
           if (r) {
             r->reset();
+          }
+          if (r1) {
+            r1->reset();
           }
           if (c) {
             c->reset();
@@ -316,7 +360,7 @@ HooksStopResult stop_hooks() noexcept {
   }
   bool disabled = true;
   for (auto* hook : {&create_hook, &create_hwnd_hook, &create_core_hook, &create_composition_hook,
-                     &execute_hook, &resize_hook, &present_hook}) {
+                     &execute_hook, &resize_hook, &resize1_hook, &present_hook}) {
     try {
       if (*hook && !hook->disable()) {
         disabled = false;
@@ -352,6 +396,7 @@ HooksStopResult stop_hooks() noexcept {
     if (!activation_attempted) {
       present_hook.reset();
       resize_hook.reset();
+      resize1_hook.reset();
       create_hook.reset();
       create_hwnd_hook.reset();
       create_core_hook.reset();

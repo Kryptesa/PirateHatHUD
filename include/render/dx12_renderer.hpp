@@ -1,5 +1,6 @@
 #pragma once
 #include "render/image.hpp"
+#include "render/frame_ring.hpp"
 #include "render/wait_policy.hpp"
 #include "render/hud_state.hpp"
 #include <windows.h>
@@ -34,9 +35,11 @@ public:
     return swap == candidate;
   }
   bool initialize(IDXGISwapChain* swap, ID3D12CommandQueue* queue);
+  bool replace_swapchain(IDXGISwapChain* swap, ID3D12CommandQueue* queue);
   void render(IDXGISwapChain* swap, const HudState& hud);
   bool before_resize(IDXGISwapChain* swap);
-  void after_resize(IDXGISwapChain* swap, HRESULT result);
+  void after_resize(IDXGISwapChain* swap, HRESULT result, UINT count = 0,
+                    IUnknown* const* queues = nullptr);
   ReleaseResult shutdown() noexcept;
   RendererState state() const {
     return state_;
@@ -49,6 +52,7 @@ private:
   struct Frame {
     ComPtr<ID3D12Resource> buffer;
     ComPtr<ID3D12CommandAllocator> allocator;
+    ComPtr<ID3D12GraphicsCommandList> list;
     D3D12_CPU_DESCRIPTOR_HANDLE rtv{};
     UINT64 fence_value{};
   };
@@ -56,13 +60,13 @@ private:
                                D3D12_GPU_DESCRIPTOR_HANDLE* gpu);
   static void descriptor_free(ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE cpu,
                               D3D12_GPU_DESCRIPTOR_HANDLE gpu);
-  WaitResult wait_frame(const Frame& frame, ULONGLONG deadline);
+  WaitResult wait_fence(UINT64 value, ULONGLONG deadline);
   WaitResult wait_all();
   void release_buffers();
   bool create_buffers(IDXGISwapChain* swap);
   bool initialize_backend(const DXGI_SWAP_CHAIN_DESC& desc);
   bool load_icon();
-  bool record_icon_upload();
+  bool record_icon_upload(ID3D12GraphicsCommandList* list);
   void log(const char* message) const;
 
   RendererState state_{RendererState::waiting};
@@ -73,7 +77,6 @@ private:
   ComPtr<ID3D12Device> device;
   ComPtr<ID3D12CommandQueue> queue;
   ComPtr<ID3D12DescriptorHeap> rtv_heap, srv_heap;
-  ComPtr<ID3D12GraphicsCommandList> list;
   ComPtr<ID3D12Fence> fence;
   ComPtr<ID3D12Resource> icon_texture, icon_upload;
   D3D12_PLACED_SUBRESOURCE_FOOTPRINT icon_footprint{};
@@ -82,6 +85,7 @@ private:
   HANDLE fence_event{};
   UINT64 fence_next{1};
   std::vector<Frame> frames;
+  FrameRing backend_frames;
   bool imgui{};
   bool context{};
   bool win32{};

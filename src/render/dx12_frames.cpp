@@ -37,7 +37,7 @@ void Dx12Renderer::descriptor_free(ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESC
     self.descriptors[offset / step] = false;
   }
 }
-WaitResult Dx12Renderer::wait_frame(const Frame& frame, ULONGLONG deadline) {
+WaitResult Dx12Renderer::wait_fence(UINT64 value, ULONGLONG deadline) {
   struct Adapter {
     ID3D12Device* device;
     ID3D12Fence* fence;
@@ -59,7 +59,7 @@ WaitResult Dx12Renderer::wait_frame(const Frame& frame, ULONGLONG deadline) {
       return result == WAIT_OBJECT_0 || result == WAIT_TIMEOUT;
     }
   } adapter{device.Get(), fence.Get(), fence_event};
-  return wait_for_fence(adapter, frame.fence_value, deadline);
+  return wait_for_fence(adapter, value, deadline);
 }
 
 WaitResult Dx12Renderer::wait_all() {
@@ -71,7 +71,7 @@ WaitResult Dx12Renderer::wait_all() {
   }
   const auto deadline = GetTickCount64() + 1000;
   for (const auto& frame : frames) {
-    const auto result = wait_frame(frame, deadline);
+    const auto result = wait_fence(frame.fence_value, deadline);
     if (result != WaitResult::completed) {
       return result;
     }
@@ -84,7 +84,7 @@ void Dx12Renderer::release_buffers() {
   }
   frames.clear();
   rtv_heap.Reset();
-  list.Reset();
+  backend_frames.reset(0);
 }
 bool Dx12Renderer::create_buffers(IDXGISwapChain* target_swap) {
   DXGI_SWAP_CHAIN_DESC desc{};
@@ -110,12 +110,13 @@ bool Dx12Renderer::create_buffers(IDXGISwapChain* target_swap) {
     frame.rtv = handle;
     device->CreateRenderTargetView(frame.buffer.Get(), nullptr, handle);
     handle.ptr += step;
+    if (FAILED(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, frame.allocator.Get(),
+                                         nullptr, IID_PPV_ARGS(&frame.list))) ||
+        FAILED(frame.list->Close())) {
+      return false;
+    }
   }
-  if (FAILED(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, frames[0].allocator.Get(),
-                                       nullptr, IID_PPV_ARGS(&list)))) {
-    return false;
-  }
-  return SUCCEEDED(list->Close());
+  return true;
 }
 bool Dx12Renderer::initialize_backend(const DXGI_SWAP_CHAIN_DESC& desc) {
   ImGui_ImplDX12_InitInfo init{};
@@ -128,6 +129,9 @@ bool Dx12Renderer::initialize_backend(const DXGI_SWAP_CHAIN_DESC& desc) {
   init.SrvDescriptorAllocFn = descriptor_alloc;
   init.SrvDescriptorFreeFn = descriptor_free;
   imgui = ImGui_ImplDX12_Init(&init);
+  if (imgui) {
+    backend_frames.reset(frames.size());
+  }
   return imgui;
 }
 
