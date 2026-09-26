@@ -32,11 +32,23 @@ add_library(imgui_static STATIC
 target_include_directories(imgui_static PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
 target_compile_definitions(imgui_static PRIVATE IMGUI_DISABLE_OBSOLETE_FUNCTIONS)
 
-add_library(PirateHatHUD SHARED src/main.cpp src/pattern_scan.cpp src/overlay.cpp)
+add_library(game_observers STATIC src/game/treasure_observer.cpp src/pattern_scan.cpp)
+target_include_directories(game_observers PUBLIC include)
+target_compile_definitions(game_observers PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
+target_compile_options(game_observers PRIVATE /W4 /EHsc)
+target_link_libraries(game_observers PRIVATE safetyhook)
+
+add_library(treasure_indicator STATIC src/features/treasure_indicator.cpp)
+target_include_directories(treasure_indicator PUBLIC include)
+target_compile_options(treasure_indicator PRIVATE /W4 /EHsc)
+
+add_library(PirateHatHUD SHARED src/main.cpp src/app.cpp src/overlay.cpp
+  src/platform/config.cpp src/platform/hotkeys.cpp src/platform/logger.cpp)
 target_include_directories(PirateHatHUD PRIVATE include)
 target_compile_definitions(PirateHatHUD PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
 target_compile_options(PirateHatHUD PRIVATE /W4 /EHsc)
-target_link_libraries(PirateHatHUD PRIVATE safetyhook imgui_static d3d12 dxgi ole32 windowscodecs)
+target_link_libraries(PirateHatHUD PRIVATE game_observers treasure_indicator safetyhook
+  imgui_static d3d12 dxgi ole32 windowscodecs)
 set_target_properties(PirateHatHUD PROPERTIES PREFIX "" SUFFIX ".asi")
 
 add_custom_command(TARGET PirateHatHUD POST_BUILD
@@ -55,4 +67,14 @@ if(BUILD_TESTING)
   target_include_directories(scanner_tests PRIVATE include)
   target_compile_definitions(scanner_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
   add_test(NAME scanner_tests COMMAND scanner_tests)
+  add_executable(events_tests tests/events_tests.cpp)
+  target_include_directories(events_tests PRIVATE include)
+  add_test(NAME events_tests COMMAND events_tests)
+  add_executable(indicator_tests tests/indicator_tests.cpp)
+  target_link_libraries(indicator_tests PRIVATE treasure_indicator)
+  add_test(NAME indicator_tests COMMAND indicator_tests)
+  add_executable(observer_tests tests/observer_tests.cpp)
+  target_link_libraries(observer_tests PRIVATE game_observers)
+  target_compile_definitions(observer_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+  add_test(NAME observer_tests COMMAND observer_tests)
 endif()

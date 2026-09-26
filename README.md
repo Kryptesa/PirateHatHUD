@@ -111,6 +111,11 @@ See the [clang-format style reference](https://clang.llvm.org/docs/ClangFormatSt
 
 ## How it works
 
+The game observer is built as a separate static library with typed subscriptions.
+The mod's indicator consumes treasure state changes, while the DX12 renderer receives
+a complete HUD snapshot. See [module architecture](docs/architecture.md) for the public
+API, thread and lifetime contracts, reuse boundaries, and validation limits.
+
 The mod scans executable sections of `CrimsonDesert.exe` for a unique pair of treasure-counter instructions. It attaches observation hooks at the matching instructions, captures the counter address, and reads the counter to decide when to show the icon. It does not write to or freeze the counter. A missing or ambiguous match disables state observation and is logged.
 
 The overlay draws `icon.png` through a DirectX 12 swapchain hook. The counter hooks were confirmed on Crimson Desert 1.0.0.2976 (EXE SHA-256 `57da440d72f4db974f25fef047cf84c4dadd999a88cb2a3c5af4c9bd67fde1e7`); other game builds may need updated patterns. See [release notes](release_notes.md) and the [changelog](CHANGELOG.md) for version history.

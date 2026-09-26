@@ -1,4 +1,5 @@
 #include "overlay.hpp"
+#include <windows.h>
 #include <d3d12.h>
 #include <dxgi1_4.h>
 #include <wrl/client.h>
@@ -36,9 +37,9 @@ using ExecuteFn = void(WINAPI*)(ID3D12CommandQueue*, UINT, ID3D12CommandList* co
 safetyhook::InlineHook present_hook, resize_hook, create_hook, create_hwnd_hook, create_core_hook,
     create_composition_hook, execute_hook;
 std::atomic<unsigned> callbacks{0};
-std::atomic<bool> stopping{false}, enabled{true}, force_icon{false}, active{false};
-std::atomic<int> x_pos{350}, y_pos{-310};
-std::atomic<float> scale{1.0f};
+std::atomic<bool> stopping{false};
+std::mutex hud_mutex;
+HudState hud_state;
 std::vector<std::uint8_t> icon_pixels;
 UINT icon_width{}, icon_height{};
 std::mutex mutex;
@@ -387,11 +388,15 @@ bool initialize(IDXGISwapChain* swap, ID3D12CommandQueue* queue) {
   return true;
 }
 void draw_icon() {
-  if (!enabled || (!force_icon && !active))
+  const auto hud = [] {
+    std::lock_guard lock(hud_mutex);
+    return hud_state;
+  }();
+  if (!hud.visible)
     return;
   auto* draw = ImGui::GetForegroundDrawList();
-  const float x = static_cast<float>(x_pos.load()), s = scale.load();
-  const int configured_y = y_pos.load();
+  const float x = static_cast<float>(hud.x), s = hud.scale;
+  const int configured_y = hud.y;
   const float y = configured_y < 0
                       ? ImGui::GetIO().DisplaySize.y + static_cast<float>(configured_y) - 44.0f * s
                       : static_cast<float>(configured_y);
@@ -647,11 +652,9 @@ void stop_overlay() {
 void set_overlay_log(void (*callback)(const char*)) {
   logger = callback;
 }
-void set_overlay_enabled(bool value) {
-  enabled = value;
-}
-void set_overlay_force(bool value) {
-  force_icon = value;
+void set_overlay_hud(const HudState& hud) {
+  std::lock_guard lock(hud_mutex);
+  hud_state = hud;
 }
 bool prepare_overlay_icon(const wchar_t* path) {
   icon_pixels.clear();
@@ -691,13 +694,5 @@ bool prepare_overlay_icon(const wchar_t* path) {
   icon_height = height;
   icon_pixels = std::move(pixels);
   return true;
-}
-void set_overlay_position(int x, int y, float s) {
-  x_pos = x;
-  y_pos = y;
-  scale = s;
-}
-void set_overlay_state(bool value) {
-  active = value;
 }
 } // namespace phi

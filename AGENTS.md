@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-PirateHatHUD is a Windows x64 C++23 ASI mod for Crimson Desert. `src/main.cpp` manages configuration, state hooks, logging, and lifecycle; `src/pattern_scan.cpp` locates treasure-counter instructions; `src/overlay.cpp` renders the DirectX 12 HUD. Headers and instruction patterns live in `include/`. `tests/scanner_tests.cpp` covers scanner behavior. `assets/icon.png` is the required HUD image, and `config.ini` contains runtime defaults. `cmake/Format.cmake` manages formatting. Build outputs and fetched dependencies belong in `build/`.
+PirateHatHUD is a Windows x64 C++23 ASI mod for Crimson Desert. `src/main.cpp` is the DLL entry point; `src/app.cpp` composes modules and manages lifecycle. `src/game/treasure_observer.cpp` and `src/pattern_scan.cpp` form the `game_observers` static library. `include/core/signal.hpp` provides typed subscriptions. `src/features/treasure_indicator.cpp` forms the indicator policy library; `src/overlay.cpp` renders a HUD snapshot through DirectX 12. Configuration, hotkeys and logging live in `src/platform/`. Headers and instruction patterns live in `include/`; architecture contracts are documented in `docs/architecture.md`. `tests/*_tests.cpp` covers scanner, signals, indicator and observer startup behavior. `assets/icon.png` is the required HUD image, and `config.ini` contains runtime defaults. `cmake/Format.cmake` manages formatting. Build outputs and fetched dependencies belong in `build/`.
 
 ## Build, Test, and Development Commands
 
