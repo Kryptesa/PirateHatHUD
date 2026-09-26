@@ -14,11 +14,17 @@ struct TreasureStateChanged {
   TreasureState current;
 };
 
+struct ObserverStopResult {
+  bool hooks_disabled;
+  bool module_must_remain_loaded;
+};
+
 // All public operations, including subscription destruction, belong to one owner thread.
 // Game hooks capture data only; subscribers run synchronously from poll().
 // This observer reports the latest sampled state, not every intermediate game transition.
-// stop() disables hooks and drains callback bodies. SafetyHook does not expose a way to
-// drain the remaining MidHook assembly stub; this retains the existing DLL unload limitation.
+// After any activation attempt, stop() retains hook code and prohibits restart.
+// Callback counts cannot prove that threads have left the MidHook assembly stub.
+// The containing DLL must remain loaded until process exit.
 class TreasureObserver {
 public:
   explicit TreasureObserver(void (*logger)(const char*) = nullptr);
@@ -31,7 +37,7 @@ public:
 
   bool start();
   void poll();
-  void stop();
+  ObserverStopResult stop() noexcept;
   TreasureState state() const;
   Subscription subscribe(std::function<void(const TreasureStateChanged&)> callback);
 

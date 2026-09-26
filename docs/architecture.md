@@ -47,7 +47,8 @@ in the same task, including any constraints passed to delegated agents.
 - `treasure_indicator`: presentation policy for this mod, producing a `HudState`.
 - `overlay`: DX12 resources and drawing from a coherent `HudState` snapshot.
 - `platform`: INI configuration, Windows hotkeys and file logging.
-- `app`: composition, polling and shutdown. `main.cpp` only starts the worker and unloads.
+- `app`: composition, polling and exception-safe shutdown. `main.cpp` starts the worker
+  and unloads only when the application explicitly permits it.
 
 ## Renderer internals
 
@@ -70,6 +71,24 @@ Descriptor callbacks recover their renderer from ImGui backend UserData rather t
 global graphics object. Image preparation and logger configuration happen before start;
 logger clearing happens after stop. The facade prevents image replacement while running.
 
+Stop results distinguish disabling hooks, draining callback bodies, and releasing GPU
+resources from permission to unload the DLL. Once hook activation has been attempted,
+generated hook code is retained until process exit, and this module instance cannot restart.
+The facade retains the renderer allocation if callbacks or GPU work cannot safely release it.
+These process-lifetime allocations must not acquire automatic destructors that free them
+during DLL detach.
+
+The renderer tracks waiting, ready, resizing, faulted and stopped states. Normal drawing
+skips an unfinished frame rather than blocking Present. Shutdown and resize use a shared
+bounded fence-wait deadline; unresolved submissions retain their resources. Device loss
+stops drawing. Retaining backbuffer references can prevent ResizeBuffers from succeeding;
+this is an explicit failure mode, not a promise of recovery.
+
+The HUD supports only image commands for its prepared icon. Backend texture uploads are
+excluded from draw submission, avoiding the ImGui DX12 backend's unbounded texture-upload
+wait. Adding text, user draw callbacks or other textures requires a separately reviewed
+upload lifecycle rather than removing the command validation.
+
 ## Using an observer
 
 ```cpp
@@ -87,6 +106,8 @@ Keep the subscription token alive while subscribed. Destruction or `reset()` uns
 A token may outlive its source. Query `state()` for the latest sampled state; subscribing
 does not replay an event. `unknown` means no valid observation, not an inactive counter.
 `stop()` resets the state to unknown; a subsequent `poll()` publishes that change if needed.
+Once hook activation has been attempted, this observer instance and the linked library
+are retired after stop; retries are supported only after failures before activation.
 
 All observer operations, signal dispatch and token destruction happen on the owner
 thread. Game hooks only capture data in atomics. Subscribers run synchronously inside
@@ -114,13 +135,19 @@ mods have separate copies and can still compete over the same instructions. A sh
 DLL/ASI provider needs a separate design if simultaneous use becomes necessary.
 
 Shutdown stops observation, releases subscriptions, stops graphics, then closes the log.
-Hook disabling and callback draining retain the existing SafetyHook approach. A drained
-C++ callback count does not prove all threads have exited the generated MidHook stub;
-full in-game DLL unload safety is not established by these unit tests.
+The application uses RAII and catches C++ exceptions at the worker boundary. Partial
+startup is stopped too; any need to retain the module survives subsequent cleanup.
+A drained C++ callback count does not prove all threads have exited generated hook code.
+F10 therefore disables observation and rendering and finishes the worker, but retains the
+DLL and any necessary hook/GPU allocations until process exit after hook activation.
+Physical DLL unload is allowed only on paths that have not exposed hook code to execution.
+Full in-game DLL unload safety is not established by these unit tests.
 
 ## Validation
 
 CTest covers scanning, typed subscription lifetime/dispatch behavior, indicator policy,
-observer startup failure without the game, and WIC image decoding/retry. Game-hook activation and DX12 drawing
+observer startup failure without the game, hook retention and partial activation,
+application cleanup under exceptions, bounded GPU wait policy, and WIC image decoding/retry.
+Game-hook activation and DX12 drawing
 require in-game verification: force_show, toggle/unload, normal treasure detection,
 game version, graphics settings and logs.

@@ -5,7 +5,14 @@ namespace phi {
 // stop before clearing the logger. HUD snapshots may be published while rendering.
 void set_overlay_log(void (*logger)(const char*));
 bool start_overlay();
-void stop_overlay();
+struct OverlayStopResult {
+  bool hooks_disabled = true;
+  bool callbacks_drained = true;
+  bool gpu_resources_released = true;
+  bool module_must_remain_loaded = false;
+};
+// A retained result forbids restart and physical DLL unload, including after partial start.
+OverlayStopResult stop_overlay() noexcept;
 void set_overlay_hud(const HudState& hud);
 bool prepare_overlay_icon(const wchar_t* path);
 } // namespace phi

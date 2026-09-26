@@ -1,5 +1,6 @@
 #pragma once
 #include "render/image.hpp"
+#include "render/wait_policy.hpp"
 #include "render/hud_state.hpp"
 #include <windows.h>
 #include <d3d12.h>
@@ -12,6 +13,9 @@ struct ImGui_ImplDX12_InitInfo;
 
 namespace phi::render {
 using Microsoft::WRL::ComPtr;
+enum class RendererState { waiting, ready, resizing, faulted, stopped };
+enum class ReleaseResult { released, retained };
+
 bool same_device(ID3D12CommandQueue* queue, ID3D12Device* device);
 void draw_hud(const HudState& hud, D3D12_GPU_DESCRIPTOR_HANDLE texture);
 
@@ -24,16 +28,22 @@ public:
   void set_image(Image image);
   void set_logger(void (*logger)(const char*));
   bool ready() const {
-    return imgui;
+    return state_ == RendererState::ready;
   }
   bool handles(IDXGISwapChain* candidate) const {
     return swap == candidate;
   }
   bool initialize(IDXGISwapChain* swap, ID3D12CommandQueue* queue);
   void render(IDXGISwapChain* swap, const HudState& hud);
-  void before_resize(IDXGISwapChain* swap);
-  void after_resize(IDXGISwapChain* swap);
-  void shutdown();
+  bool before_resize(IDXGISwapChain* swap);
+  void after_resize(IDXGISwapChain* swap, HRESULT result);
+  ReleaseResult shutdown() noexcept;
+  RendererState state() const {
+    return state_;
+  }
+  void fault() noexcept {
+    state_ = RendererState::faulted;
+  }
 
 private:
   struct Frame {
@@ -46,8 +56,8 @@ private:
                                D3D12_GPU_DESCRIPTOR_HANDLE* gpu);
   static void descriptor_free(ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE cpu,
                               D3D12_GPU_DESCRIPTOR_HANDLE gpu);
-  bool wait_frame(const Frame& frame);
-  bool wait_all();
+  WaitResult wait_frame(const Frame& frame, ULONGLONG deadline);
+  WaitResult wait_all();
   void release_buffers();
   bool create_buffers(IDXGISwapChain* swap);
   bool initialize_backend(const DXGI_SWAP_CHAIN_DESC& desc);
@@ -55,6 +65,7 @@ private:
   bool record_icon_upload();
   void log(const char* message) const;
 
+  RendererState state_{RendererState::waiting};
   Image image_;
   void (*logger_)(const char*){};
   IDXGISwapChain* swap{};

@@ -29,8 +29,12 @@ int main() {
   CHECK(subscription);
   CHECK(!first.subscribe({}));
   CHECK(first.state() == phi::TreasureState::unknown);
-  first.stop();
-  first.stop();
+  const auto initial_stop = first.stop();
+  CHECK(initial_stop.hooks_disabled);
+  CHECK(!initial_stop.module_must_remain_loaded);
+  const auto repeated_stop = first.stop();
+  CHECK(repeated_stop.hooks_disabled);
+  CHECK(!repeated_stop.module_must_remain_loaded);
   first.poll();
   CHECK(callbacks == 0);
 
@@ -39,7 +43,9 @@ int main() {
   CHECK(!logs.empty());
   CHECK(logs.back() == "State hooks disabled: invalid image");
   first.poll();
-  first.stop();
+  const auto failed_start_stop = first.stop();
+  CHECK(failed_start_stop.hooks_disabled);
+  CHECK(!failed_start_stop.module_must_remain_loaded);
   CHECK(callbacks == 0);
 
   // A failed start must release the global ownership claim for retries and other instances.

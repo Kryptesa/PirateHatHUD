@@ -3,8 +3,10 @@
 namespace {
 DWORD WINAPI worker(void* context) {
   const auto module = static_cast<HMODULE>(context);
-  phi::run_app(module);
-  FreeLibraryAndExitThread(module, 0);
+  if (phi::run_app(module) == phi::AppExitDisposition::unload_allowed) {
+    FreeLibraryAndExitThread(module, 0);
+  }
+  return 0;
 }
 } // namespace
 BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID) {

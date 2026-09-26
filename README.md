@@ -1,6 +1,6 @@
 # Pirate Hat HUD for Crimson Desert
 
-Pirate Hat HUD is an ASI mod that shows a small treasure chest icon when the Pirate King Hat detects nearby treasure. You can change the icon's position and size, toggle it during play, or unload the mod with a hotkey.
+Pirate Hat HUD is an ASI mod that shows a small treasure chest icon when the Pirate King Hat detects nearby treasure. You can change the icon's position and size, toggle it during play, or disable the mod for the session with a hotkey.
 
 > **Status: 0.3.0 DX12 preview.** Treasure state detection was confirmed in game on Crimson Desert 1.0.0.2976. The DirectX 12 overlay builds, but its drawing has not yet been verified in game. Treat this as a test build, especially when using DLSS or Frame Generation.
 
@@ -47,7 +47,7 @@ unload=F10
 | `y` | Negative values count pixels up from the bottom; zero and positive values count down from the top. |
 | `scale_percent` | Icon size from `25` to `400`. Values outside this range use `100`. |
 | `toggle` | Show or hide the icon for the current session. Default: `F9`. |
-| `unload` | Remove hooks and unload the mod for the current session. Default: `F10`. |
+| `unload` | Disable observation and rendering for the current session. Default: `F10`. The DLL and required hook allocations remain loaded until game exit after hook activation. |
 
 Hotkeys accept `F8`, `F9`, `F10`, or `F11`. The default position (`x=350`, `y=-310`) was chosen for 2560 × 1440; adjust it for your display and HUD layout.
 

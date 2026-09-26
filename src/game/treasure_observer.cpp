@@ -1,4 +1,5 @@
 #include "game/treasure_observer.hpp"
+#include "game/observer_hooks.hpp"
 #include "pattern_scan.hpp"
 #include "patterns.hpp"
 #include <windows.h>
@@ -18,7 +19,6 @@ namespace {
 // by the single active observer in this linked library instance.
 std::atomic<bool> g_observer_claimed{false};
 std::atomic<bool> g_capturing{false};
-std::atomic<unsigned> g_callbacks{0};
 std::atomic<std::uintptr_t> g_state_base{0};
 std::atomic<std::uint64_t> g_hook_events{0};
 std::atomic<std::uint32_t> g_pre_state{UINT32_MAX};
@@ -35,13 +35,11 @@ std::uint32_t read_pre_state(std::uintptr_t base) {
 }
 
 void capture_state(safetyhook::Context& ctx) {
-  g_callbacks.fetch_add(1, std::memory_order_acq_rel);
   if (g_capturing.load(std::memory_order_acquire)) {
     g_pre_state.store(read_pre_state(ctx.rsi), std::memory_order_relaxed);
     g_state_base.store(ctx.rsi, std::memory_order_release);
     g_hook_events.fetch_add(1, std::memory_order_release);
   }
-  g_callbacks.fetch_sub(1, std::memory_order_release);
 }
 
 TreasureState read_state() {
@@ -84,8 +82,7 @@ const char* state_name(TreasureState state) {
 
 struct TreasureObserver::Impl {
   void (*logger)(const char*);
-  safetyhook::MidHook enter;
-  safetyhook::MidHook leave;
+  detail::ObserverHooks<safetyhook::MidHook> hooks;
   Signal<TreasureStateChanged> changes;
   bool claimed = false;
   bool running = false;
@@ -116,6 +113,10 @@ bool TreasureObserver::start() {
   if (impl.running) {
     return true;
   }
+  if (impl.hooks.result().module_must_remain_loaded) {
+    impl.log("State hooks disabled: observer retired until process exit");
+    return false;
+  }
   bool unclaimed = false;
   if (!g_observer_claimed.compare_exchange_strong(unclaimed, true)) {
     impl.log("State hooks disabled: another treasure observer is active");
@@ -145,7 +146,7 @@ bool TreasureObserver::start() {
     stop();
     return false;
   }
-  impl.enter = std::move(*enter);
+  impl.hooks.hooks().enter = std::move(*enter);
   auto leave = safetyhook::MidHook::create(reinterpret_cast<void*>(scan.sites.leave), capture_state,
                                            safetyhook::MidHook::StartDisabled);
   if (!leave) {
@@ -153,7 +154,7 @@ bool TreasureObserver::start() {
     stop();
     return false;
   }
-  impl.leave = std::move(*leave);
+  impl.hooks.hooks().leave = std::move(*leave);
   g_state_base.store(0);
   g_hook_events.store(0);
   g_pre_state.store(UINT32_MAX);
@@ -161,7 +162,7 @@ bool TreasureObserver::start() {
   impl.last_base = 0;
   impl.last_base_log = 0;
   g_capturing.store(true, std::memory_order_release);
-  if (!impl.enter.enable() || !impl.leave.enable()) {
+  if (!impl.hooks.enable()) {
     impl.log("State mid-hook activation failed");
     stop();
     return false;
@@ -206,28 +207,22 @@ void TreasureObserver::poll() {
   }
 }
 
-void TreasureObserver::stop() {
+ObserverStopResult TreasureObserver::stop() noexcept {
   auto& impl = *impl_;
   if (!impl.claimed) {
-    return;
+    return impl.hooks.result();
   }
   g_capturing.store(false, std::memory_order_release);
-  if (impl.enter) {
-    (void)impl.enter.disable();
+  const auto result = impl.hooks.stop();
+  if (!result.module_must_remain_loaded) {
+    g_observer_claimed.store(false, std::memory_order_release);
   }
-  if (impl.leave) {
-    (void)impl.leave.disable();
-  }
-  while (g_callbacks.load(std::memory_order_acquire)) {
-    Sleep(1);
-  }
-  impl.enter.reset();
-  impl.leave.reset();
+  // Retired stubs must not capture into a new observer session; retain the claim.
   g_state_base.store(0);
   impl.running = false;
   impl.current = TreasureState::unknown;
   impl.claimed = false;
-  g_observer_claimed.store(false, std::memory_order_release);
+  return impl.hooks.result();
 }
 
 TreasureState TreasureObserver::state() const {
