@@ -33,6 +33,11 @@ Config read_config(const std::wstring& path) {
       GetPrivateProfileIntW(L"indicator", L"enabled", defaults.enabled, path.c_str()) != 0;
   config.force_show =
       GetPrivateProfileIntW(L"indicator", L"force_show", defaults.force_show, path.c_str()) != 0;
+  config.show_delay_ms = static_cast<int>(
+      GetPrivateProfileIntW(L"indicator", L"show_delay_ms", defaults.show_delay_ms, path.c_str()));
+  if (config.show_delay_ms < 0 || config.show_delay_ms > 60000) {
+    config.show_delay_ms = defaults.show_delay_ms;
+  }
   wchar_t key[16]{};
   GetPrivateProfileStringW(L"hotkeys", L"toggle", L"", key, 16, path.c_str());
   config.toggle_key = key_from_name(key, config.toggle_key);

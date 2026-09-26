@@ -2,6 +2,7 @@
 #include "features/treasure_indicator.hpp"
 #include "game/treasure_observer.hpp"
 #include "game/minimap_observer.hpp"
+#include "game/menu_observer.hpp"
 #include "overlay.hpp"
 #include "platform/config.hpp"
 #include "platform/hotkeys.hpp"
@@ -44,9 +45,9 @@ private:
 class AppSession {
 public:
   AppSession(const Config& config, ExitState& exit)
-      : exit_(exit),
-        indicator_(config.enabled, config.force_show, config.x, config.y, config.scale),
-        observer_(log), minimap_(log) {}
+      : exit_(exit), indicator_(config.enabled, config.force_show, config.x, config.y, config.scale,
+                                config.show_delay_ms),
+        observer_(log), minimap_(log), menu_(log) {}
   ~AppSession() noexcept {
     finish();
   }
@@ -56,6 +57,9 @@ public:
     });
     minimap_subscription_ = minimap_.subscribe(
         [this](const MinimapStateChanged& event) { indicator_.set_minimap_state(event.current); });
+    menu_subscription_ = menu_.subscribe(
+        [this](const MenuStateChanged& event) { indicator_.set_menu_state(event.current); });
+    indicator_.set_menu_state(menu_.state());
     indicator_.set_minimap_state(minimap_.state());
     indicator_.set_treasure_state(observer_.state());
     set_overlay_hud(indicator_.hud_state());
@@ -67,18 +71,25 @@ public:
                         : "DX12 hooks unavailable; overlay disabled");
     exit_.retain |= observer_.start();
     minimap_.start();
+    exit_.retain |= menu_.start();
     for (;;) {
       observer_.poll();
       minimap_.poll();
+      menu_.poll();
+      indicator_.update();
       const auto actions = poll_hotkeys(config.toggle_key, config.unload_key);
       if (actions.toggle) {
         indicator_.toggle();
+        log("Indicator toggled by hotkey");
       }
       set_overlay_hud(indicator_.hud_state());
       if (actions.unload) {
+        log("Stop requested by hotkey");
         break;
       }
-      Sleep(30);
+      // Keep menu visibility sampling responsive without busy-waiting. Windows may
+      // round this timeout up according to the system timer resolution.
+      Sleep(5);
     }
   }
 
@@ -91,8 +102,11 @@ private:
     const auto observer_stop = observer_.stop();
     exit_.retain |= observer_stop.module_must_remain_loaded || !observer_stop.hooks_disabled;
     minimap_.stop();
+    const auto menu_stop = menu_.stop();
+    exit_.retain |= menu_stop.module_must_remain_loaded || !menu_stop.hooks_disabled;
     subscription_.reset();
     minimap_subscription_.reset();
+    menu_subscription_.reset();
     // Failed starts can leave partially installed hooks; always ask both owners to stop.
     const auto overlay_stop = stop_overlay();
     exit_.retain |= overlay_stop.module_must_remain_loaded || !overlay_stop.hooks_disabled ||
@@ -109,6 +123,8 @@ private:
   TreasureIndicator indicator_;
   TreasureObserver observer_;
   MinimapObserver minimap_;
+  MenuObserver menu_;
+  Subscription menu_subscription_;
   Subscription subscription_;
   Subscription minimap_subscription_;
   bool logger_configured_ = false;

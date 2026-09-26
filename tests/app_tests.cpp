@@ -1,6 +1,7 @@
 #include "app.hpp"
 #include "game/treasure_observer.hpp"
 #include "game/minimap_observer.hpp"
+#include "game/menu_observer.hpp"
 #include "overlay.hpp"
 #include "platform/config.hpp"
 #include "platform/hotkeys.hpp"
@@ -35,6 +36,8 @@ struct Scenario {
   bool overlay_started = false;
   bool observer_started = false;
   bool observer_retained = false;
+  bool menu_retained = false;
+  phi::MenuState menu_state = phi::MenuState::closed;
   bool overlay_retained = false;
   bool drained = true;
   bool hooks_disabled = true;
@@ -76,6 +79,39 @@ phi::AppExitDisposition run() {
 } // namespace
 
 namespace phi {
+struct MenuObserver::Impl {
+  Signal<MenuStateChanged> changes;
+  bool stopped = false;
+};
+MenuObserver::MenuObserver(void (*)(const char*)) {
+  step("menu_construct");
+  impl_ = std::make_unique<Impl>();
+}
+MenuObserver::~MenuObserver() {
+  stop();
+}
+bool MenuObserver::start() {
+  step("menu_start");
+  return false;
+}
+void MenuObserver::poll() {
+  step("menu_poll");
+  impl_->changes.publish({MenuState::unknown, scenario.menu_state});
+}
+ObserverStopResult MenuObserver::stop() noexcept {
+  if (!impl_->stopped) {
+    impl_->stopped = true;
+    scenario.calls.emplace_back("menu_stop");
+  }
+  return {true, scenario.menu_retained};
+}
+MenuState MenuObserver::state() const {
+  return MenuState::unknown;
+}
+Subscription MenuObserver::subscribe(std::function<void(const MenuStateChanged&)> callback) {
+  step("menu_subscribe");
+  return impl_->changes.subscribe(std::move(callback));
+}
 struct MinimapObserver::Impl {
   Signal<MinimapStateChanged> changes;
   bool stopped = false;
@@ -178,6 +214,7 @@ Config read_config(const std::wstring& path) {
   step("config");
   Config config;
   config.force_show = scenario.force_show;
+  config.show_delay_ms = 0;
   return config;
 }
 HotkeyActions poll_hotkeys(int, int) {
@@ -272,6 +309,8 @@ int main() {
   CHECK(scenario.cleanup_order_valid);
   CHECK(scenario.hud_visible);
   CHECK(before("minimap_poll", "hotkeys"));
+  CHECK(before("menu_poll", "hotkeys"));
+  CHECK(before("menu_stop", "overlay_stop"));
   CHECK(before("minimap_stop", "overlay_stop"));
   CHECK(before("observer_stop", "overlay_stop"));
   CHECK(before("overlay_stop", "clear_logger"));
@@ -282,7 +321,8 @@ int main() {
   for (const auto* failure :
        {"observer_construct", "subscribe", "hud", "set_logger", "overlay_start", "observer_start",
         "poll", "subscriber", "minimap_subscribe", "minimap_start", "minimap_poll",
-        "minimap_subscriber", "hotkeys", "unknown", "diagnostics", "hud_runtime"}) {
+        "minimap_subscriber", "menu_subscribe", "menu_start", "menu_poll", "hotkeys", "unknown",
+        "diagnostics", "hud_runtime"}) {
     scenario = {};
     scenario.fail = failure;
     CHECK(run() == AppExitDisposition::unload_allowed);
@@ -296,6 +336,14 @@ int main() {
   for (auto state : {phi::MinimapState::hidden, phi::MinimapState::unknown}) {
     scenario = {};
     scenario.minimap_state = state;
+    scenario.force_show = true;
+    CHECK(run() == AppExitDisposition::unload_allowed);
+    CHECK(!scenario.hud_visible);
+    CHECK(scenario.cleanup_order_valid);
+  }
+  for (auto state : {phi::MenuState::open, phi::MenuState::unknown}) {
+    scenario = {};
+    scenario.menu_state = state;
     scenario.force_show = true;
     CHECK(run() == AppExitDisposition::unload_allowed);
     CHECK(!scenario.hud_visible);
@@ -321,12 +369,13 @@ int main() {
   CHECK(!has("observer_construct"));
   CHECK(has("close_log"));
 
-  for (int source = 0; source < 4; ++source) {
+  for (int source = 0; source < 5; ++source) {
     scenario = {};
     scenario.overlay_started = source == 0;
     scenario.observer_started = source == 1;
     scenario.overlay_retained = source == 2;
     scenario.observer_retained = source == 3;
+    scenario.menu_retained = source == 4;
     CHECK(run() == AppExitDisposition::retain_module);
     CHECK(scenario.cleanup_order_valid);
   }

@@ -14,6 +14,6 @@ struct ScanResult {
   ScanStatus status = ScanStatus::invalid_image;
   std::size_t candidate_pairs = 0;
 };
-ScanResult find_hook_sites(HMODULE game);
-ScanResult scan_code(std::span<const std::uint8_t> code, std::uintptr_t base);
+ScanResult find_hook_sites(HMODULE game, bool menu = false);
+ScanResult scan_code(std::span<const std::uint8_t> code, std::uintptr_t base, bool menu = false);
 } // namespace phi

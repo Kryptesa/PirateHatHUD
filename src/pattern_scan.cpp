@@ -14,21 +14,29 @@ bool instruction_at(std::span<const std::uint8_t> bytes, std::size_t offset,
 }
 } // namespace
 
-ScanResult scan_code(std::span<const std::uint8_t> bytes, std::uintptr_t base) {
+ScanResult scan_code(std::span<const std::uint8_t> bytes, std::uintptr_t base, bool menu) {
   ScanResult result{};
   result.status = ScanStatus::no_match;
-  if (bytes.size() < patterns::kExpectedDelta + sizeof(patterns::kLeave) ||
-      base > std::numeric_limits<std::uintptr_t>::max() - bytes.size())
+  constexpr std::uint8_t clear[] = {0xC6, 0x81, 0x5B, 0x02, 0, 0, 0, 0x84, 0xD2, 0x74, 0x1C};
+  constexpr std::uint8_t set[] = {0xC6, 0x83, 0x5B, 0x02, 0, 0, 1, 0x48, 0x8B, 1, 0xFF, 0x50, 0x30};
+  const auto delta = menu ? 0x141u : patterns::kExpectedDelta;
+  const auto tail = menu ? sizeof(set) : sizeof(patterns::kLeave);
+  if (bytes.size() < delta + tail ||
+      base > std::numeric_limits<std::uintptr_t>::max() - bytes.size()) {
     return result;
-  for (std::size_t offset = 0;
-       offset + patterns::kExpectedDelta + sizeof(patterns::kLeave) <= bytes.size(); ++offset) {
-    if (!instruction_at(bytes, offset, patterns::kEnter) ||
-        !instruction_at(bytes, offset + patterns::kExpectedDelta, patterns::kLeave))
+  }
+  for (std::size_t offset = 0; offset + delta + tail <= bytes.size(); ++offset) {
+    const bool match =
+        menu ? instruction_at(bytes, offset, clear) && instruction_at(bytes, offset + delta, set)
+             : instruction_at(bytes, offset, patterns::kEnter) &&
+                   instruction_at(bytes, offset + delta, patterns::kLeave);
+    if (!match) {
       continue;
+    }
     ++result.candidate_pairs;
     if (result.candidate_pairs == 1) {
       result.sites.enter = base + offset;
-      result.sites.leave = base + offset + patterns::kExpectedDelta;
+      result.sites.leave = base + offset + delta;
     } else {
       result.sites = {};
       result.status = ScanStatus::ambiguous;
@@ -40,7 +48,7 @@ ScanResult scan_code(std::span<const std::uint8_t> bytes, std::uintptr_t base) {
   return result;
 }
 
-ScanResult find_hook_sites(HMODULE game) {
+ScanResult find_hook_sites(HMODULE game, bool menu) {
   if (!game)
     return {};
   const auto* image = reinterpret_cast<const std::uint8_t*>(game);
@@ -66,8 +74,9 @@ ScanResult find_hook_sites(HMODULE game) {
       return {};
     const auto size = std::min<std::size_t>(
         section.Misc.VirtualSize, nt->OptionalHeader.SizeOfImage - section.VirtualAddress);
-    const auto part = scan_code({image + section.VirtualAddress, size},
-                                reinterpret_cast<std::uintptr_t>(image + section.VirtualAddress));
+    const auto part =
+        scan_code({image + section.VirtualAddress, size},
+                  reinterpret_cast<std::uintptr_t>(image + section.VirtualAddress), menu);
     total.candidate_pairs += part.candidate_pairs;
     if (part.status == ScanStatus::ambiguous || total.candidate_pairs > 1) {
       total.sites = {};

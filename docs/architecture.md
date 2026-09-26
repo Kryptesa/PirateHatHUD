@@ -13,7 +13,7 @@ only explicitly documented interfaces are intended for library consumers.
 | --- | --- | --- |
 | `core` | Its own headers | Standard library |
 | `game` / `game_observers` | Its own headers, `core`, scanner and patterns | Windows, SafetyHook |
-| `features` / `treasure_indicator` | Its own headers, `game/treasure_observer.hpp`, `game/minimap_observer.hpp`, `render/hud_state.hpp` | Standard library |
+| `features` / `treasure_indicator` | Its own headers, `game/treasure_observer.hpp`, `game/minimap_observer.hpp`, `game/menu_observer.hpp`, `render/hud_state.hpp` | Standard library |
 | `render` | Its own headers, including `HudState` | Windows, DX12/DXGI, WIC, ImGui, SafetyHook for graphics hooks |
 | `overlay` facade | Its own header, `render` | Standard library |
 | `platform` | Its own headers | Standard library, Windows |
@@ -42,7 +42,7 @@ and its regression cases. Changes to boundaries must update documentation and ch
 in the same task, including any constraints passed to delegated agents.
 
 - `game_observers`: game-specific scanning, hooks and safe memory reads. Public entry
-  points: `include/game/treasure_observer.hpp` and `include/game/minimap_observer.hpp`. No HUD, configuration or DirectX dependency.
+  points: `include/game/treasure_observer.hpp` `include/game/minimap_observer.hpp` and `include/game/menu_observer.hpp`. No HUD, configuration or DirectX dependency.
 - `core/signal.hpp`: reusable typed synchronous signals and move-only RAII subscriptions.
 - `treasure_indicator`: presentation policy for this mod, producing a `HudState`.
 - `overlay`: DX12 resources and drawing from a coherent `HudState` snapshot.
@@ -136,8 +136,8 @@ no global string-based bus is required.
 `MinimapObserver` installs no hooks. It samples a guarded pointer chain in `poll()`
 and publishes typed visibility changes on the owner thread. Unknown observations
 suppress the icon, including in force_show mode. Treasure state is retained while
-the minimap is hidden. Application composition polls both observers before
-publishing one HUD snapshot, then stops both observers and resets subscriptions
+the minimap is hidden. Application composition polls all observers before
+publishing one HUD snapshot, then stops all observers and resets subscriptions
 before graphics shutdown. The minimap observer may restart after stop; treasure
 hook retirement rules do not apply to it. See [minimap observation](minimap-observation.md)
 for the 2.03.02 chain, fixed-slot limitations and validation evidence.
@@ -174,3 +174,25 @@ still requires in-game validation.
 Game-hook activation and DX12 drawing
 require in-game verification: force_show, toggle/unload, normal treasure detection,
 game version, graphics settings and logs.
+
+## Menu gating and return delay
+
+MenuObserver resolves Root_MainMenu by exact script MSVC RTTI in the current UI array,
+using the version-specific root slot +6C8CC00, not a fixed heap address or array index.
+It samples +25B on startup and on every poll, including startup with an open menu.
+A unique executable instruction pair (clear RCX / set RBX, delta 0x141) is required.
+Hooks capture atomics only, filter by resolved root, and latch openings between polls.
+Events and diagnostics run on the owner thread. Unknown or duplicate identities suppress
+showing. Menu hooks use the same process-lifetime retention and single-instance rules
+as treasure hooks. Replaced roots are resolved again; missed transitions during root
+replacement remain an in-game validation limitation.
+
+The policy keeps independent treasure, minimap and menu states. Hidden/unknown minimap
+or open/unknown menu immediately cancels return eligibility. When minimap is visible
+and menu closed, update() starts a steady_clock deadline; show_delay_ms defaults to
+1000. No sleeping implements the deadline. force_show bypasses treasure only.
+The application polls all sources and advances the policy before publishing one HUD
+snapshot. Immediate means the first owner-thread publication after a captured signal;
+the game's +25B transition itself is delayed relative to input.
+
+Menu implementation evidence and remaining game checks: [menu observation](menu-observation.md).

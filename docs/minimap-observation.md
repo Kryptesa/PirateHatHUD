@@ -4,6 +4,12 @@ The icon requires a valid visible minimap sample, including in force_show mode.
 Unknown memory or a byte other than 0/1 hides the icon; polling retries naturally.
 Treasure state is retained while menus hide the minimap.
 
+Timing caveat: the current byte lags menu opening, and the user observed the HUD
+over the map closing animation. The checks below established eventual state,
+not timely transitions. RTTI enumeration identifies the original array element
+as RootStatusGauge (index 5), with a separate RootMiniMap at index 6. No earlier
+replacement signal for the minimap has been validated yet.
+
 The user verified this memory chain on Crimson Desert 2.03.02 in Cheat Engine:
 menu and inventory transitions, minimap setting disabled/enabled, teleport and one
 full game restart. The compiled observer/HUD integration still requires in-game

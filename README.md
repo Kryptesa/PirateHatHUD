@@ -176,3 +176,11 @@ The icon follows minimap visibility and its display setting. The memory chain wa
 ## License
 
 The project code and original icon are licensed under the [MIT License](LICENSE). Dependencies have their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md). Include the dependency license files from the staged build folder when distributing a binary.
+
+`[indicator] show_delay_ms=1000` delays the icon's return until the minimap is visible
+and Root_MainMenu is closed for that interval (0..60000 ms). Hiding cancels the wait
+immediately. Unknown UI state hides the icon; `force_show` still obeys these UI gates.
+Menu object resolution uses script RTTI; the UI root slot is specific to game 2.03.02.
+In-game verification remains required for Esc/M/I, cutscenes, disabled minimap,
+startup with an open menu, F9/F10 and a fresh game process. Adjust the delay after
+measuring any remaining map closing animation.
