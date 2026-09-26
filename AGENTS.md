@@ -28,6 +28,13 @@ cmake --build build --target architecture-check
 
 These commands configure, compile, and run tests. The installable bundle is `build/Release/PirateHatHUD/`. Load it through a compatible ASI loader to test in game.
 
+In a sandbox, prefer `./cmake/Build.ps1` to avoid MSBuild FileTracker access errors.
+It discovers the installed Visual Studio C++ toolchain and bundled CMake/Ninja,
+builds with Ninja Multi-Config in `build/ninja/`, and runs architecture-check and
+CTest. It reuses downloaded sources from `build/_deps/` when present; missing
+dependencies need network access. The Release bundle is
+`build/ninja/Release/PirateHatHUD/`. Use `-Configuration Debug` for a Debug build.
+
 The default build checks source layout and includes; configuration checks target dependencies. CTest also exercises the checker against intentional violations. For a check without building or downloading dependencies, use `cmake -P cmake/Architecture.cmake`.
 
 ```powershell

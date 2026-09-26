@@ -72,6 +72,25 @@ ctest --test-dir build -C Release --output-on-failure
 
 The compiled ASI is `build/Release/PirateHatHUD.asi`. The ready-to-install folder is `build/Release/PirateHatHUD/`; it includes the ASI, configuration, icon, and third-party license files. The project uses C++23 and the static MSVC runtime.
 
+For a sandbox where MSBuild fails with `FileTracker` / `E_ACCESSDENIED`, use the
+Ninja build helper from a regular PowerShell session:
+
+```powershell
+./cmake/Build.ps1
+# Optional configuration:
+./cmake/Build.ps1 -Configuration Debug
+```
+
+The helper finds Visual Studio or Build Tools with the x64 C++ tools and bundled
+CMake/Ninja, initializes MSVC for the current process, then configures, builds,
+runs `architecture-check`, and runs CTest. It restores the caller's environment
+afterwards. Install the **C++ CMake tools for Windows** component if it is missing.
+The separate Ninja build uses `build/ninja/`; the Release bundle is
+`build/ninja/Release/PirateHatHUD/`. Existing dependency sources in `build/_deps/`
+are reused when available; missing dependencies require network access during
+configuration. This build uses MSVC directly through Ninja, avoiding MSBuild's
+FileTracker.
+
 ## Code style
 
 Architecture rules live in [AGENTS.md](AGENTS.md) and the
