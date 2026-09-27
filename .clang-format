@@ -3,6 +3,25 @@ Standard: c++20
 IndentWidth: 2
 UseTab: Never
 ColumnLimit: 100
+# Keep long argument lists vertical with a fixed continuation indent.
+AlignAfterOpenBracket: false
+BreakAfterOpenBracketFunction: true
+BreakBeforeCloseBracketFunction: true
+BreakAfterOpenBracketIf: true
+BreakBeforeCloseBracketIf: true
+BreakAfterOpenBracketBracedList: true
+BreakBeforeCloseBracketBracedList: true
+BracedInitializerIndentWidth: 2
+BreakBinaryOperations: RespectPrecedence
+AlignOperands: DontAlign
+ContinuationIndentWidth: 2
+BinPackArguments: false
+BinPackParameters: OnePerLine
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+PackConstructorInitializers: Never
+ConstructorInitializerIndentWidth: 2
+BreakConstructorInitializers: BeforeColon
 BreakBeforeBraces: Attach
 AllowShortFunctionsOnASingleLine: Empty
 AllowShortIfStatementsOnASingleLine: Never

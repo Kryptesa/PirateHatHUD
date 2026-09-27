@@ -1,6 +1,8 @@
 #pragma once
+
 #include "platform/logger.hpp"
 #include <string>
+
 namespace phi {
 struct Config {
   LogConfig logging;
@@ -15,5 +17,6 @@ struct Config {
   int toggle_key = 0x78; // F9
   int unload_key = 0x79; // F10
 };
+
 Config read_config(const std::wstring& path);
 } // namespace phi

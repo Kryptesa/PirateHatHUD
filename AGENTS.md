@@ -43,11 +43,11 @@ cmake -P cmake/Format.cmake
 cmake -DCHECK=ON -P cmake/Format.cmake
 ```
 
-These install clang-format 20.1.8, format project C++, and check formatting without edits.
+These install clang-format 22.1.8, format project C++, and check formatting without edits.
 
 ## Coding Style & Naming Conventions
 
-Follow `.clang-format` and `.editorconfig`: two spaces, no tabs, LLVM style, a 100-column limit, UTF-8, and a final newline. Preserve include order for Windows/COM compatibility. Use braces for new control-flow blocks and keep headers self-contained. Follow existing `snake_case` functions and variables, `PascalCase` types, `kName` constants, and `g_` globals within the `phi` namespace where applicable.
+Follow `.clang-format` and `.editorconfig`: two spaces, no tabs, LLVM style, a 100-column limit, UTF-8, and a final newline. Keep short calls on one line. When argument or parameter lists need wrapping, put one item per line with a fixed two-space continuation indent and the closing parenthesis on its own line. For multiline braced initializers, start the elements after the opening brace on a new line and put the closing brace on its own line. Use a trailing comma in multiline nested or range-for initializer lists when needed to preserve this layout. Put each constructor initializer on its own line. For multiline `if` conditions, start the condition on the line after `if (` and put `) {` on its own line. Break conditions into logical parts; simplify deeply nested expressions instead of aligning them into a staircase. Separate functions, types and logical phases with blank lines. Preserve include order for Windows/COM compatibility. Use braces for new control-flow blocks and keep headers self-contained. Follow existing `snake_case` functions and variables, `PascalCase` types, `kName` constants, and `g_` globals within the `phi` namespace where applicable.
 
 ## Testing Guidelines
 

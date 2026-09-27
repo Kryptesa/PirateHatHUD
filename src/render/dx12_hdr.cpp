@@ -6,6 +6,7 @@ bool Dx12Renderer::initialize_hdr(DXGI_FORMAT format) {
   if (!hdr_bytecode_.vertex || !hdr_bytecode_.pixel) {
     return false;
   }
+
   D3D12_DESCRIPTOR_RANGE range{};
   range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
   range.NumDescriptors = 1;
@@ -29,13 +30,23 @@ bool Dx12Renderer::initialize_hdr(DXGI_FORMAT format) {
   root.NumStaticSamplers = 1;
   root.pStaticSamplers = &sampler;
   ComPtr<ID3DBlob> serialized;
-  if (FAILED(
-          D3D12SerializeRootSignature(&root, D3D_ROOT_SIGNATURE_VERSION_1, &serialized, nullptr)) ||
-      FAILED(device->CreateRootSignature(0, serialized->GetBufferPointer(),
-                                         serialized->GetBufferSize(), IID_PPV_ARGS(&hdr_root)))) {
+
+  if (
+    FAILED(
+      D3D12SerializeRootSignature(&root, D3D_ROOT_SIGNATURE_VERSION_1, &serialized, nullptr)
+    ) ||
+    FAILED(device->CreateRootSignature(
+      0,
+      serialized->GetBufferPointer(),
+      serialized->GetBufferSize(),
+      IID_PPV_ARGS(&hdr_root)
+    ))
+  ) {
     log(LogLevel::error, "HDR icon shader initialization failed");
+
     return false;
   }
+
   D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline{};
   pipeline.pRootSignature = hdr_root.Get();
   pipeline.VS = {hdr_bytecode_.vertex->GetBufferPointer(), hdr_bytecode_.vertex->GetBufferSize()};
@@ -57,23 +68,37 @@ bool Dx12Renderer::initialize_hdr(DXGI_FORMAT format) {
   pipeline.NumRenderTargets = 1;
   pipeline.RTVFormats[0] = format;
   pipeline.SampleDesc.Count = 1;
+
   return SUCCEEDED(device->CreateGraphicsPipelineState(&pipeline, IID_PPV_ARGS(&hdr_pipeline)));
 }
 
-void Dx12Renderer::draw_hdr(ID3D12GraphicsCommandList* list, const HudState& hud, UINT width,
-                            UINT height, DXGI_COLOR_SPACE_TYPE color_space) {
+void Dx12Renderer::draw_hdr(
+  ID3D12GraphicsCommandList* list,
+  const HudState& hud,
+  UINT width,
+  UINT height,
+  DXGI_COLOR_SPACE_TYPE color_space
+) {
   if (!width || !height) {
     return;
   }
+
   const float size = 56.0f * hud.scale;
   const float x = static_cast<float>(hud.x);
   const float y = hud.y < 0 ? static_cast<float>(height) + hud.y - size : static_cast<float>(hud.y);
+
   struct Constants {
     float rect[4];
     UINT mode;
-  } constants{{2 * x / width - 1, 1 - 2 * y / height, 2 * (x + size) / width - 1,
-               1 - 2 * (y + size) / height},
-              color_space == DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709 ? 1u : 2u};
+  } constants{
+    {
+      2 * x / width - 1,
+      1 - 2 * y / height,
+      2 * (x + size) / width - 1,
+      1 - 2 * (y + size) / height,
+    },
+    color_space == DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709 ? 1u : 2u
+  };
   D3D12_VIEWPORT viewport{0, 0, static_cast<float>(width), static_cast<float>(height), 0, 1};
   D3D12_RECT scissor{0, 0, static_cast<LONG>(width), static_cast<LONG>(height)};
   list->RSSetViewports(1, &viewport);

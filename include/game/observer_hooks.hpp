@@ -15,16 +15,20 @@ public:
     Hook leave;
   };
 
-  ObserverHooks() : hooks_(std::make_unique<Pair>()) {}
+  ObserverHooks()
+    : hooks_(std::make_unique<Pair>()) {}
+
   ~ObserverHooks() {
     stop();
   }
+
   ObserverHooks(const ObserverHooks&) = delete;
   ObserverHooks& operator=(const ObserverHooks&) = delete;
 
   Pair& hooks() {
     return *hooks_;
   }
+
   ObserverStopResult result() const noexcept {
     return result_;
   }
@@ -33,8 +37,10 @@ public:
     if (result_.module_must_remain_loaded) {
       return false;
     }
+
     // Even a failed call can have partially activated instructions.
     result_.module_must_remain_loaded = true;
+
     return static_cast<bool>(hooks_->enter.enable()) && static_cast<bool>(hooks_->leave.enable());
   }
 
@@ -42,11 +48,13 @@ public:
     if (!hooks_) {
       return result_;
     }
+
     bool disabled = true;
     disable(hooks_->enter, disabled);
     disable(hooks_->leave, disabled);
     result_.hooks_disabled = disabled;
     result_.module_must_remain_loaded |= !disabled;
+
     if (!result_.module_must_remain_loaded) {
       try {
         hooks_->enter.reset();
@@ -56,11 +64,13 @@ public:
         result_.module_must_remain_loaded = true;
       }
     }
+
     if (result_.module_must_remain_loaded) {
       // No counter proves completion of generated stub or callback return paths.
       // Deliberately retain both allocations and the containing DLL until process exit.
       (void)hooks_.release();
     }
+
     return result_;
   }
 

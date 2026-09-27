@@ -7,6 +7,7 @@
 #include <vector>
 
 namespace phi {
+
 namespace detail {
 struct Connection {
   bool active = true;
@@ -19,14 +20,18 @@ public:
   Subscription() = default;
   Subscription(const Subscription&) = delete;
   Subscription& operator=(const Subscription&) = delete;
-  Subscription(Subscription&& other) noexcept : connection_(std::move(other.connection_)) {}
+  Subscription(Subscription&& other) noexcept
+    : connection_(std::move(other.connection_)) {}
+
   Subscription& operator=(Subscription&& other) noexcept {
     if (this != &other) {
       reset();
       connection_ = std::move(other.connection_);
     }
+
     return *this;
   }
+
   ~Subscription() {
     reset();
   }
@@ -35,18 +40,22 @@ public:
     if (auto connection = connection_.lock()) {
       connection->active = false;
     }
+
     connection_.reset();
   }
 
   explicit operator bool() const noexcept {
     const auto connection = connection_.lock();
+
     return connection && connection->active;
   }
 
 private:
   template <typename Event> friend class Signal;
+
   explicit Subscription(const std::shared_ptr<detail::Connection>& connection)
-      : connection_(connection) {}
+    : connection_(connection) {}
+
   std::weak_ptr<detail::Connection> connection_;
 };
 
@@ -70,15 +79,18 @@ public:
     if (!callback) {
       return {};
     }
+
     remove_inactive();
     auto slot = std::make_shared<Slot>(std::move(callback));
     slots_.push_back(slot);
+
     return Subscription(slot);
   }
 
   void publish(const Event& event) {
     remove_inactive();
     const auto snapshot = slots_;
+
     for (const auto& slot : snapshot) {
       if (slot->active) {
         slot->callback(event);
@@ -88,7 +100,9 @@ public:
 
 private:
   struct Slot : detail::Connection {
-    explicit Slot(std::function<void(const Event&)> fn) : callback(std::move(fn)) {}
+    explicit Slot(std::function<void(const Event&)> fn)
+      : callback(std::move(fn)) {}
+
     std::function<void(const Event&)> callback;
   };
 

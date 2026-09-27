@@ -1,4 +1,5 @@
 #pragma once
+
 #include <algorithm>
 #include <cstdint>
 #include <vector>
@@ -11,9 +12,11 @@ public:
     fences_.assign(count, 0);
     next_ = 0;
   }
+
   std::uint64_t required_fence(std::uint64_t backbuffer_fence) const {
     return std::max(backbuffer_fence, fences_[next_ % fences_.size()]);
   }
+
   // Call only after RenderDrawData consumed a slot and its submission was fenced.
   void submitted(std::uint64_t fence) {
     fences_[next_ % fences_.size()] = fence;

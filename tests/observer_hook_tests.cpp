@@ -16,6 +16,7 @@ struct Counts {
   unsigned disable = 0;
   unsigned release = 0;
 };
+
 struct FakeHook {
   Counts* counts = nullptr;
   bool live = false;
@@ -26,20 +27,27 @@ struct FakeHook {
   ~FakeHook() {
     reset();
   }
+
   explicit operator bool() const {
     return live;
   }
+
   bool enable() {
     ++counts->enable;
+
     return enable_ok;
   }
+
   bool disable() {
     ++counts->disable;
+
     if (throw_disable) {
       throw std::runtime_error("disable failure");
     }
+
     return disable_ok;
   }
+
   void reset() {
     if (live) {
       ++counts->release;
@@ -47,7 +55,9 @@ struct FakeHook {
     }
   }
 };
+
 using Hooks = phi::detail::ObserverHooks<FakeHook>;
+
 void prepare(Hooks& hooks, Counts& counts) {
   hooks.hooks().enter.counts = &counts;
   hooks.hooks().leave.counts = &counts;
@@ -67,10 +77,12 @@ int main() {
     CHECK(!result.module_must_remain_loaded);
     CHECK(prepared.enable == 0);
     CHECK(prepared.release == 2);
+
     prepare(hooks, prepared);
     CHECK(!hooks.stop().module_must_remain_loaded);
     CHECK(prepared.release == 4);
   }
+
   CHECK(prepared.release == 4);
 
   // Successful disable still cannot authorize freeing generated hook code.
@@ -79,6 +91,7 @@ int main() {
     Hooks hooks;
     prepare(hooks, successful);
     CHECK(hooks.enable());
+
     const auto result = hooks.stop();
     CHECK(result.hooks_disabled);
     CHECK(result.module_must_remain_loaded);
@@ -89,6 +102,7 @@ int main() {
     CHECK(hooks.stop().module_must_remain_loaded);
     CHECK(successful.disable == 2);
   }
+
   CHECK(successful.release == 0);
 
   // Stack unwinding/destruction uses the same retirement policy without an explicit stop.
@@ -98,6 +112,7 @@ int main() {
     prepare(hooks, unwound);
     CHECK(hooks.enable());
   }
+
   CHECK(unwound.disable == 2);
   CHECK(unwound.release == 0);
 
@@ -112,6 +127,7 @@ int main() {
     CHECK(partial.enable == 2);
     CHECK(partial.disable == 2);
   }
+
   CHECK(partial.release == 0);
 
   // Retention begins before the first enable call, including a first-call failure.
@@ -124,6 +140,7 @@ int main() {
     CHECK(first_failed.enable == 1);
     CHECK(hooks.stop().module_must_remain_loaded);
   }
+
   CHECK(first_failed.release == 0);
 
   // Failed/throwing disable does not skip cleanup attempts for the other hook.
@@ -133,6 +150,7 @@ int main() {
       Hooks hooks;
       prepare(hooks, failed);
       CHECK(hooks.enable());
+
       hooks.hooks().enter.disable_ok = false;
       hooks.hooks().enter.throw_disable = throws;
       const auto result = hooks.stop();
@@ -141,7 +159,9 @@ int main() {
       CHECK(failed.disable == 2);
       CHECK(!hooks.stop().hooks_disabled);
     }
+
     CHECK(failed.release == 0);
   }
+
   return 0;
 }

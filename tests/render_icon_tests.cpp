@@ -20,20 +20,27 @@ int main() {
   ImGui::Render();
   auto& data = *ImGui::GetDrawData();
   CHECK(data.TotalVtxCount > 0 && icon_only(data, icon));
+
   auto* textures = data.Textures;
   CHECK(textures != nullptr);
+
   {
     ExternalTextureDraw external(data);
     CHECK(data.Textures == nullptr);
   }
+
   CHECK(data.Textures == textures);
   CHECK(!icon_only(data, icon + 1));
+
   data.CmdLists[0]->CmdBuffer[0].UserCallback = ImDrawCallback_ResetRenderState;
   CHECK(!icon_only(data, icon));
+
   ImGui::NewFrame();
   ImGui::GetForegroundDrawList()->AddText({10, 10}, IM_COL32_WHITE, "Unexpected text");
   ImGui::Render();
   CHECK(!icon_only(*ImGui::GetDrawData(), icon));
+
   ImGui::DestroyContext();
+
   return 0;
 }

@@ -58,6 +58,7 @@ int main() {
   TreasureSound disabled(false, 0);
   CHECK(!disabled.update(TreasureState::inactive, true, t));
   CHECK(!disabled.update(TreasureState::active, true, t));
+
   TreasureSound immediate(true, 0);
   CHECK(!immediate.update(TreasureState::inactive, true, t));
   CHECK(immediate.update(TreasureState::active, true, t));

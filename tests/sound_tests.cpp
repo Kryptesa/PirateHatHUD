@@ -31,15 +31,19 @@ struct BlockingAudio {
 
   bool wait_for(unsigned expected_plays, unsigned expected_stops) {
     std::unique_lock lock(mutex);
-    return changed.wait_for(lock, std::chrono::seconds(2),
-                            [&] { return plays >= expected_plays && stops >= expected_stops; });
+
+    return changed.wait_for(lock, std::chrono::seconds(2), [&] {
+      return plays >= expected_plays && stops >= expected_stops;
+    });
   }
+
   void release(bool play, bool stop) {
     {
       std::lock_guard lock(mutex);
       release_play |= play;
       release_stop |= stop;
     }
+
     changed.notify_all();
   }
 } audio;
@@ -47,6 +51,7 @@ struct BlockingAudio {
 bool blocking_playback(const std::uint8_t* bytes) noexcept {
   std::unique_lock lock(audio.mutex);
   audio.worker = std::this_thread::get_id();
+
   if (bytes) {
     ++audio.plays;
     audio.changed.notify_all();
@@ -57,6 +62,7 @@ bool blocking_playback(const std::uint8_t* bytes) noexcept {
     audio.changed.notify_all();
     audio.changed.wait(lock, [] { return audio.release_stop; });
   }
+
   return true;
 }
 
@@ -67,9 +73,8 @@ struct ReleaseAudio {
 };
 
 struct Fixture {
-  std::filesystem::path path =
-      std::filesystem::temp_directory_path() /
-      (L"PirateHatHUD_sound_test_" + std::to_wstring(GetCurrentProcessId()) + L".wav");
+  std::filesystem::path path = std::filesystem::temp_directory_path() /
+    (L"PirateHatHUD_sound_test_" + std::to_wstring(GetCurrentProcessId()) + L".wav");
   ~Fixture() {
     std::error_code error;
     std::filesystem::remove(path, error);
@@ -78,6 +83,7 @@ struct Fixture {
   bool write(const std::array<unsigned char, 46>& bytes) {
     std::ofstream output(path, std::ios::binary | std::ios::trunc);
     output.write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+
     return static_cast<bool>(output);
   }
 };
@@ -87,18 +93,65 @@ int main() {
   static_assert(!std::is_copy_constructible_v<phi::SoundPlayer>);
   phi::SoundPlayer player;
   CHECK(!player.play());
+
   player.stop();
   CHECK(!player.prepare(L""));
   CHECK(player.prepare_embedded()); // Actual bundled WAV is valid and needs no external file.
   player.stop();
   Fixture fixture;
+
   // Mono 16-bit PCM, one silent sample. Preparation never opens an audio device.
   const std::array<unsigned char, 46> valid = {
-      'R', 'I', 'F', 'F', 38,  0,   0,   0,   'W',  'A',  'V', 'E', 'f',  'm',  't', ' ',
-      16,  0,   0,   0,   1,   0,   1,   0,   0x44, 0xac, 0,   0,   0x88, 0x58, 1,   0,
-      2,   0,   16,  0,   'd', 'a', 't', 'a', 2,    0,    0,   0,   0,    0};
+    'R',
+    'I',
+    'F',
+    'F',
+    38,
+    0,
+    0,
+    0,
+    'W',
+    'A',
+    'V',
+    'E',
+    'f',
+    'm',
+    't',
+    ' ',
+    16,
+    0,
+    0,
+    0,
+    1,
+    0,
+    1,
+    0,
+    0x44,
+    0xac,
+    0,
+    0,
+    0x88,
+    0x58,
+    1,
+    0,
+    2,
+    0,
+    16,
+    0,
+    'd',
+    'a',
+    't',
+    'a',
+    2,
+    0,
+    0,
+    0,
+    0,
+    0
+  };
   CHECK(fixture.write(valid));
   CHECK(player.prepare(fixture.path.wstring()));
+
   player.stop();
   CHECK(player.prepare(fixture.path.wstring()));
 
@@ -125,24 +178,27 @@ int main() {
   CHECK(!player.prepare(fixture.path.wstring() + L".missing"));
   CHECK(fixture.write(valid));
   CHECK(player.prepare(fixture.path.wstring()));
+
   {
     phi::SoundPlayer threaded(blocking_playback);
     ReleaseAudio release_on_failure;
     CHECK(threaded.prepare(fixture.path.wstring()));
     CHECK(threaded.play());
     CHECK(audio.wait_for(1, 0));
+
     // Slow audio startup must not make stop wait on the device or its mutex.
     auto stop = std::async(std::launch::async, [&] { threaded.stop(); });
     const bool stop_ready =
-        stop.wait_for(std::chrono::milliseconds(500)) == std::future_status::ready;
+      stop.wait_for(std::chrono::milliseconds(500)) == std::future_status::ready;
     audio.release(true, false);
     stop.get();
     CHECK(stop_ready);
     CHECK(audio.wait_for(1, 1));
+
     // Slow audio shutdown must not prevent a new notification being queued.
     auto play = std::async(std::launch::async, [&] { return threaded.play(); });
     const bool play_ready =
-        play.wait_for(std::chrono::milliseconds(500)) == std::future_status::ready;
+      play.wait_for(std::chrono::milliseconds(500)) == std::future_status::ready;
     audio.release(false, true);
     CHECK(play.get());
     CHECK(play_ready);
@@ -151,5 +207,6 @@ int main() {
   CHECK(audio.plays == 2 && audio.stops == 2);
   CHECK(audio.bytes_valid);
   CHECK(audio.worker != std::this_thread::get_id());
+
   return 0;
 }

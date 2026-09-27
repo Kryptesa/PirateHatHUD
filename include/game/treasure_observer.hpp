@@ -1,4 +1,5 @@
 #pragma once
+
 #include "core/log.hpp"
 
 #include "core/signal.hpp"
@@ -26,9 +27,13 @@ public:
   TreasureObserver& operator=(TreasureObserver&&) = delete;
 
   bool start();
+
   void poll();
+
   ObserverStopResult stop() noexcept;
+
   TreasureState state() const;
+
   Subscription subscribe(std::function<void(const TreasureStateChanged&)> callback);
 
 private:

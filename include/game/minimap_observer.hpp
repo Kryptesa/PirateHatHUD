@@ -1,4 +1,5 @@
 #pragma once
+
 #include "core/log.hpp"
 #include "core/signal.hpp"
 #include "game/observer_state.hpp"
@@ -14,10 +15,15 @@ public:
   ~MinimapObserver();
   MinimapObserver(const MinimapObserver&) = delete;
   MinimapObserver& operator=(const MinimapObserver&) = delete;
+
   bool start();
+
   void poll();
+
   void stop() noexcept;
+
   MinimapState state() const;
+
   Subscription subscribe(std::function<void(const MinimapStateChanged&)> callback);
 
 private:

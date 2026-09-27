@@ -16,6 +16,7 @@ int main() {
   for (int i = 0; i < 100; ++i) {
     CHECK(!toggle.sample(f9, held)); // Holding never repeats.
   }
+
   CHECK(unload.sample(f10, held)); // Independent action state.
   CHECK(!unload.sample(f10, held));
   CHECK(!toggle.sample(f9, 0));

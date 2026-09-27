@@ -54,32 +54,46 @@ struct Scenario {
   unsigned subscriber_calls = 0;
   phi::Signal<phi::TreasureStateChanged>* signal = nullptr;
 } scenario;
+
 void step(const char* name) {
   scenario.calls.emplace_back(name);
+
   if (scenario.fail == name) {
     throw std::runtime_error(name);
   }
+
   if (scenario.fail == "unknown" && std::string(name) == "poll") {
     throw 1;
   }
-  if (scenario.fail == "diagnostics" &&
-      (std::string(name) == "poll" ||
-       (std::string(name) == "log" && std::find(scenario.calls.begin(), scenario.calls.end(),
-                                                "observer_stop") != scenario.calls.end()))) {
+
+  if (
+    scenario.fail == "diagnostics" &&
+    (std::string(name) == "poll" ||
+      (std::string(name) == "log" &&
+        std::find(scenario.calls.begin(), scenario.calls.end(), "observer_stop") !=
+          scenario.calls.end()))
+  ) {
     throw std::runtime_error("diagnostic failure");
   }
-  if (scenario.fail == "hud_runtime" && std::string(name) == "hud" &&
-      std::count(scenario.calls.begin(), scenario.calls.end(), "hud") > 1) {
+
+  if (
+    scenario.fail == "hud_runtime" &&
+    std::string(name) == "hud" &&
+    std::count(scenario.calls.begin(), scenario.calls.end(), "hud") > 1
+  ) {
     throw std::runtime_error("HUD publication failure");
   }
 }
+
 bool has(const char* name) {
   return std::find(scenario.calls.begin(), scenario.calls.end(), name) != scenario.calls.end();
 }
+
 bool before(const char* first, const char* second) {
   return std::find(scenario.calls.begin(), scenario.calls.end(), first) <
-         std::find(scenario.calls.begin(), scenario.calls.end(), second);
+    std::find(scenario.calls.begin(), scenario.calls.end(), second);
 }
+
 phi::AppExitDisposition run() {
   return phi::run_app(GetModuleHandleW(nullptr));
 }
@@ -90,56 +104,73 @@ struct MenuObserver::Impl {
   Signal<MenuStateChanged> changes;
   bool stopped = false;
 };
+
 MenuObserver::MenuObserver(LogCallback) {
   step("menu_construct");
   impl_ = std::make_unique<Impl>();
 }
+
 MenuObserver::~MenuObserver() {
   stop();
 }
+
 bool MenuObserver::start() {
   step("menu_start");
+
   return false;
 }
+
 void MenuObserver::poll() {
   step("menu_poll");
   impl_->changes.publish({MenuState::unknown, scenario.menu_state});
 }
+
 ObserverStopResult MenuObserver::stop() noexcept {
   if (!impl_->stopped) {
     impl_->stopped = true;
     scenario.calls.emplace_back("menu_stop");
   }
+
   return {true, scenario.menu_retained};
 }
+
 MenuState MenuObserver::state() const {
   return MenuState::unknown;
 }
+
 Subscription MenuObserver::subscribe(std::function<void(const MenuStateChanged&)> callback) {
   step("menu_subscribe");
+
   return impl_->changes.subscribe(std::move(callback));
 }
+
 struct MinimapObserver::Impl {
   Signal<MinimapStateChanged> changes;
   bool stopped = false;
 };
+
 MinimapObserver::MinimapObserver(LogCallback) {
   step("minimap_construct");
   impl_ = std::make_unique<Impl>();
   scenario.minimap_signal = &impl_->changes;
 }
+
 MinimapObserver::~MinimapObserver() {
   stop();
   scenario.minimap_signal = nullptr;
 }
+
 bool MinimapObserver::start() {
   step("minimap_start");
+
   return true;
 }
+
 void MinimapObserver::poll() {
   step("minimap_poll");
   impl_->changes.publish({MinimapState::unknown, scenario.minimap_state});
 }
+
 void MinimapObserver::stop() noexcept {
   if (!impl_->stopped) {
     impl_->stopped = true;
@@ -147,76 +178,98 @@ void MinimapObserver::stop() noexcept {
     scenario.cleanup_order_valid &= scenario.log_open;
   }
 }
+
 MinimapState MinimapObserver::state() const {
   return MinimapState::unknown;
 }
+
 Subscription MinimapObserver::subscribe(std::function<void(const MinimapStateChanged&)> callback) {
   step("minimap_subscribe");
+
   return impl_->changes.subscribe([callback = std::move(callback)](const auto& event) {
     ++scenario.minimap_subscriber_calls;
     step("minimap_subscriber");
     callback(event);
   });
 }
+
 struct TreasureObserver::Impl {
   Signal<TreasureStateChanged> changes;
   bool stopped = false;
 };
+
 TreasureObserver::TreasureObserver(LogCallback) {
   step("observer_construct");
   impl_ = std::make_unique<Impl>();
   scenario.signal = &impl_->changes;
 }
+
 TreasureObserver::~TreasureObserver() {
   stop();
   scenario.signal = nullptr;
 }
+
 bool TreasureObserver::start() {
   step("observer_start");
+
   return scenario.observer_started;
 }
+
 void TreasureObserver::poll() {
   step("poll");
   const auto index = std::min<std::size_t>(scenario.polls++, scenario.treasure_states.size() - 1);
   impl_->changes.publish({TreasureState::unknown, scenario.treasure_states[index]});
 }
+
 ObserverStopResult TreasureObserver::stop() noexcept {
   if (!impl_->stopped) {
     impl_->stopped = true;
     scenario.calls.emplace_back("observer_stop");
     scenario.cleanup_order_valid &= scenario.log_open;
   }
+
   return {true, scenario.observer_retained};
 }
+
 TreasureState TreasureObserver::state() const {
   return TreasureState::unknown;
 }
+
 Subscription
 TreasureObserver::subscribe(std::function<void(const TreasureStateChanged&)> callback) {
   step("subscribe");
+
   return impl_->changes.subscribe([callback = std::move(callback)](const auto& event) {
     ++scenario.subscriber_calls;
+
     if (scenario.fail == "subscriber") {
       throw std::runtime_error("subscriber");
     }
+
     callback(event);
   });
 }
+
 bool open_log(const std::wstring&, const LogConfig&) {
   scenario.log_open = true;
   step("open_log");
+
   return true;
 }
+
 void close_log() {
   scenario.calls.emplace_back("close_log");
   scenario.log_open = false;
+
   if (scenario.fail == "close_log") {
     throw std::runtime_error("close_log");
   }
 }
+
 void log(LogLevel, const char*) {
   step("log");
 }
+
 Config read_config(const std::wstring& path) {
   scenario.config_path = path;
   step("config");
@@ -225,54 +278,74 @@ Config read_config(const std::wstring& path) {
   config.enabled = scenario.enabled;
   config.sound_enabled = scenario.sound_enabled;
   config.show_delay_ms = 0;
+
   return config;
 }
+
 HotkeyActions poll_hotkeys(int, int) {
   step("hotkeys");
+
   return {false, scenario.polls >= scenario.treasure_states.size()};
 }
+
 bool game_is_foreground() {
   return scenario.foreground;
 }
+
 SoundPlayer::~SoundPlayer() {
   stop();
 }
+
 bool SoundPlayer::prepare(const std::wstring&) {
   step("sound_prepare");
+
   return scenario.sound_valid;
 }
+
 bool SoundPlayer::prepare_embedded() {
   step("sound_prepare");
+
   return scenario.sound_valid;
 }
+
 bool SoundPlayer::play() noexcept {
   scenario.calls.emplace_back("sound_play");
+
   return scenario.sound_valid;
 }
+
 void SoundPlayer::stop() noexcept {
   scenario.calls.emplace_back("sound_stop");
 }
+
 bool prepare_overlay_icon(const wchar_t* path) {
   scenario.embedded_icon = path == nullptr;
   scenario.icon_path = path ? path : L"";
   step("icon");
+
   return scenario.icon_valid;
 }
+
 void set_overlay_hud(const HudState& hud) {
   step("hud");
   scenario.hud_visible = hud.visible;
 }
+
 void set_overlay_log(LogCallback logger) {
   step(logger ? "set_logger" : "clear_logger");
 }
+
 bool start_overlay() {
   step("overlay_start");
+
   return scenario.overlay_started;
 }
+
 OverlayStopResult stop_overlay() noexcept {
   scenario.calls.emplace_back("overlay_stop");
   scenario.cleanup_order_valid &= scenario.log_open && has("observer_stop");
   const auto minimap_callbacks = scenario.minimap_subscriber_calls;
+
   if (scenario.minimap_signal) {
     try {
       scenario.minimap_signal->publish({MinimapState::visible, MinimapState::unknown});
@@ -280,8 +353,10 @@ OverlayStopResult stop_overlay() noexcept {
       scenario.cleanup_order_valid = false;
     }
   }
+
   scenario.cleanup_order_valid &= minimap_callbacks == scenario.minimap_subscriber_calls;
   const auto callbacks = scenario.subscriber_calls;
+
   if (scenario.signal) {
     // A token reset must take effect before graphics shutdown begins.
     try {
@@ -290,9 +365,15 @@ OverlayStopResult stop_overlay() noexcept {
       scenario.cleanup_order_valid = false;
     }
   }
+
   scenario.cleanup_order_valid &= callbacks == scenario.subscriber_calls;
-  return {scenario.hooks_disabled, scenario.drained, scenario.gpu_released,
-          scenario.overlay_retained};
+
+  return {
+    scenario.hooks_disabled,
+    scenario.drained,
+    scenario.gpu_released,
+    scenario.overlay_retained
+  };
 }
 } // namespace phi
 
@@ -300,12 +381,17 @@ int main() {
   using phi::AppExitDisposition;
   wchar_t module_path[MAX_PATH]{};
   CHECK(GetModuleFileNameW(nullptr, module_path, MAX_PATH) > 0);
+
   const auto folder = std::filesystem::path(module_path).parent_path();
   const auto config_path = folder / L"PirateHatHUD.ini";
   const auto legacy_path = folder / L"config.ini";
   const auto icon_path = folder / L"PirateHatHUD_treasure.png";
-  if (!std::filesystem::exists(config_path) && !std::filesystem::exists(legacy_path) &&
-      !std::filesystem::exists(icon_path)) {
+
+  if (
+    !std::filesystem::exists(config_path) &&
+    !std::filesystem::exists(legacy_path) &&
+    !std::filesystem::exists(icon_path)
+  ) {
     struct Fixtures {
       std::vector<std::filesystem::path> paths;
       ~Fixtures() {
@@ -314,8 +400,10 @@ int main() {
           std::filesystem::remove(path, error);
         }
       }
+
       void create(const std::filesystem::path& path) {
         paths.push_back(path);
+
         std::ofstream file(path);
         file << "fixture";
       }
@@ -324,10 +412,12 @@ int main() {
     CHECK(run() == AppExitDisposition::unload_allowed);
     CHECK(scenario.config_path == config_path.wstring());
     CHECK(scenario.embedded_icon);
+
     fixtures.create(legacy_path);
     scenario = {};
     CHECK(run() == AppExitDisposition::unload_allowed);
     CHECK(scenario.config_path == legacy_path.wstring());
+
     fixtures.create(config_path);
     fixtures.create(icon_path);
     scenario = {};
@@ -335,6 +425,7 @@ int main() {
     CHECK(scenario.config_path == config_path.wstring());
     CHECK(!scenario.embedded_icon && scenario.icon_path == icon_path.wstring());
   }
+
   scenario = {};
   CHECK(run() == AppExitDisposition::unload_allowed);
   CHECK(scenario.cleanup_order_valid);
@@ -352,65 +443,79 @@ int main() {
   CHECK(before("sound_stop", "overlay_stop"));
 
   scenario = {};
-  scenario.treasure_states = {phi::TreasureState::active, phi::TreasureState::active,
-                              phi::TreasureState::active};
+  scenario.treasure_states =
+    {phi::TreasureState::active, phi::TreasureState::active, phi::TreasureState::active};
   CHECK(run() == AppExitDisposition::unload_allowed);
   CHECK(std::count(scenario.calls.begin(), scenario.calls.end(), "sound_play") == 1);
 
   for (int suppression = 0; suppression < 7; ++suppression) {
     scenario = {};
-    scenario.treasure_states = {phi::TreasureState::inactive, phi::TreasureState::active,
-                                phi::TreasureState::active, phi::TreasureState::active};
+    scenario.treasure_states = {
+      phi::TreasureState::inactive,
+      phi::TreasureState::active,
+      phi::TreasureState::active,
+      phi::TreasureState::active
+    };
     scenario.enabled = suppression != 1;
     scenario.sound_enabled = suppression != 2;
     scenario.foreground = suppression != 3;
+
     if (suppression == 4) {
       scenario.menu_state = phi::MenuState::open;
     }
+
     if (suppression == 5) {
       scenario.minimap_state = phi::MinimapState::hidden;
     }
+
     scenario.force_show = suppression == 6;
     CHECK(run() == AppExitDisposition::unload_allowed);
-    CHECK(std::count(scenario.calls.begin(), scenario.calls.end(), "sound_play") ==
-          (suppression == 0 || suppression == 6 ? 1 : 0));
+    CHECK(
+      std::count(scenario.calls.begin(), scenario.calls.end(), "sound_play") ==
+      (suppression == 0 || suppression == 6 ? 1 : 0)
+    );
     CHECK(scenario.cleanup_order_valid);
   }
+
   scenario = {};
   scenario.sound_valid = false;
   CHECK(run() == AppExitDisposition::unload_allowed);
   CHECK(has("overlay_start") && has("observer_start"));
 
-  for (const auto* failure : {"observer_construct",
-                              "subscribe",
-                              "hud",
-                              "set_logger",
-                              "overlay_start",
-                              "observer_start",
-                              "poll",
-                              "subscriber",
-                              "minimap_subscribe",
-                              "minimap_start",
-                              "minimap_poll",
-                              "minimap_subscriber",
-                              "menu_subscribe",
-                              "menu_start",
-                              "menu_poll",
-                              "hotkeys",
-                              "unknown",
-                              "diagnostics",
-                              "hud_runtime",
-                              "sound_prepare"}) {
+  for (const auto* failure : {
+         "observer_construct",
+         "subscribe",
+         "hud",
+         "set_logger",
+         "overlay_start",
+         "observer_start",
+         "poll",
+         "subscriber",
+         "minimap_subscribe",
+         "minimap_start",
+         "minimap_poll",
+         "minimap_subscriber",
+         "menu_subscribe",
+         "menu_start",
+         "menu_poll",
+         "hotkeys",
+         "unknown",
+         "diagnostics",
+         "hud_runtime",
+         "sound_prepare",
+       }) {
     scenario = {};
     scenario.fail = failure;
     CHECK(run() == AppExitDisposition::unload_allowed);
     CHECK(has("close_log"));
     CHECK(scenario.cleanup_order_valid);
+
     if (scenario.fail != "observer_construct") {
       CHECK(before("observer_stop", "overlay_stop"));
       CHECK(before("overlay_stop", "close_log"));
     }
   }
+
   for (auto state : {phi::MinimapState::hidden, phi::MinimapState::unknown}) {
     scenario = {};
     scenario.minimap_state = state;
@@ -419,6 +524,7 @@ int main() {
     CHECK(!scenario.hud_visible);
     CHECK(scenario.cleanup_order_valid);
   }
+
   for (auto state : {phi::MenuState::open, phi::MenuState::unknown}) {
     scenario = {};
     scenario.menu_state = state;
@@ -427,12 +533,14 @@ int main() {
     CHECK(!scenario.hud_visible);
     CHECK(scenario.cleanup_order_valid);
   }
+
   scenario = {};
   scenario.fail = "minimap_construct";
   CHECK(run() == AppExitDisposition::unload_allowed);
   CHECK(has("observer_stop"));
   CHECK(!has("overlay_stop"));
   CHECK(has("close_log"));
+
   for (const auto* failure : {"open_log", "log", "config", "icon"}) {
     scenario = {};
     scenario.fail = failure;
@@ -441,6 +549,7 @@ int main() {
     CHECK(!has("overlay_start"));
     CHECK(!has("observer_start"));
   }
+
   scenario = {};
   scenario.icon_valid = false;
   CHECK(run() == AppExitDisposition::unload_allowed);
@@ -457,6 +566,7 @@ int main() {
     CHECK(run() == AppExitDisposition::retain_module);
     CHECK(scenario.cleanup_order_valid);
   }
+
   for (const auto* failure : {"overlay_start", "observer_start", "poll", "subscriber"}) {
     scenario = {};
     scenario.fail = failure;
@@ -466,23 +576,28 @@ int main() {
     CHECK(scenario.cleanup_order_valid);
     CHECK(has("close_log"));
   }
+
   scenario = {};
   scenario.drained = false;
   CHECK(run() == AppExitDisposition::retain_module);
   CHECK(!has("clear_logger"));
   CHECK(has("close_log"));
+
   scenario = {};
   scenario.hooks_disabled = false;
   CHECK(run() == AppExitDisposition::retain_module);
   CHECK(!has("clear_logger"));
   CHECK(has("close_log"));
+
   scenario = {};
   scenario.gpu_released = false;
   CHECK(run() == AppExitDisposition::retain_module);
+
   scenario = {};
   scenario.fail = "clear_logger";
   CHECK(run() == AppExitDisposition::retain_module);
   CHECK(has("close_log"));
+
   scenario = {};
   scenario.fail = "close_log";
   CHECK(run() == AppExitDisposition::retain_module);

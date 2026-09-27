@@ -148,7 +148,7 @@ ctest --test-dir build -C Release --output-on-failure
 cmake --build build --config Release --target package
 ```
 
-The code uses C++23 and clang-format 20.1.8. To install and run the formatter:
+The code uses C++23 and clang-format 22.1.8. To install and run the formatter:
 
 ```powershell
 python -m pip install --target build/format-tools -r requirements-format.txt

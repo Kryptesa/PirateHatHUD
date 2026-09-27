@@ -21,15 +21,23 @@ bool Dx12Renderer::load_icon() {
   texture.MipLevels = 1;
   texture.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
   texture.SampleDesc.Count = 1;
-  if (FAILED(device->CreateCommittedResource(&default_heap, D3D12_HEAP_FLAG_NONE, &texture,
-                                             D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
-                                             IID_PPV_ARGS(&icon_texture))))
+
+  if (
+    FAILED(device->CreateCommittedResource(
+      &default_heap,
+      D3D12_HEAP_FLAG_NONE,
+      &texture,
+      D3D12_RESOURCE_STATE_COPY_DEST,
+      nullptr,
+      IID_PPV_ARGS(&icon_texture)
+    ))
+  )
     return false;
 
   UINT rows = 0;
   UINT64 row_bytes = 0, upload_size = 0;
-  device->GetCopyableFootprints(&texture, 0, 1, 0, &icon_footprint, &rows, &row_bytes,
-                                &upload_size);
+  device
+    ->GetCopyableFootprints(&texture, 0, 1, 0, &icon_footprint, &rows, &row_bytes, &upload_size);
   D3D12_HEAP_PROPERTIES upload_heap{};
   upload_heap.Type = D3D12_HEAP_TYPE_UPLOAD;
   D3D12_RESOURCE_DESC upload{};
@@ -40,17 +48,30 @@ bool Dx12Renderer::load_icon() {
   upload.MipLevels = 1;
   upload.SampleDesc.Count = 1;
   upload.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-  if (FAILED(device->CreateCommittedResource(&upload_heap, D3D12_HEAP_FLAG_NONE, &upload,
-                                             D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
-                                             IID_PPV_ARGS(&icon_upload))))
+
+  if (
+    FAILED(device->CreateCommittedResource(
+      &upload_heap,
+      D3D12_HEAP_FLAG_NONE,
+      &upload,
+      D3D12_RESOURCE_STATE_GENERIC_READ,
+      nullptr,
+      IID_PPV_ARGS(&icon_upload)
+    ))
+  )
     return false;
   void* mapped = nullptr;
+
   if (FAILED(icon_upload->Map(0, nullptr, &mapped)))
     return false;
   auto* destination = static_cast<std::uint8_t*>(mapped);
+
   for (UINT row = 0; row < rows; ++row)
-    std::memcpy(destination + icon_footprint.Offset + row * icon_footprint.Footprint.RowPitch,
-                pixels.data() + static_cast<size_t>(row) * width * 4, width * 4);
+    std::memcpy(
+      destination + icon_footprint.Offset + row * icon_footprint.Footprint.RowPitch,
+      pixels.data() + static_cast<size_t>(row) * width * 4,
+      width * 4
+    );
   icon_upload->Unmap(0, nullptr);
 
   D3D12_SHADER_RESOURCE_VIEW_DESC srv{};
@@ -58,15 +79,20 @@ bool Dx12Renderer::load_icon() {
   srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
   srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
   srv.Texture2D.MipLevels = 1;
-  device->CreateShaderResourceView(icon_texture.Get(), &srv,
-                                   srv_heap->GetCPUDescriptorHandleForHeapStart());
+  device->CreateShaderResourceView(
+    icon_texture.Get(),
+    &srv,
+    srv_heap->GetCPUDescriptorHandleForHeapStart()
+  );
   icon_gpu = srv_heap->GetGPUDescriptorHandleForHeapStart();
   icon_pending = true;
+
   return true;
 }
 
 bool Dx12Renderer::record_icon_upload(ID3D12GraphicsCommandList* list) {
   const bool upload_icon = icon_pending && icon_texture && icon_upload;
+
   if (upload_icon) {
     D3D12_TEXTURE_COPY_LOCATION destination{}, source{};
     destination.pResource = icon_texture.Get();
@@ -83,6 +109,7 @@ bool Dx12Renderer::record_icon_upload(ID3D12GraphicsCommandList* list) {
     ready.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
     list->ResourceBarrier(1, &ready);
   }
+
   return upload_icon;
 }
 

@@ -2,6 +2,7 @@
 
 namespace phi::render {
 // PNG is sRGB. HDR UI white is fixed at 203 cd/m2. scRGB unit white is 80 cd/m2;
+
 // HDR10 uses Rec.2020 primaries and ST.2084 with a 10000 cd/m2 reference.
 constexpr char kShader[] = R"(
 cbuffer Placement : register(b0) { float4 rect; uint mode; };

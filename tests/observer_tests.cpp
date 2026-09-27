@@ -23,18 +23,22 @@ void capture_log(phi::LogLevel, const char* text) {
 // without installing hooks or depending on a particular game build.
 int main() {
   phi::TreasureObserver first(capture_log);
+
   phi::TreasureObserver second(capture_log);
   unsigned callbacks = 0;
   auto subscription = first.subscribe([&](const phi::TreasureStateChanged&) { ++callbacks; });
   CHECK(subscription);
   CHECK(!first.subscribe({}));
   CHECK(first.state() == phi::TreasureState::unknown);
+
   const auto initial_stop = first.stop();
   CHECK(initial_stop.hooks_disabled);
   CHECK(!initial_stop.module_must_remain_loaded);
+
   const auto repeated_stop = first.stop();
   CHECK(repeated_stop.hooks_disabled);
   CHECK(!repeated_stop.module_must_remain_loaded);
+
   first.poll();
   CHECK(callbacks == 0);
 
@@ -42,6 +46,7 @@ int main() {
   CHECK(first.state() == phi::TreasureState::unknown);
   CHECK(!logs.empty());
   CHECK(logs.back() == "State hooks disabled: invalid image");
+
   first.poll();
   const auto failed_start_stop = first.stop();
   CHECK(failed_start_stop.hooks_disabled);
@@ -53,6 +58,7 @@ int main() {
   CHECK(logs.back() == "State hooks disabled: invalid image");
   CHECK(!second.start());
   CHECK(logs.back() == "State hooks disabled: invalid image");
+
   second.stop();
   second.poll();
   CHECK(second.state() == phi::TreasureState::unknown);
@@ -60,6 +66,7 @@ int main() {
 
   subscription.reset();
   CHECK(!subscription);
+
   first.poll();
   CHECK(callbacks == 0);
 
@@ -70,7 +77,10 @@ int main() {
     CHECK(surviving_subscription);
     CHECK(!temporary->start());
   }
+
   CHECK(!surviving_subscription);
+
   surviving_subscription.reset();
+
   return 0;
 }

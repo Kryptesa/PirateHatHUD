@@ -1,4 +1,5 @@
 #pragma once
+
 #include "core/log.hpp"
 #include "render/image.hpp"
 #include "render/hdr_bytecode.hpp"
@@ -16,10 +17,13 @@ struct ImGui_ImplDX12_InitInfo;
 
 namespace phi::render {
 using Microsoft::WRL::ComPtr;
+
 enum class RendererState { waiting, ready, resizing, faulted, stopped };
+
 enum class ReleaseResult { released, retained };
 
 bool same_device(ID3D12CommandQueue* queue, ID3D12Device* device);
+
 void draw_hud(const HudState& hud, D3D12_GPU_DESCRIPTOR_HANDLE texture);
 
 // Called under the hook module's graphics mutex. Image/logger are set before hooks start.
@@ -28,27 +32,44 @@ public:
   Dx12Renderer() = default;
   Dx12Renderer(const Dx12Renderer&) = delete;
   Dx12Renderer& operator=(const Dx12Renderer&) = delete;
+
   void set_image(Image image);
+
   void set_logger(LogCallback logger);
+
   bool prepare_shaders() {
     return hdr_bytecode_.prepare(logger_);
   }
+
   bool ready() const {
     return state_ == RendererState::ready;
   }
+
   bool handles(IDXGISwapChain* candidate) const {
     return swap == candidate;
   }
+
   bool initialize(IDXGISwapChain* swap, ID3D12CommandQueue* queue);
+
   bool replace_swapchain(IDXGISwapChain* swap, ID3D12CommandQueue* queue);
+
   void render(IDXGISwapChain* swap, const HudState& hud, DXGI_COLOR_SPACE_TYPE color_space);
+
   bool before_resize(IDXGISwapChain* swap);
-  void after_resize(IDXGISwapChain* swap, HRESULT result, UINT count = 0,
-                    IUnknown* const* queues = nullptr);
+
+  void after_resize(
+    IDXGISwapChain* swap,
+    HRESULT result,
+    UINT count = 0,
+    IUnknown* const* queues = nullptr
+  );
+
   ReleaseResult shutdown() noexcept;
+
   RendererState state() const {
     return state_;
   }
+
   void fault() noexcept {
     state_ = RendererState::faulted;
   }
@@ -61,20 +82,43 @@ private:
     D3D12_CPU_DESCRIPTOR_HANDLE rtv{};
     UINT64 fence_value{};
   };
-  static void descriptor_alloc(ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE* cpu,
-                               D3D12_GPU_DESCRIPTOR_HANDLE* gpu);
-  static void descriptor_free(ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE cpu,
-                              D3D12_GPU_DESCRIPTOR_HANDLE gpu);
+
+  static void descriptor_alloc(
+    ImGui_ImplDX12_InitInfo* info,
+    D3D12_CPU_DESCRIPTOR_HANDLE* cpu,
+    D3D12_GPU_DESCRIPTOR_HANDLE* gpu
+  );
+
+  static void descriptor_free(
+    ImGui_ImplDX12_InitInfo* info,
+    D3D12_CPU_DESCRIPTOR_HANDLE cpu,
+    D3D12_GPU_DESCRIPTOR_HANDLE gpu
+  );
+
   WaitResult wait_fence(UINT64 value, ULONGLONG deadline);
+
   WaitResult wait_all();
+
   void release_buffers();
+
   bool create_buffers(IDXGISwapChain* swap);
+
   bool initialize_backend(const DXGI_SWAP_CHAIN_DESC& desc);
+
   bool load_icon();
+
   bool record_icon_upload(ID3D12GraphicsCommandList* list);
+
   bool initialize_hdr(DXGI_FORMAT format);
-  void draw_hdr(ID3D12GraphicsCommandList* list, const HudState& hud, UINT width, UINT height,
-                DXGI_COLOR_SPACE_TYPE color_space);
+
+  void draw_hdr(
+    ID3D12GraphicsCommandList* list,
+    const HudState& hud,
+    UINT width,
+    UINT height,
+    DXGI_COLOR_SPACE_TYPE color_space
+  );
+
   void log(LogLevel level, const char* message) const;
 
   RendererState state_{RendererState::waiting};

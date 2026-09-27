@@ -1,4 +1,5 @@
 #pragma once
+
 #include <condition_variable>
 #include <cstdint>
 #include <mutex>
@@ -13,21 +14,30 @@ public:
   // A null byte pointer stops playback; callbacks run on the audio worker only.
   using Playback = bool (*)(const std::uint8_t* bytes) noexcept;
   SoundPlayer() = default;
-  explicit SoundPlayer(Playback playback) : playback_(playback) {}
+
+  explicit SoundPlayer(Playback playback)
+    : playback_(playback) {}
+
   ~SoundPlayer();
   SoundPlayer(const SoundPlayer&) = delete;
   SoundPlayer& operator=(const SoundPlayer&) = delete;
 
   bool prepare(const std::wstring& path);
+
   bool prepare_embedded();
+
   // Returns whether a request was queued, not whether the device played it.
   bool play() noexcept;
+
   void stop() noexcept;
 
 private:
   enum class Command { none, play, stop, shutdown };
+
   void start_worker();
+
   void finish_worker() noexcept;
+
   void run_worker() noexcept;
   std::vector<std::uint8_t> wave_;
   Playback playback_ = nullptr;

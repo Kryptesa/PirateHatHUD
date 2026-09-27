@@ -1,4 +1,5 @@
 #pragma once
+
 #include "core/log.hpp"
 #include <windows.h>
 #include <d3dcompiler.h>
@@ -10,6 +11,7 @@ namespace phi::render {
 struct HdrBytecode {
   Microsoft::WRL::ComPtr<ID3DBlob> vertex;
   Microsoft::WRL::ComPtr<ID3DBlob> pixel;
+
   bool prepare(LogCallback logger = nullptr);
 };
 } // namespace phi::render

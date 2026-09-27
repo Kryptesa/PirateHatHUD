@@ -13,8 +13,8 @@ endif()
 execute_process(COMMAND "${CLANG_FORMAT}" --version
   OUTPUT_VARIABLE FORMAT_VERSION
   RESULT_VARIABLE FORMAT_RESULT)
-if(NOT FORMAT_RESULT EQUAL 0 OR NOT FORMAT_VERSION MATCHES "version 20\\.1\\.8([^0-9.]|$)")
-  message(FATAL_ERROR "clang-format 20.1.8 is required; got: ${FORMAT_VERSION}")
+if(NOT FORMAT_RESULT EQUAL 0 OR NOT FORMAT_VERSION MATCHES "version 22\\.1\\.8([^0-9.]|$)")
+  message(FATAL_ERROR "clang-format 22.1.8 is required; got: ${FORMAT_VERSION}")
 endif()
 
 file(GLOB_RECURSE FORMAT_SOURCES

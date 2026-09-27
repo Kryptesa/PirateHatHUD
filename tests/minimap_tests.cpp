@@ -18,26 +18,33 @@ int main() {
     auto bytes = reinterpret_cast<const uint8_t*>(&value);
     memory[address] = {bytes, bytes + sizeof(value)};
   };
+
   auto ptr = [&](uintptr_t address, uintptr_t value) { put(address, value); };
   uintptr_t failed = 0;
   size_t reads = 0;
   auto read = [&](uintptr_t address, void* out, size_t size) {
     ++reads;
     auto it = memory.find(address);
+
     if (address == failed || it == memory.end() || it->second.size() != size) {
       return false;
     }
+
     std::memcpy(out, it->second.data(), size);
+
     return true;
   };
+
   detail::UiIdentityCache location;
   location.root_slot = module + 0x6C8CC00;
   uintptr_t owner = 0x100000;
   ptr(module + 0x6C8CC00, owner);
+
   for (auto offset : {0x30u, 0x18u, 0x88u, 0x78u, 0u}) {
     ptr(owner + offset, owner + 0x10000);
     owner += 0x10000;
   }
+
   ptr(owner + 0x30EB8, 0x200000);
   put(owner + 0x30EC0, uint32_t{1});
   ptr(0x200000, 0x300000);
@@ -56,46 +63,60 @@ int main() {
   ptr(0xA00018, 0xB00000);
   put(0xB000BE, uint8_t{1});
   CHECK(detail::sample_minimap(module, read, &location) == MinimapState::visible);
+
   put(0xB000BE, uint8_t{0});
   CHECK(detail::sample_minimap(module, read, &location) == MinimapState::hidden);
+
   put(0xB000BE, uint8_t{2});
   CHECK(detail::sample_minimap(module, read, &location) == MinimapState::unknown);
+
   put(0xB000BE, uint8_t{1});
+
   for (const auto& [address, bytes] : memory) {
     failed = address;
     CHECK(detail::sample_minimap(module, read, &location) == MinimapState::unknown);
   }
+
   failed = 0;
+
   // Reordering the outer UI array preserves the typed root.
   put(owner + 0x30EC0, uint32_t{2});
   ptr(0x200000, 0);
   ptr(0x200008, 0x300000);
   CHECK(detail::sample_minimap(module, read, &location) == MinimapState::visible);
+
   ptr(0x200000, 0x300000);
   CHECK(detail::sample_minimap(module, read, &location) == MinimapState::unknown);
+
   ptr(0x200000, 0);
   auto wrong_name = std::array<char, sizeof(name)>{};
   std::memcpy(wrong_name.data(), ".?AVUIGamePlayControlRootMiniMap", 30);
   put(module + 0x2010, wrong_name);
   CHECK(detail::sample_minimap(module, read, &location) == MinimapState::unknown);
+
   put(module + 0x2010, name);
+
   // A replaced root is followed through live links.
   ptr(0x400010, 0x520000);
   ptr(0x520118, 0x600000);
   ptr(0x520048, 0x800000);
   CHECK(detail::sample_minimap(module, read, &location) == MinimapState::visible);
+
   ptr(0x520048, 0);
   CHECK(detail::sample_minimap(module, read, &location) == MinimapState::unknown);
   CHECK(detail::sample_minimap(0, read, &location) == MinimapState::unknown);
   CHECK(detail::sample_minimap(UINTPTR_MAX, read, &location) == MinimapState::unknown);
+
   MinimapObserver observer;
   CHECK(observer.state() == MinimapState::unknown);
+
   unsigned changes = 0;
   auto subscription = observer.subscribe([&](const auto&) { ++changes; });
   CHECK(!observer.start()); // No CrimsonDesert.exe in this standalone test process.
   observer.poll();
   CHECK(observer.state() == MinimapState::unknown);
   CHECK(changes == 0);
+
   observer.stop();
   observer.stop();
   observer.poll();

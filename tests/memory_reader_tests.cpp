@@ -15,6 +15,7 @@ int main() {
   SYSTEM_INFO system{};
   GetSystemInfo(&system);
   const auto page_size = static_cast<size_t>(system.dwPageSize);
+
   struct Allocation {
     void* memory;
     ~Allocation() {
@@ -24,8 +25,10 @@ int main() {
     }
   } allocation{VirtualAlloc(nullptr, page_size * 3, MEM_RESERVE, PAGE_NOACCESS)};
   CHECK(allocation.memory);
+
   auto* bytes = static_cast<uint8_t*>(allocation.memory);
   CHECK(VirtualAlloc(bytes, page_size * 2, MEM_COMMIT, PAGE_READWRITE));
+
   bytes[0] = 0x31;
   bytes[page_size - 1] = 0x42;
   bytes[page_size] = 0x53;
@@ -39,15 +42,18 @@ int main() {
   CHECK(!phi::detail::read_memory(address, result, 0));
   CHECK(!phi::detail::read_memory(std::numeric_limits<uintptr_t>::max(), result, 2));
   CHECK(!phi::detail::read_memory(address + page_size * 2, result, 1));
+
   DWORD previous = 0;
   CHECK(VirtualProtect(bytes + page_size, page_size, PAGE_READONLY, &previous));
   CHECK(phi::detail::read_memory(address + page_size, result, 1) && result[0] == 0x53);
+
   // Both pages are readable, but a read must stay inside the queried region.
   CHECK(!phi::detail::read_memory(address + page_size - 1, result, 2));
   CHECK(VirtualProtect(bytes + page_size, page_size, PAGE_NOACCESS, &previous));
   CHECK(!phi::detail::read_memory(address + page_size, result, 1));
   CHECK(VirtualProtect(bytes + page_size, page_size, PAGE_READWRITE | PAGE_GUARD, &previous));
   CHECK(!phi::detail::read_memory(address + page_size, result, 1));
+
   // A rejected guard read must not consume the game's one-shot guard protection.
   MEMORY_BASIC_INFORMATION region{};
   CHECK(VirtualQuery(bytes + page_size, &region, sizeof(region)));
