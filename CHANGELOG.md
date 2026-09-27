@@ -4,10 +4,8 @@
 
 - Grouped game observation internals by responsibility and shared guarded address
   and memory reads across observers. Public observer header paths are unchanged.
-
 - Added `[sound] volume_percent` (0 to 100, default 100) for additional notification
   volume control after the game sliders. Saved volume changes apply without a restart.
-
 - Notification sound now follows the game's overall and effects volume sliders,
   including custom WAV files. Muted or unreadable settings suppress sound without
   replaying notifications later.

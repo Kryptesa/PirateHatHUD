@@ -320,7 +320,7 @@ logger and wires the callback. Hook capture remains free of observer event loggi
 The logger serializes writes and rotation, bounds records, and disables writing on I/O
 failure without throwing. UTC timestamp files rotate on startup and size; retention
 matches only the logger's exact filename pattern and includes the current file.
-Startup logs include the mod version, the executable's Windows file version, PID,
+Startup logs include the mod version, the executable's Windows file version,
 and EXE/ASI basenames without installation paths. The executable file version may
 differ from the game's public patch number. Successful hotkey registration is logged
 at debug level; registration fallback remains a warning. Application composition

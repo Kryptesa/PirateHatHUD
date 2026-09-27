@@ -9,7 +9,8 @@ and returns after a short delay when you get back to the game.
 
 ## Installation
 
-With [CDUMM](https://github.com/faisalkindi/CrimsonDesert-UltimateModsManager), drag
+With [CDUMM](https://github.com/faisalkindi/CrimsonDesert-UltimateModsManager) or
+[Definitive Mod Manager (DMM)](https://www.nexusmods.com/crimsondesert/mods/633), drag
 `PirateHatHUD-0.5.0.zip` into the manager, enable the mod on the ASI page, and make
 sure the ASI loader is enabled. Restart the game.
 
@@ -21,9 +22,9 @@ When updating, back up your INI first and check that you don't have a second cop
 of the ASI installed. Older versions used `config.ini`; move those settings into
 `PirateHatHUD.ini`. The old filename is still accepted if the new file is missing.
 
-For CDUMM updates, close the game and enable the mod in the manager before importing
-the new archive. Updating a disabled mod can leave an extra ASI behind when it is
-later uninstalled. If that happens, check `bin64` for `PirateHatHUD.asi` and
+For CDUMM or DMM updates, close the game and enable the mod in the manager before
+importing the new archive. In CDUMM, updating a disabled mod can leave an extra ASI
+behind when it is later uninstalled. If that happens, check `bin64` for `PirateHatHUD.asi` and
 `PirateHatHUD.asi.disabled`.
 
 ## Settings and hotkeys
@@ -99,14 +100,14 @@ in the archive. To use your own icon:
 
 1. Save it as a **PNG**, preferably **128 × 128 pixels** with a transparent background.
 2. Name the file **`PirateHatHUD_treasure.png`** and place it next to **`PirateHatHUD.asi`**
-   (in the game's `bin64` folder when using CDUMM).
+   (in the game's `bin64` folder when using CDUMM or DMM).
 3. Restart the game.
 
 Other sizes work too, up to **4096 × 4096 pixels**, but use a square image: the HUD
 draws every icon as a square. Its on-screen size is 56 × 56 pixels at
 `scale_percent=100`, regardless of the source image size.
 
-CDUMM won't install this file for you or remove it when you uninstall the mod.
+Install and remove this custom file manually when using CDUMM or DMM.
 If the image can't be loaded, the mod won't start; remove it to go back to the
 built-in icon.
 

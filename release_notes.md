@@ -22,8 +22,8 @@ Remove the override to restore the built-in sound, and restart the game after ch
 
 ## Updating
 
-Back up your settings, close the game and import `PirateHatHUD-0.5.0.zip` into CDUMM
-with the existing mod enabled. Restart the game. Existing INI files without a
+Back up your settings, close the game and import `PirateHatHUD-0.5.0.zip` into
+CDUMM or DMM with the existing mod enabled. Restart the game. Existing INI files without a
 `[sound]` section use the defaults: sound enabled, 1000 ms cooldown.
 
 F10 stops the mod until the next game launch. See the [README](README.md) for

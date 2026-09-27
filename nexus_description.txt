@@ -8,24 +8,24 @@ Source code and bug reports: [url=https://github.com/Kryptesa/PirateHatHUD]GitHu
 
 [size=4][b]Installation instructions[/b][/size]
 
-[b]With CDUMM (Crimson Desert Ultimate Mods Manager):[/b]
+[b]With [url=https://github.com/faisalkindi/CrimsonDesert-UltimateModsManager]CDUMM (Crimson Desert Ultimate Mods Manager)[/url] or [url=https://www.nexusmods.com/crimsondesert/mods/633]DMM (Definitive Mod Manager)[/url]:[/b]
 
 1. Close the game.
-2. Drag the downloaded PirateHatHUD ZIP into CDUMM.
+2. Drag the downloaded PirateHatHUD ZIP into the manager.
 3. Enable Pirate Hat HUD on the ASI page and make sure the ASI loader is enabled.
 4. Launch the game, load a save and use the Pirate King Hat near treasure.
 
 [b]With another compatible ASI loader:[/b]
 
 1. Close the game and extract the archive.
-2. Place PirateHatHUD.asi and PirateHatHUD.ini together in the loader's plugin folder. Keep the included license and notice files with the mod.
+2. Place PirateHatHUD.asi and PirateHatHUD.ini together in bin64 folder.
 3. Launch the game.
 
 The default icon and sound are built in; no separate PNG or WAV is needed.
 
 To change settings, edit PirateHatHUD.ini beside the ASI. Most changes require a game restart. Changes to [sound] volume_percent apply after saving, within about one second, without restarting.
 
-When updating, back up your INI and avoid installing a second copy of the ASI. For CDUMM, enable the existing mod before importing an update, with the game closed.
+When updating, back up your INI and avoid installing a second copy of the ASI. For CDUMM or DMM, enable the existing mod before importing an update, with the game closed.
 
 [size=4][b]Main features[/b][/size]
 
@@ -43,7 +43,7 @@ When updating, back up your INI and avoid installing a second copy of the ASI. F
 [size=4][b]Requirements[/b][/size]
 
 [list]
-[*]A compatible ASI loader. [url=https://github.com/faisalkindi/CrimsonDesert-UltimateModsManager]CDUMM[/url] provides mod installation and ASI loader management.
+[*]A compatible ASI loader. [url=https://github.com/faisalkindi/CrimsonDesert-UltimateModsManager]CDUMM[/url] and [url=https://www.nexusmods.com/crimsondesert/mods/633]DMM[/url] provide mod installation and ASI loader management.
 [*]The Pirate King Hat must be equipped for treasure notifications. For an icon-only setup check, set [indicator] force_show=1; this still requires a visible minimap and closed menus, and does not trigger sound.
 [/list]
 
@@ -53,7 +53,7 @@ The UI layout was checked against game version 2.03.02. Game updates may require
 
 Report problems in the Nexus Bugs tab or open an issue on [url=https://github.com/Kryptesa/PirateHatHUD/issues]GitHub[/url]. Please include steps to reproduce the problem, what you expected and what actually happened.
 
-The mod saves logs beside PirateHatHUD.asi as PirateHatHUD_*.log (normally in the game's bin64 folder with CDUMM). To capture more detail:
+The mod saves logs beside PirateHatHUD.asi as PirateHatHUD_*.log (normally in the game's bin64 folder with CDUMM or DMM). To capture more detail:
 
 1. Open PirateHatHUD.ini beside the ASI and change level under [logging] to debug:
 
@@ -77,5 +77,5 @@ If the icon never appears, try [indicator] force_show=1, restart, load a save, m
 [*][url=https://icons8.com/]Icons8[/url] for the icon.
 [*]Roy's Noise for "Subscribe alert - metal dings", sourced from [url=https://uppbeat.io/]Uppbeat[/url].
 [*]The developers of [url=https://github.com/cursey/safetyhook]SafetyHook[/url], [url=https://github.com/zyantific/zydis]Zydis[/url] and [url=https://github.com/ocornut/imgui]Dear ImGui[/url] for the libraries used by the mod.
-[*]The [url=https://github.com/faisalkindi/CrimsonDesert-UltimateModsManager]CDUMM[/url] developers for the mod manager and ASI loader support.
+[*]The developers of [url=https://github.com/faisalkindi/CrimsonDesert-UltimateModsManager]CDUMM[/url] and [url=https://www.nexusmods.com/crimsondesert/mods/633]DMM[/url] for the mod managers and ASI loader support.
 [/list]

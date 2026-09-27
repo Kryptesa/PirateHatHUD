@@ -339,7 +339,6 @@ AppExitDisposition run_app(HMODULE module) noexcept {
       logging.open(folder, config.logging);
       log(LogLevel::info, PHI_VERSION);
       log(LogLevel::info, ("Game EXE version: " + executable_version()).c_str());
-      log(LogLevel::info, ("Process PID: " + std::to_string(GetCurrentProcessId())).c_str());
       log(LogLevel::info, ("Process EXE: " + module_name_utf8(nullptr)).c_str());
       log(LogLevel::info, ("Mod ASI: " + module_name_utf8(module)).c_str());
 
