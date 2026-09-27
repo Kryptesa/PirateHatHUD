@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-spec = importlib.util.spec_from_file_location("check_release", Path(__file__).resolve().parents[1] / "tools/release/check_release.py")
+spec = importlib.util.spec_from_file_location("check_release", Path(__file__).resolve().parents[2] / "tools/release/check_release.py")
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 

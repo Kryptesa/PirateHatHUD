@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-get_filename_component(REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
+get_filename_component(REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
 if(NOT DEFINED TEST_ROOT)
   set(TEST_ROOT "${REPO_ROOT}/build/architecture-tests")
 endif()

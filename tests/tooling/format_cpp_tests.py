@@ -6,7 +6,7 @@ import unittest
 
 
 spec = importlib.util.spec_from_file_location(
-    'format_cpp', pathlib.Path(__file__).resolve().parents[1] / 'tools/format_cpp.py'
+    'format_cpp', pathlib.Path(__file__).resolve().parents[2] / 'tools/format_cpp.py'
 )
 formatter = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(formatter)
