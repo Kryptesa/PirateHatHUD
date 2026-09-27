@@ -1,47 +1,54 @@
-# Pirate Hat HUD 0.5.0
+# Pirate Hat HUD 1.0.0
 
-Treasure detection now plays a short sound as well as showing the chest icon.
-The default icon and sound are embedded in the ASI; no extra asset files are needed.
+A chest icon and short sound announce nearby treasure detected by the Pirate King
+Hat, including when helmets are hidden. The hat must be equipped.
 
-## What's new
+## Changes since 0.5.0
 
-The sound plays once when the Pirate King Hat starts detecting treasure. The first
-active state after loading also notifies once when gameplay becomes ready. It does
-not repeat while the perk stays active or on subsequent exits from menus.
+- Fixed F9 and F10 by receiving Windows hotkey messages while the game is focused.
+  F9 toggles the icon and sound; F10 stops the mod until the next game launch.
+  Hotkeys are released on focus loss and shutdown. Unavailable bindings use polling.
+- The mod starts only in CrimsonDesert.exe, avoiding a second instance and error
+  log in the game's crash handler.
+- Sound follows the game's master and effects volume sliders. Muted or unreadable
+  settings suppress playback without replaying missed notifications.
+- Added [sound] volume_percent (0–100, default 100) as an additional volume control.
+  Saved changes apply within about one second without restarting the game.
+- Startup logs include the executable file version and EXE/ASI names without
+  installation paths or process IDs. Successful hotkey registration uses debug logging.
+- Installation through DMM is documented alongside CDUMM.
+- Organized observation internals and shared guarded memory access helpers.
 
-Sound is suppressed while the mod is disabled, the minimap is hidden or unavailable,
-a menu is open or unavailable, or the game is unfocused.
+## Installation and updating
 
-F9 now toggles both the icon and sound. To turn off sound independently, set
-`enabled=0` under `[sound]` in `PirateHatHUD.ini`. `cooldown_ms` sets the minimum
-interval between notifications (0–60000 ms; default 1000).
+Close the game and back up PirateHatHUD.ini. Drag PirateHatHUD-1.0.0.zip into
+CDUMM or DMM, enable Pirate Hat HUD on the ASI page, and make sure the ASI loader
+is enabled. When updating, enable the existing mod before importing the archive.
+Restart the game. Keep only one installed copy of the ASI.
 
-To use your own sound, manually place `PirateHatHUD_treasure.wav` beside the ASI.
-Supported files are mono or stereo PCM WAV, 8-bit or 16-bit, 8–192 kHz, up to 8 MiB.
-Remove the override to restore the built-in sound, and restart the game after changes.
+The default icon and sound are embedded; no separate PNG or WAV is needed.
+Existing settings without volume_percent use 100. See the [README](README.md)
+for manual installation, customization and troubleshooting.
 
-## Updating
+## Compatibility and validation
 
-Back up your settings, close the game and import `PirateHatHUD-0.5.0.zip` into
-CDUMM or DMM with the existing mod enabled. Restart the game. Existing INI files without a
-`[sound]` section use the defaults: sound enabled, 1000 ms cooldown.
+Windows x64 and DirectX 12. The UI layout was checked on Crimson Desert 2.03.02;
+game updates or different executable builds may require a mod update.
+The Windows executable file version in the log can differ from the public patch number.
+SDR, scRGB and HDR10 rendering are supported. For HDR10, the mod needs to observe
+its color-space selection; try switching HDR off and back on if the icon looks wrong.
 
-F10 stops the mod until the next game launch. See the [README](README.md) for
-installation, settings and troubleshooting.
+The Release build, architecture-check, formatting check, all 27 CTest tests and
+all 25 research-tool tests passed.
+The user confirmed the final candidate works in game, including the previously listed
+checks for treasure detection, icon/sound toggling, F10 shutdown, focus changes,
+menu/minimap gating and startup logging. Installation and operation were confirmed
+with CDUMM and DMM. The game version and graphics settings for this final validation
+were not recorded. The versioned 1.0.0 package has not had a separate in-game test;
+testing on another PC and across all graphics configurations remains unverified.
 
 ## Credits
 
 - Icons by [Icons8](https://icons8.com/).
 - Sound: "Subscribe alert - metal dings" by Roy's Noise, via [Uppbeat](https://uppbeat.io/).
-
-## Compatibility and validation
-
-Windows x64 and DirectX 12. The UI memory layout is based on Crimson Desert 2.03.02;
-game updates may require new offsets or instruction patterns.
-SDR, scRGB and HDR10 output are supported. For HDR10, the mod needs to see the game's
-color-space change; if the icon looks wrong, try switching HDR off and back on.
-
-Release validation includes architecture checks, formatting and all 21 CTest tests.
-In-game feedback confirmed sound playback, improved icon responsiveness and the
-first notification after loading. The game version and graphics settings for that
-feedback were not recorded.
+- SafetyHook, Zydis and Dear ImGui developers; CDUMM and DMM developers.

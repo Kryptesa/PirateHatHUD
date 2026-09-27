@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 1.0.0 — 2026-09-28
+
+- Fixed F9/F10 input with Windows hotkey messages while the game is focused.
+  Keys are released on focus loss and shutdown; unavailable bindings use polling.
+- Prevented the mod from starting in the game's crash handler.
+- Added the executable file version and EXE/ASI names to startup logs without
+  installation paths. Successful hotkey registration now uses debug logging.
+- Added installation instructions for DMM alongside CDUMM.
+
 - Grouped game observation internals by responsibility and shared guarded address
   and memory reads across observers. Public observer header paths are unchanged.
 - Added `[sound] volume_percent` (0 to 100, default 100) for additional notification
