@@ -1,6 +1,6 @@
 #pragma once
 
-#include "game/memory_reader.hpp"
+#include "game/shared/memory_reader.hpp"
 #include <map>
 #include <string>
 #include <string_view>

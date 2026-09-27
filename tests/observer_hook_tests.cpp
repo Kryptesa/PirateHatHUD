@@ -1,4 +1,4 @@
-#include "game/observer_hooks.hpp"
+#include "game/shared/observer_hooks.hpp"
 
 #include <initializer_list>
 #include <stdexcept>

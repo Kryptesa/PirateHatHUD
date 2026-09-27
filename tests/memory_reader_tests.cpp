@@ -1,4 +1,4 @@
-#include "game/memory_reader.hpp"
+#include "game/shared/memory_reader.hpp"
 
 #include <Windows.h>
 #include <cstdint>

@@ -46,17 +46,27 @@ in the same task, including any constraints passed to delegated agents.
 - `pattern_scan`: generic masked byte matching, optional candidate validation and
   unique matching across executable PE sections. It has no game signatures, object
   types, hook sites or field offsets; dependencies on `game` are forbidden.
-- `game/hook_scan`: treasure/menu signatures and menu displacement validation.
-  `game/ui_root_scan`: launcher signature, RIP operand extraction and UI slot checks.
-  `game/patterns.hpp` holds the treasure constants. These use the generic scanner
+- `game/treasure/scan` and `game/menu/scan`: feature-specific hook signatures;
+  menu scanning also validates the state displacement.
+  `game/shared/ui_root_scan`: launcher signature, RIP operand extraction and UI slot checks.
+  `game/treasure/patterns.hpp` holds the treasure constants. These use the generic scanner
   and expose explicit functions instead of boolean selectors.
 - `game_observers`: game-specific scanning, hooks and safe memory reads. Public entry
-  points: `include/game/treasure_observer.hpp` `include/game/minimap_observer.hpp` `include/game/menu_observer.hpp` and `include/game/audio_volume_observer.hpp`. No HUD, configuration or DirectX dependency.
-  Internal `ui_memory`, `minimap_memory` and `menu_memory` headers declare sampling
-  interfaces and shared data types; their implementations live in matching `.cpp`
-  files. A shared `MemoryReader` callback allows simulated-memory tests to exercise
+  points: `include/game/treasure_observer.hpp`, `include/game/minimap_observer.hpp`,
+  `include/game/menu_observer.hpp` and `include/game/audio_volume_observer.hpp`.
+  No HUD, configuration or DirectX dependency.
+  Internal files are grouped under `treasure/`, `minimap/`, `menu/` and `audio/`;
+  their observer implementations follow the same grouping. Public observer headers
+  and `observer_state.hpp` stay directly under `include/game/`.
+  `shared/` contains guarded memory access, address arithmetic, UI identity resolution
+  and hook retention used across observers. Feature-specific signatures and layout
+  checks stay with their owner. Headers and implementations mirror these paths.
+  A shared `MemoryReader` callback allows simulated-memory tests to exercise
   the same compiled implementation as production. Observer files own lifecycle
   and event publication, while memory files own traversal and state interpretation.
+  These directories remain one `game` module and one static library: they do not
+  introduce new dependency boundaries. The architecture checker already classifies
+  nested paths and continues to reject game dependencies on configuration or graphics.
 - `core/signal.hpp`: reusable typed synchronous signals and move-only RAII subscriptions.
 - `treasure_indicator`: presentation policy for this mod, producing a `HudState`.
 - `features/treasure_sound`: notification policy using observer state values and a
@@ -211,7 +221,7 @@ game version, graphics settings and logs.
 
 MenuObserver resolves Root_MainMenu by exact script MSVC RTTI in the current UI array,
 using a unique RIP-relative launcher store signature for the UI root slot.
-Menu and minimap share `game/ui_memory` for bounded exact RTTI traversal and
+Menu and minimap share `game/shared/ui_memory` for bounded exact RTTI traversal and
 immutable image classification caches. Neither uses a fixed outer array index.
 The menu state displacement is extracted from the two exact MOV encodings and
 must agree; startup and every poll sample that field, including an open menu.
@@ -229,8 +239,10 @@ all live heap links and checks the entire array for duplicates. Only RTTI classi
 whose vtable, locator and name are in non-writable, readable game image sections are
 cached. If only the locator is immutable, its resolved name address is cached and the
 writable name is read again every poll. Heap addresses and root ownership are never
-cached. Menu and minimap use the
-same guarded memory reader, while the treasure hook keeps its separate SEH capture path.
+cached. All owner-thread samplers use the same guarded memory reader and overflow-checked
+field reads; the treasure hook keeps its separate SEH capture path. RIP-relative
+slot decoding is shared by UI-root and audio scanning, with each scanner retaining
+its own image bounds and alignment validation.
 Menu transitions use one atomic generation/opening latch; the poll decision is tested
 separately for transitions before, during and after sampling and unknown samples.
 

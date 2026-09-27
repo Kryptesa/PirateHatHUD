@@ -1,5 +1,5 @@
-#include "game/ui_root_scan.hpp"
-#include <cstring>
+#include "game/shared/ui_root_scan.hpp"
+#include "game/shared/address.hpp"
 
 namespace phi {
 
@@ -90,23 +90,14 @@ PatternQuery query() {
 }
 
 uintptr_t slot(std::span<const uint8_t> code, size_t offset, uintptr_t base) {
-  int32_t displacement = 0;
-  std::memcpy(&displacement, code.data() + offset + 14, 4);
-  const auto next = base + offset + 18;
-  const auto distance =
-    displacement < 0 ? uint64_t(-int64_t(displacement)) : uint64_t(displacement);
-
-  return displacement < 0 ? next - distance : next + distance;
+  uintptr_t address = 0;
+  detail::resolve_rip_address(code, base, offset, 14, 18, address);
+  return address;
 }
 
 bool valid_operand(std::span<const uint8_t> code, size_t offset, uintptr_t base) {
-  int32_t displacement = 0;
-  std::memcpy(&displacement, code.data() + offset + 14, 4);
-  const auto next = base + offset + 18;
-  const auto distance =
-    displacement < 0 ? uint64_t(-int64_t(displacement)) : uint64_t(displacement);
-
-  return displacement < 0 ? next >= distance : next <= UINTPTR_MAX - distance;
+  uintptr_t address = 0;
+  return detail::resolve_rip_address(code, base, offset, 14, 18, address);
 }
 } // namespace
 
@@ -132,6 +123,7 @@ UiRootScanResult find_ui_root_slot(HMODULE game) {
     slot({reinterpret_cast<const uint8_t*>(match.address), sizeof(context)}, 0, match.address);
 
   if (
+    match.image_size < sizeof(uintptr_t) ||
     result.root_slot < match.image_base ||
     result.root_slot - match.image_base > match.image_size - sizeof(uintptr_t) ||
     result.root_slot % alignof(uintptr_t)

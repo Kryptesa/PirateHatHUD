@@ -1,7 +1,8 @@
 #include "game/treasure_observer.hpp"
-#include "game/observer_hooks.hpp"
-#include "game/hook_scan.hpp"
-#include "game/patterns.hpp"
+#include "game/shared/observer_hooks.hpp"
+#include "game/treasure/scan.hpp"
+#include "game/treasure/patterns.hpp"
+#include "game/treasure/memory.hpp"
 #include <windows.h>
 
 #include <safetyhook.hpp>
@@ -51,32 +52,14 @@ TreasureState read_state() {
     return TreasureState::unknown;
   }
 
-  const auto address = base + patterns::kStateOffset;
-  MEMORY_BASIC_INFORMATION info{};
+  const auto state = detail::sample_treasure_state(base, detail::read_memory);
 
-  if (
-    !VirtualQuery(reinterpret_cast<void*>(address), &info, sizeof info) ||
-    info.State != MEM_COMMIT ||
-    (info.Protect & (PAGE_GUARD | PAGE_NOACCESS)) ||
-    address < reinterpret_cast<std::uintptr_t>(info.BaseAddress) ||
-    address - reinterpret_cast<std::uintptr_t>(info.BaseAddress) > info.RegionSize ||
-    info.RegionSize - (address - reinterpret_cast<std::uintptr_t>(info.BaseAddress)) <
-      sizeof(std::uint32_t)
-  ) {
+  if (state == TreasureState::unknown) {
+    // Do not erase a newer base captured while this sample was being read.
     g_state_base.compare_exchange_strong(base, 0);
-
-    return TreasureState::unknown;
   }
 
-  __try {
-    return *reinterpret_cast<volatile const std::uint32_t*>(address) > 0
-      ? TreasureState::active
-      : TreasureState::inactive;
-  } __except (EXCEPTION_EXECUTE_HANDLER) {
-    g_state_base.compare_exchange_strong(base, 0);
-
-    return TreasureState::unknown;
-  }
+  return state;
 }
 
 const char* state_name(TreasureState state) {

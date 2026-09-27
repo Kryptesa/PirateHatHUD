@@ -1,4 +1,4 @@
-#include "game/minimap_memory.hpp"
+#include "game/minimap/memory.hpp"
 #include "game/minimap_observer.hpp"
 #include <array>
 #include <cstring>

@@ -1,6 +1,5 @@
-#include "game/audio_volume_scan.hpp"
-#include <cstring>
-#include <limits>
+#include "game/audio/scan.hpp"
+#include "game/shared/address.hpp"
 
 namespace phi {
 namespace {
@@ -33,25 +32,10 @@ constexpr uint8_t context[] = {
 constexpr uint8_t mask[] = {1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
 uintptr_t resolve_slot(std::span<const uint8_t> code, size_t offset, uintptr_t base) {
-  if (
-    offset > code.size() ||
-    code.size() - offset < sizeof(context) ||
-    base > UINTPTR_MAX - offset ||
-    base + offset > UINTPTR_MAX - 7
-  ) {
+  uintptr_t slot = 0;
+  if (!detail::resolve_rip_address(code, base, offset, 3, 7, slot)) {
     return 0;
   }
-  int32_t displacement = 0;
-  std::memcpy(&displacement, code.data() + offset + 3, sizeof(displacement));
-  const auto next = base + offset + 7;
-  const auto distance =
-    displacement < 0 ? uint64_t(-int64_t(displacement)) : uint64_t(displacement);
-  if (
-    (displacement < 0 && next < distance) || (displacement >= 0 && next > UINTPTR_MAX - distance)
-  ) {
-    return 0;
-  }
-  const auto slot = displacement < 0 ? next - distance : next + distance;
   return slot && slot % alignof(uintptr_t) == 0 ? slot : 0;
 }
 

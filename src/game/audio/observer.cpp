@@ -1,5 +1,5 @@
 #include "game/audio_volume_observer.hpp"
-#include "game/audio_volume_scan.hpp"
+#include "game/audio/scan.hpp"
 #include <chrono>
 
 namespace phi {

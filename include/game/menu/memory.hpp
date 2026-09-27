@@ -1,7 +1,7 @@
 #pragma once
 
 #include "game/observer_state.hpp"
-#include "game/ui_memory.hpp"
+#include "game/shared/ui_memory.hpp"
 
 namespace phi::detail {
 uintptr_t

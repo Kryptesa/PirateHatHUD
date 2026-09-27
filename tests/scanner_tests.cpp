@@ -1,6 +1,7 @@
-#include "game/hook_scan.hpp"
-#include "game/ui_root_scan.hpp"
-#include "game/patterns.hpp"
+#include "game/menu/scan.hpp"
+#include "game/treasure/scan.hpp"
+#include "game/shared/ui_root_scan.hpp"
+#include "game/treasure/patterns.hpp"
 #include <array>
 #include <algorithm>
 #define CHECK(c)                                                                                   \

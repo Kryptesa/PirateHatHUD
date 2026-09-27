@@ -1,6 +1,6 @@
 #pragma once
 
-#include "game/memory_reader.hpp"
+#include "game/shared/memory_reader.hpp"
 #include "game/observer_state.hpp"
 
 namespace phi::detail {

@@ -71,7 +71,13 @@ check_case(render_to_logger include/render/bad.hpp "#include \"platform/logger.h
 file(WRITE "${TEST_ROOT}/game_to_logger/include/platform/logger.hpp" "#pragma once\n")
 check_case(game_to_logger include/game/bad.hpp "#include \"platform/logger.hpp\"\n" "forbidden include")
 
-file(WRITE "${TEST_ROOT}/scanner_to_game/include/game/hook_scan.hpp" "#pragma once\n")
-check_case(scanner_to_game src/pattern_scan.cpp "#include \"game/hook_scan.hpp\"\n" "forbidden include")
+file(WRITE "${TEST_ROOT}/scanner_to_game/include/game/menu/scan.hpp" "#pragma once\n")
+check_case(scanner_to_game src/pattern_scan.cpp "#include \"game/menu/scan.hpp\"\n" "forbidden include")
 file(WRITE "${TEST_ROOT}/game_to_scanner/include/pattern_scan.hpp" "#pragma once\n")
 check_case(game_to_scanner src/game/good.cpp "#include \"pattern_scan.hpp\"\n" "PASS")
+
+# Internal observation subdirectories retain the game module's dependency rules.
+file(WRITE "${TEST_ROOT}/nested_game_to_scanner/include/pattern_scan.hpp" "#pragma once\n")
+check_case(nested_game_to_scanner src/game/menu/scan.cpp "#include \"pattern_scan.hpp\"\n" "PASS")
+file(WRITE "${TEST_ROOT}/nested_game_to_config/include/platform/config.hpp" "#pragma once\n")
+check_case(nested_game_to_config src/game/audio/memory.cpp "#include \"platform/config.hpp\"\n" "forbidden include")

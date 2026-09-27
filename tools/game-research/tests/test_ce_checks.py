@@ -120,7 +120,7 @@ class CheckTests(unittest.TestCase):
     self.lua.execute("""
      local open = io.open
      io.open = function(path, mode)
-      if path:match('hook_scan.cpp$') then
+      if path:match('game/menu/scan%.cpp$') then
        local file = open(path, mode); local text = file:read('*a'); file:close()
        text = text:gsub('clear_mask%[%]%s*=%s*{.-}', 'clear_mask[] = {1}')
        return {read = function() return text end, close = function() end}

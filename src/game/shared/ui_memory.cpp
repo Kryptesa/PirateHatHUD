@@ -1,6 +1,6 @@
-#include "game/ui_memory.hpp"
+#include "game/shared/ui_memory.hpp"
 #include <Windows.h>
-#include "game/address.hpp"
+#include "game/shared/address.hpp"
 #include <array>
 #include <cstring>
 
@@ -113,9 +113,7 @@ uintptr_t find_ui_root(
   UiIdentityCache* cache
 ) {
   auto pointer = [&](uintptr_t base, uintptr_t offset, uintptr_t& value) {
-    uintptr_t address = 0;
-
-    return add_address(base, offset, address) && read(address, &value, sizeof(value));
+    return read_field(read, base, offset, value);
   };
 
   uintptr_t owner = 0;

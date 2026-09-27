@@ -1,10 +1,10 @@
 #include "game/menu_observer.hpp"
-#include "game/menu_memory.hpp"
-#include "game/menu_capture.hpp"
-#include "game/memory_reader.hpp"
-#include "game/observer_hooks.hpp"
-#include "game/hook_scan.hpp"
-#include "game/ui_root_scan.hpp"
+#include "game/menu/memory.hpp"
+#include "game/menu/capture.hpp"
+#include "game/shared/memory_reader.hpp"
+#include "game/shared/observer_hooks.hpp"
+#include "game/menu/scan.hpp"
+#include "game/shared/ui_root_scan.hpp"
 #include <Windows.h>
 #include <safetyhook.hpp>
 #include <atomic>

@@ -1,6 +1,6 @@
-#include "game/audio_volume_memory.hpp"
+#include "game/audio/memory.hpp"
 #include "game/audio_volume_observer.hpp"
-#include "game/audio_volume_scan.hpp"
+#include "game/audio/scan.hpp"
 #include <array>
 #include <cstring>
 #include <map>

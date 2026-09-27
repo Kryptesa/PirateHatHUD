@@ -1,8 +1,8 @@
 #include "game/minimap_observer.hpp"
-#include "game/minimap_memory.hpp"
-#include "game/memory_reader.hpp"
+#include "game/minimap/memory.hpp"
+#include "game/shared/memory_reader.hpp"
 #include <Windows.h>
-#include "game/ui_root_scan.hpp"
+#include "game/shared/ui_root_scan.hpp"
 
 namespace phi {
 struct MinimapObserver::Impl {

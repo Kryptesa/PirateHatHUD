@@ -1,7 +1,7 @@
 #pragma once
 
 #include "pattern_scan.hpp"
-#include "game/audio_volume_memory.hpp"
+#include "game/audio/memory.hpp"
 
 namespace phi {
 PatternMatch scan_audio_volume_code(std::span<const uint8_t> code, uintptr_t base);

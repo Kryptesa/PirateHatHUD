@@ -31,8 +31,8 @@ local function opcode(text, name)
   assert(#bytes > 0, 'Empty opcode'); return bytes
 end
 local function main()
-  local patterns, scanner = source('include/game/patterns.hpp'), source('src/pattern_scan.cpp')
-  local hooks, root = source('src/game/hook_scan.cpp'), source('src/game/ui_root_scan.cpp')
+  local patterns, scanner = source('include/game/treasure/patterns.hpp'), source('src/pattern_scan.cpp')
+  local hooks, root = source('src/game/menu/scan.cpp'), source('src/game/shared/ui_root_scan.cpp')
   -- Fail on source refactors rather than silently keeping stale copied definitions.
   assert(scanner:find('section.Misc.VirtualSize', 1, true), 'Review scanner section semantics')
   assert(scanner:find('offset + query.delta', 1, true), 'Review scanner pair semantics')

@@ -1,5 +1,4 @@
-#include "game/hook_scan.hpp"
-#include "game/patterns.hpp"
+#include "game/menu/scan.hpp"
 #include <cstring>
 
 namespace phi {
@@ -18,10 +17,6 @@ PatternQuery menu_query() {
   return {{clear, clear_mask}, {set, set_mask}, kMenuDelta};
 }
 
-PatternQuery treasure_query() {
-  return {{patterns::kEnter}, {patterns::kLeave}, patterns::kExpectedDelta};
-}
-
 uint32_t displacement(std::span<const uint8_t> bytes, size_t offset) {
   uint32_t value = 0;
   std::memcpy(&value, bytes.data() + offset + 2, 4);
@@ -36,8 +31,8 @@ bool valid_menu(std::span<const uint8_t> bytes, size_t offset, uintptr_t) {
   return value && value <= 0x10000 && value == displacement(bytes, offset + kMenuDelta);
 }
 
-HookScanResult resolve(PatternMatch match, size_t delta) {
-  HookScanResult result{};
+MenuHookScanResult resolve(PatternMatch match, size_t delta) {
+  MenuHookScanResult result{};
   result.status = match.status;
   result.candidate_pairs = match.candidates;
 
@@ -49,11 +44,7 @@ HookScanResult resolve(PatternMatch match, size_t delta) {
 }
 } // namespace
 
-HookScanResult scan_treasure_code(std::span<const uint8_t> code, uintptr_t base) {
-  return resolve(scan_pattern(code, base, treasure_query()), patterns::kExpectedDelta);
-}
-
-HookScanResult scan_menu_code(std::span<const uint8_t> code, uintptr_t base) {
+MenuHookScanResult scan_menu_code(std::span<const uint8_t> code, uintptr_t base) {
   auto result = resolve(scan_pattern(code, base, menu_query(), valid_menu), kMenuDelta);
 
   if (result.status == ScanStatus::found) {
@@ -63,11 +54,7 @@ HookScanResult scan_menu_code(std::span<const uint8_t> code, uintptr_t base) {
   return result;
 }
 
-HookScanResult find_treasure_hook_sites(HMODULE game) {
-  return resolve(find_pattern(game, treasure_query()), patterns::kExpectedDelta);
-}
-
-HookScanResult find_menu_hook_sites(HMODULE game) {
+MenuHookScanResult find_menu_hook_sites(HMODULE game) {
   auto result = resolve(find_pattern(game, menu_query(), valid_menu), kMenuDelta);
 
   if (result.status == ScanStatus::found) {

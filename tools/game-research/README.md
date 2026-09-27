@@ -92,13 +92,13 @@ The supplied scripts do not automatically discover or implement new events.
    report template.
 2. Check the current treasure and menu signatures across executable sections.
    Each must yield exactly one pair, with distances 0x2C and 0x141 respectively.
-   The sources of truth are `include/game/patterns.hpp`, `src/game/hook_scan.cpp` and
-   `src/game/ui_root_scan.cpp`; `src/pattern_scan.cpp` supplies generic scan semantics.
-3. Check the UI root and pointer chain against `include/game/minimap_memory.hpp`
-   and `include/game/menu_memory.hpp`. Investigate the specific failing step
+   The sources of truth are `include/game/treasure/patterns.hpp`, `src/game/treasure/scan.cpp`, `src/game/menu/scan.cpp` and
+   `src/game/shared/ui_root_scan.cpp`; `src/pattern_scan.cpp` supplies generic scan semantics.
+3. Check the UI root and pointer chain against `include/game/minimap/memory.hpp`
+   and `include/game/menu/memory.hpp`. Investigate the specific failing step
    rather than starting a general scan for all 0/1 values.
 4. Verify the launcher store signature and decoded RIP-relative UI slot in
-   `src/game/ui_root_scan.cpp`. Root signature scanning is implemented;
+   `src/game/shared/ui_root_scan.cpp`. Root signature scanning is implemented;
    do not restore the historical slot RVA as a fallback.
 5. Check UI types through RTTI. Menu and minimap roots are resolved by exact
    script type. For the minimap, verify the native canvas binding, exact

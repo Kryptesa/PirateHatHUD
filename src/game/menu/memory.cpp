@@ -1,5 +1,4 @@
-#include "game/menu_memory.hpp"
-#include "game/address.hpp"
+#include "game/menu/memory.hpp"
 
 namespace phi::detail {
 uintptr_t find_menu_root(uintptr_t module, const MemoryReader& read, UiIdentityCache* cache) {
@@ -9,14 +8,9 @@ uintptr_t find_menu_root(uintptr_t module, const MemoryReader& read, UiIdentityC
 }
 
 MenuState sample_menu(uintptr_t root, uintptr_t state_offset, const MemoryReader& read) {
-  uintptr_t address = 0;
   uint8_t value = 0;
 
-  if (
-    !state_offset ||
-    !add_address(root, state_offset, address) ||
-    !read(address, &value, sizeof(value))
-  ) {
+  if (!state_offset || !read_field(read, root, state_offset, value)) {
     return MenuState::unknown;
   }
 

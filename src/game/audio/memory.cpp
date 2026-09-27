@@ -1,4 +1,4 @@
-#include "game/audio_volume_memory.hpp"
+#include "game/audio/memory.hpp"
 #include <array>
 #include <cstring>
 #include <limits>
@@ -14,16 +14,8 @@ struct Snapshot {
   bool operator==(const Snapshot&) const = default;
 };
 
-template <typename T>
-bool field(const MemoryReader& read, uintptr_t object, size_t offset, T& value) {
-  return object &&
-    offset <= UINTPTR_MAX - object &&
-    sizeof(T) <= UINTPTR_MAX - (object + offset) &&
-    read(object + offset, &value, sizeof(value));
-}
-
 bool pointer(const MemoryReader& read, uintptr_t object, size_t offset, uintptr_t& value) {
-  return field(read, object, offset, value) && value && value % alignof(uintptr_t) == 0;
+  return read_field(read, object, offset, value) && value && value % alignof(uintptr_t) == 0;
 }
 
 bool module_vtable(
@@ -50,7 +42,7 @@ bool property_name(
   uintptr_t chars = 0;
   std::array<char, N> bytes{};
   return pointer(read, object, offset, string) &&
-    field(read, string, 0, chars) &&
+    read_field(read, string, 0, chars) &&
     chars &&
     chars <= UINTPTR_MAX - N &&
     read(chars, bytes.data(), N) &&
@@ -100,8 +92,8 @@ bool snapshot(const AudioVolumeLocation& location, const MemoryReader& read, Sna
     }
     int32_t master = 0, effects = 0;
     if (
-      !field(read, object, 0xD0, master) ||
-      !field(read, object, 0x130, effects) ||
+      !read_field(read, object, 0xD0, master) ||
+      !read_field(read, object, 0x130, effects) ||
       master < 0 ||
       master > 100 ||
       effects < 0 ||

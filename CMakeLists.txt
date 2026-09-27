@@ -45,10 +45,10 @@ add_library(imgui_static STATIC
 target_include_directories(imgui_static PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
 target_compile_definitions(imgui_static PRIVATE IMGUI_DISABLE_OBSOLETE_FUNCTIONS)
 
-add_library(game_observers STATIC src/game/treasure_observer.cpp src/game/minimap_observer.cpp
-  src/game/menu_observer.cpp src/game/ui_memory.cpp src/game/minimap_memory.cpp src/game/menu_memory.cpp
-  src/game/audio_volume_observer.cpp src/game/audio_volume_memory.cpp src/game/audio_volume_scan.cpp
-  src/game/memory_reader.cpp src/game/hook_scan.cpp src/game/ui_root_scan.cpp src/pattern_scan.cpp)
+add_library(game_observers STATIC src/game/treasure/observer.cpp src/game/treasure/memory.cpp src/game/minimap/observer.cpp
+  src/game/menu/observer.cpp src/game/shared/ui_memory.cpp src/game/minimap/memory.cpp src/game/menu/memory.cpp
+  src/game/audio/observer.cpp src/game/audio/memory.cpp src/game/audio/scan.cpp
+  src/game/shared/memory_reader.cpp src/game/shared/address.cpp src/game/treasure/scan.cpp src/game/menu/scan.cpp src/game/shared/ui_root_scan.cpp src/pattern_scan.cpp)
 target_include_directories(game_observers PUBLIC include)
 target_compile_definitions(game_observers PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
 target_compile_options(game_observers PRIVATE /W4 /EHsc)
@@ -118,10 +118,16 @@ if(BUILD_TESTING)
   add_test(NAME architecture_checker_tests COMMAND ${CMAKE_COMMAND}
     "-DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/architecture-tests"
     -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/ArchitectureTests.cmake")
-  add_executable(scanner_tests tests/scanner_tests.cpp src/game/hook_scan.cpp src/game/ui_root_scan.cpp src/pattern_scan.cpp)
+  add_executable(scanner_tests tests/scanner_tests.cpp src/game/shared/address.cpp src/game/treasure/scan.cpp src/game/menu/scan.cpp src/game/shared/ui_root_scan.cpp src/pattern_scan.cpp)
   target_include_directories(scanner_tests PRIVATE include)
   target_compile_definitions(scanner_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
   add_test(NAME scanner_tests COMMAND scanner_tests)
+  add_executable(game_address_tests tests/game_address_tests.cpp src/game/shared/address.cpp)
+  target_include_directories(game_address_tests PRIVATE include)
+  add_test(NAME game_address_tests COMMAND game_address_tests)
+  add_executable(treasure_memory_tests tests/treasure_memory_tests.cpp)
+  target_link_libraries(treasure_memory_tests PRIVATE game_observers)
+  add_test(NAME treasure_memory_tests COMMAND treasure_memory_tests)
   add_executable(audio_volume_tests tests/audio_volume_tests.cpp)
   target_link_libraries(audio_volume_tests PRIVATE game_observers)
   add_test(NAME audio_volume_tests COMMAND audio_volume_tests)

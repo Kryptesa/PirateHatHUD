@@ -1,5 +1,4 @@
-#include "game/minimap_memory.hpp"
-#include "game/address.hpp"
+#include "game/minimap/memory.hpp"
 #include <array>
 #include <cmath>
 #include <cstring>
@@ -9,19 +8,15 @@ namespace phi::detail {
 MinimapState sample_minimap(uintptr_t module, const MemoryReader& read, UiIdentityCache* cache) {
   constexpr char root_type[] = ".?AVUIGamePlayControlRootMiniMap@uiCommonScript@pa@@";
   const auto root = find_ui_root(module, read, root_type, cache);
-  auto field = [&](uintptr_t base, uintptr_t offset, auto& value) {
-    uintptr_t address = 0;
-    return base && add_address(base, offset, address) && read(address, &value, sizeof(value));
-  };
   auto named = [&](uintptr_t definition, const char* expected) {
     uintptr_t name = 0;
-    if (!field(definition, 0xF8, name) || !name) {
+    if (!read_field(read, definition, 0xF8, name) || !name) {
       return false;
     }
     const auto length = std::strlen(expected);
     for (size_t i = 0; i <= length; ++i) {
       char value = 0;
-      if (!field(name, i, value) || value != expected[i]) {
+      if (!read_field(read, name, i, value) || value != expected[i]) {
         return false;
       }
     }
@@ -30,15 +25,15 @@ MinimapState sample_minimap(uintptr_t module, const MemoryReader& read, UiIdenti
 
   uintptr_t script = 0, view = 0, body = 0, canvas = 0, definition = 0, backlink = 0;
   if (
-    !field(root, 0x118, script) ||
-    !field(root, 0x120, view) ||
+    !read_field(read, root, 0x118, script) ||
+    !read_field(read, root, 0x120, view) ||
     !named(view, "MinimapView") ||
-    !field(script, 8, body) ||
+    !read_field(read, script, 8, body) ||
     !named(body, "MinimapHudBody") ||
-    !field(script, 0x3F0, canvas) ||
-    !field(canvas, 8, definition) ||
+    !read_field(read, script, 0x3F0, canvas) ||
+    !read_field(read, canvas, 8, definition) ||
     !named(definition, "MinimapCanvas") ||
-    !field(definition, 0xD8, backlink) ||
+    !read_field(read, definition, 0xD8, backlink) ||
     backlink != canvas
   ) {
     return MinimapState::unknown;
@@ -62,10 +57,10 @@ MinimapState sample_minimap(uintptr_t module, const MemoryReader& read, UiIdenti
     uintptr_t properties = 0;
     float opacity = 0;
     if (
-      !field(definition, 0xB0, flags) ||
-      !field(definition, 0x97, clip) ||
-      !field(definition, 0xC0, properties) ||
-      !field(properties, 0x40, opacity) ||
+      !read_field(read, definition, 0xB0, flags) ||
+      !read_field(read, definition, 0x97, clip) ||
+      !read_field(read, definition, 0xC0, properties) ||
+      !read_field(read, properties, 0x40, opacity) ||
       !std::isfinite(opacity) ||
       opacity < 0 ||
       opacity > 1
@@ -79,7 +74,7 @@ MinimapState sample_minimap(uintptr_t module, const MemoryReader& read, UiIdenti
         ? (hidden ? MinimapState::hidden : MinimapState::visible)
         : MinimapState::unknown;
     }
-    if (!field(definition, 0x38, definition)) {
+    if (!read_field(read, definition, 0x38, definition)) {
       return MinimapState::unknown;
     }
   }
