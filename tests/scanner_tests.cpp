@@ -40,10 +40,41 @@ int main() {
   auto pair = phi::scan_code(menu, 0x1000, true);
   CHECK(pair.status == phi::ScanStatus::found);
   CHECK(pair.sites.enter == 0x1008 && pair.sites.leave == 0x1149);
+  CHECK(pair.state_offset == 0x25B);
+  menu[10] = menu[10 + 0x141] = 0x60;
+  CHECK(phi::scan_code(menu, 0x1000, true).state_offset == 0x260);
+  menu[10 + 0x141] = 0x61;
+  CHECK(phi::scan_code(menu, 0x1000, true).status == phi::ScanStatus::no_match);
+  menu[10 + 0x141] = 0x60;
+  menu[13] = menu[13 + 0x141] = 0xFF;
+  CHECK(phi::scan_code(menu, 0x1000, true).status == phi::ScanStatus::no_match);
+  menu[13] = menu[13 + 0x141] = 0;
+  menu[9] = 0x82;
+  CHECK(phi::scan_code(menu, 0x1000, true).status == phi::ScanStatus::no_match);
+  menu[9] = 0x81;
   std::copy(std::begin(clear), std::end(clear), menu.begin() + 512);
   std::copy(std::begin(set), std::end(set), menu.begin() + 512 + 0x141);
   CHECK(phi::scan_code(menu, 0x1000, true).status == phi::ScanStatus::ambiguous);
   menu[512] = 0;
   menu[8 + 0x141 + 6] = 0;
   CHECK(phi::scan_code(menu, 0x1000, true).status == phi::ScanStatus::no_match);
+  const uint8_t root[] = {0x90, 0x48, 0x8D, 0x05, 0,    0,    0,    0, 0x48, 0x89, 0x03, 0x48, 0x89,
+                          0x1D, 0xEE, 0xFF, 0xFF, 0xFF, 0xC6, 0x05, 0, 0,    0,    0,    3,    0x48,
+                          0xC7, 0x44, 0x24, 0x40, 0,    0,    0,    0, 0x48, 0x85, 0xDB};
+  std::vector<uint8_t> roots(std::begin(root), std::end(root));
+  CHECK(phi::scan_code(roots, 0x1000, false, true).root_slot == 0x1000);
+  CHECK(phi::scan_code(roots, 0, false, true).status == phi::ScanStatus::found);
+  CHECK(phi::scan_code(std::span(roots).first(20), 0x1000, false, true).status ==
+        phi::ScanStatus::no_match);
+  auto negative = roots;
+  negative[14] = 0xED; // -19: next IP at 18 cannot resolve a nonnegative target from base 0.
+  CHECK(phi::scan_code(negative, 0, false, true).status == phi::ScanStatus::no_match);
+  auto positive = roots;
+  positive[14] = 0x6E;
+  positive[15] = positive[16] = positive[17] = 0;
+  CHECK(phi::scan_code(positive, 0x1000, false, true).root_slot == 0x1080);
+  CHECK(phi::scan_code(positive, UINTPTR_MAX - roots.size(), false, true).status ==
+        phi::ScanStatus::no_match);
+  roots.insert(roots.end(), std::begin(root), std::end(root));
+  CHECK(phi::scan_code(roots, 0x1000, false, true).status == phi::ScanStatus::ambiguous);
 }

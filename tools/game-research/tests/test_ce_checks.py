@@ -54,6 +54,11 @@ class CheckTests(unittest.TestCase):
      function treasure(address)
       bytes(address, {0xFF,0x46,0x08}); bytes(address + 0x2C, {0x83,0x6E,0x08,1})
      end
+     function ui_root(address)
+      bytes(address,{0x90,0x48,0x8D,0x05,0,0,0,0,0x48,0x89,0x03,0x48,0x89,0x1D,
+        0,0,0,0,0xC6,0x05,0,0,0,0,3,0x48,0xC7,0x44,0x24,0x40,0,0,0,0,0x48,0x85,0xDB})
+      put(address+14,0x103000-address-18,4)
+     end
      function menu(address)
       bytes(address, {0xC6,0x81,0x5B,2,0,0,0,0x84,0xD2,0x74,0x1C})
       bytes(address + 0x141, {0xC6,0x83,0x5B,2,0,0,1,0x48,0x8B,1,0xFF,0x50,0x30})
@@ -65,10 +70,24 @@ class CheckTests(unittest.TestCase):
     return json.loads(self.lua.eval("dofile")(str(ROOT / f"tools/game-research/ce/{name}.lua")))
 
   def test_unique_pairs(self):
-    self.lua.execute("treasure(0x102010); menu(0x102100)")
+    self.lua.execute("treasure(0x102010); menu(0x102100); ui_root(0x102420)")
     report = self.run_tool()
     self.assertEqual(report["status"], "pass")
     self.assertEqual(report["checks"][0]["details"]["matches"][0]["enter_rva"], "0x2010")
+
+  def test_moved_menu_displacement(self):
+    self.lua.execute("menu(0x102100); put(0x102102, 0x380, 4); put(0x102243, 0x380, 4)")
+    self.assertEqual(self.run_tool()["checks"][1]["status"], "pass")
+    self.lua.execute("put(0x102243, 0x381, 4)")
+    self.assertEqual(self.run_tool()["checks"][1]["status"], "fail")
+
+  def test_root_slot_and_ambiguity(self):
+    self.lua.execute("ui_root(0x102010)")
+    check = self.run_tool()["checks"][2]
+    self.assertEqual(check["status"], "pass")
+    self.assertEqual(check["details"]["matches"][0]["slot_rva"], "0x3000")
+    self.lua.execute("ui_root(0x102410)")
+    self.assertEqual(self.run_tool()["checks"][2]["status"], "fail")
 
   def test_missing_and_ambiguous(self):
     self.assertEqual(self.run_tool()["checks"][0]["details"]["candidate_pairs"], 0)

@@ -2,6 +2,7 @@
 #include "game/minimap_memory.hpp"
 #include "game/memory_reader.hpp"
 #include <Windows.h>
+#include "pattern_scan.hpp"
 
 namespace phi {
 struct MinimapObserver::Impl {
@@ -9,6 +10,7 @@ struct MinimapObserver::Impl {
   MinimapState sampled = MinimapState::unknown;
   MinimapState published = MinimapState::unknown;
   uintptr_t module = 0;
+  detail::UiIdentityCache identities;
   bool running = false;
   bool logged_sample = false;
   LogCallback logger = nullptr;
@@ -25,25 +27,23 @@ bool MinimapObserver::start() {
   }
   impl_->module = reinterpret_cast<uintptr_t>(GetModuleHandleW(L"CrimsonDesert.exe"));
   impl_->logged_sample = false;
-  IMAGE_DOS_HEADER dos{};
-  IMAGE_NT_HEADERS64 nt{};
-  uintptr_t nt_address = 0;
-  impl_->running =
-      impl_->module && detail::read_memory(impl_->module, &dos, sizeof(dos)) &&
-      dos.e_magic == IMAGE_DOS_SIGNATURE && dos.e_lfanew > 0 &&
-      detail::add_address(impl_->module, static_cast<uintptr_t>(dos.e_lfanew), nt_address) &&
-      detail::read_memory(nt_address, &nt, sizeof(nt)) && nt.Signature == IMAGE_NT_SIGNATURE &&
-      nt.OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC &&
-      nt.OptionalHeader.SizeOfImage >= detail::kMinimapRootRva + sizeof(uintptr_t);
+  auto module = reinterpret_cast<HMODULE>(impl_->module);
+  auto scan = find_hook_sites(module, false, true);
+  impl_->running = scan.status == ScanStatus::found;
+  if (impl_->running) {
+    impl_->identities = detail::make_ui_identity_cache(reinterpret_cast<uintptr_t>(module));
+    impl_->identities.root_slot = scan.root_slot;
+  }
   if (impl_->logger) {
     impl_->logger(impl_->running ? LogLevel::info : LogLevel::warn,
-                  impl_->running ? "Minimap observer started (RVA/chain tested on 2.03.02 only)"
+                  impl_->running ? "Minimap observer started; UI slot from code, root by RTTI"
                                  : "Minimap observer unavailable: executable/root slot invalid");
   }
   return impl_->running;
 }
 void MinimapObserver::poll() {
-  impl_->sampled = impl_->running ? detail::sample_minimap(impl_->module, detail::read_memory)
+  impl_->sampled = impl_->running ? detail::sample_minimap(impl_->module, detail::read_memory,
+                                                           &impl_->identities)
                                   : MinimapState::unknown;
   if (impl_->logger && (!impl_->logged_sample || impl_->sampled != impl_->published)) {
     impl_->logged_sample = true;

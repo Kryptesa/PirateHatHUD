@@ -39,7 +39,8 @@ local function main()
     {id = 'treasure', first = opcode(patterns, 'kEnter'), last = opcode(patterns, 'kLeave'),
      delta = number(assert(patterns:match('kExpectedDelta%s*=%s*([^;]+)')))},
     {id = 'menu', first = opcode(scanner, 'clear'), last = opcode(scanner, 'set'),
-     delta = number(assert(scanner:match('delta%s*=%s*menu%s*%?%s*(%w+)')))}
+     delta = number(assert(scanner:match('delta%s*=%s*menu%s*%?%s*(%w+)')))},
+    {id = 'ui-root', first = opcode(scanner, 'context'), last = {}, delta = 0}
   }
   local base = safe(getAddressSafe, 'CrimsonDesert.exe')
   assert(base and base > 0, 'Attach CE to CrimsonDesert.exe')
@@ -69,7 +70,7 @@ local function main()
     local matches = json.array()
     for _, section in ipairs(sections) do
       if #matches >= 2 then break end
-      local last_start = section.size - definition.delta - #definition.last
+      local last_start = section.size - math.max(#definition.first, definition.delta + #definition.last)
       -- Chunk reads avoid a full image-sized Lua allocation. Include pair lookahead.
       local chunk_size = 65536
       for start = 0, last_start, chunk_size do
@@ -80,20 +81,41 @@ local function main()
         local bytes = safe(readBytes, section.address + start, length, true)
         assert(type(bytes) == 'table' and #bytes == length, 'Unreadable executable section')
         local function at(offset, expected)
-          for j, byte in ipairs(expected) do if bytes[offset + j] ~= byte then return false end end
+          for j, byte in ipairs(expected) do local masked = definition.id == 'menu' and j >= 3 and j <= 6 or
+              definition.id == 'ui-root' and (j >= 5 and j <= 8 or j >= 15 and j <= 18 or j >= 21 and j <= 24)
+            if not masked and bytes[offset + j] ~= byte then return false end end
           return true
         end
         for offset = 0, starts - 1 do
-          if at(offset, definition.first) and at(offset + definition.delta, definition.last) then
+          local valid = true
+          if definition.id == 'menu' then
+            local function displacement(o)
+              local n = 0
+              for j = 0, 3 do n = n + bytes[o + 3 + j] * 256^j end
+              return n
+            end
+            local d = displacement(offset)
+            valid = d > 0 and d <= 0x10000 and d == displacement(offset + definition.delta)
+          end
+          if valid and at(offset, definition.first) and at(offset + definition.delta, definition.last) then
             local address = section.address + start + offset
+            if definition.id == 'ui-root' then
+              local d = 0
+              for j = 0, 3 do d = d + bytes[offset + 15 + j] * 256^j end
+              if d >= 0x80000000 then d = d - 0x100000000 end
+              local slot = address + 18 + d
+              matches[#matches + 1] = {instruction_rva = hex(address - base), slot_rva = hex(slot - base),
+                valid_slot = slot >= base and slot <= base + image_size - 8 and slot % 8 == 0}
+            else
             matches[#matches + 1] = {enter_rva = hex(address - base),
                                     leave_rva = hex(address + definition.delta - base)}
+            end
             if #matches >= 2 then break end
           end
         end
       end
     end
-    check(definition.id, #matches == 1 and 'pass' or 'fail',
+    check(definition.id, #matches == 1 and matches[1].valid_slot ~= false and 'pass' or 'fail',
           {candidate_pairs = #matches, count_is_lower_bound = #matches >= 2,
            delta = hex(definition.delta), matches = matches})
   end

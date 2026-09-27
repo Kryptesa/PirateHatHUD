@@ -13,20 +13,28 @@ The executable scanner requires exactly one instruction pair in executable secti
   hook at the initial instruction, object in RBX.
 - Pair distance 0x141. Historical RVAs are diagnostic only, not hook addresses.
 
-The UI owner is resolved from module +6C8CC00 through 30,18,88,78,0.
+Only the four disp32 bytes in each menu MOV are masked. Exact C6 /0 ModRM
+encodings retain byte width, RCX/RBX bases without an index, and immediates 0/1.
+Both positive displacements must agree and be at most 0x10000; this resolved
+offset is used for startup and polling. Context bytes and delta 0x141 remain
+constraints, so broader code changes still require a signature update.
+
+The UI owner is resolved from a unique launcher constructor signature through
+30,18,88,78,0. The RIP-relative store operand supplies the slot (historical
+module +6C8CC00); there is no runtime fallback to that RVA.
 The array is owner +30EB8, count is uint32 at +30EC0 (bounded to 4096).
 Each entry follows +A0, +10 to its render root; root +118 identifies the script.
 MSVC x64 RTTI must exactly match
 `.?AVUIGamePlayControl_Root_MainMenu@uiCommonScript@pa@@`, with locator image
 base matching the game module. Multiple matches or read failures yield unknown.
-No heap address or fixed UI array index is used. The root slot remains version-specific.
+No heap address or fixed UI array index is used. The root slot is resolved from code.
 Null entries and links are accepted as empty slots; failed reads in non-null objects
 invalidate uniqueness even when another object matches. Script RTTI is cached only
 where its locator/vtable storage belongs to non-writable game-image sections and
 read-only mapped pages. Writable type names are still read on every poll. The entire
 live array and all heap links are traversed each time; no root ownership is cached.
 
-Startup reads +25B immediately; poll resolves current identity again and reads the
+Startup reads the resolved state offset immediately (historically +25B); poll resolves current identity again and reads the
 state. Hook callbacks capture only atomics and never refer to the observer allocation.
 An opening is latched until poll, so a rapid open/close cancels the return deadline.
 Opening and transition generation share one atomic value, preventing split-flag races.

@@ -31,6 +31,8 @@ int main() {
     std::memcpy(out, it->second.data(), size);
     return true;
   };
+  detail::UiIdentityCache location;
+  location.root_slot = module + 0x6C8CC00;
   uintptr_t owner = 0x100000;
   ptr(module + 0x6C8CC00, owner);
   for (auto offset : {0x30u, 0x18u, 0x88u, 0x78u, 0u}) {
@@ -50,63 +52,74 @@ int main() {
   const char name[] = ".?AVUIGamePlayControl_Root_MainMenu@uiCommonScript@pa@@";
   put(module + 0x2010, name);
   put(0x50025B, uint8_t{1});
-  CHECK(detail::find_menu_root(module, read) == 0x500000);
-  CHECK(detail::sample_menu(0x500000, read) == MenuState::open);
+  CHECK(detail::find_menu_root(module, read, &location) == 0x500000);
+  CHECK(detail::sample_menu(0x500000, 0x25B, read) == MenuState::open);
   put(0x50025B, uint8_t{0});
-  CHECK(detail::sample_menu(0x500000, read) == MenuState::closed);
+  CHECK(detail::sample_menu(0x500000, 0x25B, read) == MenuState::closed);
   put(0x50025B, uint8_t{2});
-  CHECK(detail::sample_menu(0x500000, read) == MenuState::unknown);
-  CHECK(detail::sample_menu(0, read) == MenuState::unknown);
-  CHECK(detail::sample_menu(UINTPTR_MAX, read) == MenuState::unknown);
+  CHECK(detail::sample_menu(0x500000, 0x25B, read) == MenuState::unknown);
+  CHECK(detail::sample_menu(0, 0x25B, read) == MenuState::unknown);
+  CHECK(detail::sample_menu(UINTPTR_MAX, 0x25B, read) == MenuState::unknown);
   for (const auto& [address, bytes] : memory) {
     if (address == 0x50025B) {
       continue;
     }
     failed = address;
-    CHECK(detail::find_menu_root(module, read) == 0);
+    CHECK(detail::find_menu_root(module, read, &location) == 0);
   }
   failed = 0;
+  put(0x500380, uint8_t{1});
+  CHECK(detail::sample_menu(0x500000, 0x380, read) == MenuState::open);
+  CHECK(detail::sample_menu(0x500000, 0, read) == MenuState::unknown);
+  // A moved slot is used directly; the historical RVA can disappear.
+  memory[module + 0x8000] = memory[location.root_slot];
+  memory.erase(location.root_slot);
+  location.root_slot = module + 0x8000;
+  CHECK(detail::find_menu_root(module, read, &location) == 0x500000);
+  detail::UiIdentityCache unresolved;
+  CHECK(detail::find_menu_root(module, read, &unresolved) == 0);
   put(owner + 0x30EC0, uint32_t{2});
   ptr(0x200008, 0x300000);
-  CHECK(detail::find_menu_root(module, read) == 0); // Ambiguous identity.
+  CHECK(detail::find_menu_root(module, read, &location) == 0); // Ambiguous identity.
   // A valid menu cannot establish uniqueness when a neighboring identity is unreadable.
   ptr(0x200008, 0x310000);
-  CHECK(detail::find_menu_root(module, read) == 0);
+  CHECK(detail::find_menu_root(module, read, &location) == 0);
   ptr(0x3100A0, 0x410000);
-  CHECK(detail::find_menu_root(module, read) == 0);
+  CHECK(detail::find_menu_root(module, read, &location) == 0);
   ptr(0x410010, 0x510000);
-  CHECK(detail::find_menu_root(module, read) == 0);
+  CHECK(detail::find_menu_root(module, read, &location) == 0);
   ptr(0x510118, 0x610000);
-  CHECK(detail::find_menu_root(module, read) == 0);
+  CHECK(detail::find_menu_root(module, read, &location) == 0);
   ptr(0x610000, 0x710000);
-  CHECK(detail::find_menu_root(module, read) == 0);
+  CHECK(detail::find_menu_root(module, read, &location) == 0);
   ptr(0x70FFF8, module + 0x3000);
-  CHECK(detail::find_menu_root(module, read) == 0);
+  CHECK(detail::find_menu_root(module, read, &location) == 0);
   auto other_col = col;
   other_col[3] = 0x4000;
   other_col[5] = 0x3000;
   put(module + 0x3000, other_col);
-  CHECK(detail::find_menu_root(module, read) == 0);
+  CHECK(detail::find_menu_root(module, read, &location) == 0);
   auto other_name = std::array<char, sizeof(name)>{};
   put(module + 0x4010, other_name);
-  CHECK(detail::find_menu_root(module, read) == 0x500000);
+  CHECK(detail::find_menu_root(module, read, &location) == 0x500000);
   // Successfully read null links are empty slots, rather than read failures.
   for (const auto address :
        {uintptr_t{0x200008}, uintptr_t{0x3100A0}, uintptr_t{0x410010}, uintptr_t{0x510118}}) {
     const auto original = memory[address];
     ptr(address, 0);
-    CHECK(detail::find_menu_root(module, read) == 0x500000);
+    CHECK(detail::find_menu_root(module, read, &location) == 0x500000);
     memory[address] = original;
   }
   for (const auto address :
        {uintptr_t{0x200008}, uintptr_t{0x3100A0}, uintptr_t{0x410010}, uintptr_t{0x510118},
         uintptr_t{0x610000}, uintptr_t{0x70FFF8}, module + 0x3000, module + 0x4010}) {
     failed = address;
-    CHECK(detail::find_menu_root(module, read) == 0);
+    CHECK(detail::find_menu_root(module, read, &location) == 0);
   }
   failed = 0;
   // Warm immutable RTTI cache reduces read calls, while every live heap link is revalidated.
-  detail::MenuIdentityCache cache;
+  detail::UiIdentityCache cache;
+  cache.root_slot = location.root_slot;
   cache.immutable_ranges = {{0x6FFFF8, 0x10010}, {module + 0x1000, 0x4000}};
   reads = 0;
   CHECK(detail::find_menu_root(module, read, &cache) == 0x500000);
@@ -130,7 +143,8 @@ int main() {
   ptr(0x520118, 0x600000);
   CHECK(detail::find_menu_root(module, read, &cache) == 0x520000);
   // A writable type name is re-read even when vtable/locator storage is immutable.
-  detail::MenuIdentityCache partial_cache;
+  detail::UiIdentityCache partial_cache;
+  partial_cache.root_slot = location.root_slot;
   partial_cache.immutable_ranges = {{0x6FFFF8, 0x10010}, {module + 0x1000, sizeof(col)}};
   CHECK(detail::find_menu_root(module, read, &partial_cache) == 0x520000);
   reads = 0;
@@ -140,7 +154,8 @@ int main() {
   CHECK(detail::find_menu_root(module, read, &partial_cache) == 0);
   failed = 0;
   // Writable/unverified RTTI is never cached, so read failures remain visible on later polls.
-  detail::MenuIdentityCache uncached;
+  detail::UiIdentityCache uncached;
+  uncached.root_slot = location.root_slot;
   CHECK(detail::find_menu_root(module, read, &uncached) == 0x520000);
   CHECK(uncached.types.empty());
   failed = module + 0x2010;
@@ -154,7 +169,7 @@ int main() {
   }
   put(owner + 0x30EC0, other_entries + 1);
   reads = 0;
-  CHECK(detail::find_menu_root(module, read) == 0x520000);
+  CHECK(detail::find_menu_root(module, read, &location) == 0x520000);
   const auto uncached_reads = reads;
   reads = 0;
   CHECK(detail::find_menu_root(module, read, &cache) == 0x520000);
@@ -162,7 +177,7 @@ int main() {
   std::cout << "257-entry menu identity read calls: uncached=" << uncached_reads
             << ", cached=" << reads << '\n';
   put(owner + 0x30EC0, uint32_t{4097});
-  CHECK(detail::find_menu_root(module, read) == 0);
+  CHECK(detail::find_menu_root(module, read, &location) == 0);
   detail::MenuCapture capture;
   // Startup sampling and settled closing.
   auto before = capture.take();

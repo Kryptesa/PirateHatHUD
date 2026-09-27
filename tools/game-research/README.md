@@ -5,7 +5,7 @@ checking compatibility after game updates.
 These are development tools; they are not included in the ASI or install bundle.
 
 - `ce/snapshot.lua`: reads the current UI chain and bytes at historical code sites.
-- `ce/check-signatures.lua`: checks the instruction pairs from the mod's source files.
+- `ce/check-signatures.lua`: checks treasure/menu instruction pairs and the UI root signature from the mod's source files.
 - `ce/inspect-ui.lua`: inspects the UI pointer chain and script RTTI.
 - `ce/capture-transitions.lua`: records changes at explicitly selected byte addresses.
 - `compare-reports.py`: compares structured reports from two runs.
@@ -52,7 +52,9 @@ print(dofile(GAME_RESEARCH_CONFIG.checkout .. '/tools/game-research/ce/inspect-u
 ```
 
 Use `return` instead of `print` through MCP. These checks read game memory and
-repository files; they do not install hooks or modify game memory. A successful
+repository files; they do not install hooks or modify game memory. Run signature checks before loading the ASI: installed hooks replace the bytes
+at their sites and can make the original signatures disappear. `inspect-ui.lua`
+remains a historical 2.03.02 chain/+25B probe, not the runtime resolver. A successful
 structural check is not proof that a field still has the expected meaning.
 
 See [transition recording](ce/transitions.md) for bounded state recordings and

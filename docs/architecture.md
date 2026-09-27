@@ -158,7 +158,7 @@ the minimap is hidden. Application composition polls all observers before
 publishing one HUD snapshot, then stops all observers and resets subscriptions
 before graphics shutdown. The minimap observer may restart after stop; treasure
 hook retirement rules do not apply to it. See [minimap observation](minimap-observation.md)
-for the 2.03.02 chain, fixed-slot limitations and validation evidence.
+for the 2.03.02 chain, remaining child/leaf slot limitations and validation evidence.
 
 Another mod can link `game_observers` without linking the indicator or ImGui. The static
 library still requires Windows x64, SafetyHook, and a compatible Crimson Desert build.
@@ -196,8 +196,11 @@ game version, graphics settings and logs.
 ## Menu gating and return delay
 
 MenuObserver resolves Root_MainMenu by exact script MSVC RTTI in the current UI array,
-using the version-specific root slot +6C8CC00, not a fixed heap address or array index.
-It samples +25B on startup and on every poll, including startup with an open menu.
+using a unique RIP-relative launcher store signature for the UI root slot.
+Menu and minimap share `game/ui_memory` for bounded exact RTTI traversal and
+immutable image classification caches. Neither uses a fixed outer array index.
+The menu state displacement is extracted from the two exact MOV encodings and
+must agree; startup and every poll sample that field, including an open menu.
 A unique executable instruction pair (clear RCX / set RBX, delta 0x141) is required.
 Hooks capture atomics only, filter by resolved root, and latch openings between polls.
 Events and diagnostics run on the owner thread. Unknown or duplicate identities suppress

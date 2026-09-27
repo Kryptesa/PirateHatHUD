@@ -21,12 +21,20 @@ read pointers at these offsets in traversal order:
 30, 18, 88, 78, 0, 30EB8, 28, A0, 10, 48, 0, 290, 18 (all hexadecimal).
 Finally read a byte at +BE: 0 hidden, 1 visible.
 
-The RVA is version-specific. No version detection or signature for the root is
-implemented. Fixed array slots were empirically verified, not identified by type
-or name. Updates or UI reconstruction may select another readable object, and
-safe memory reads cannot detect a semantically wrong but readable chain. Do not
-claim compatibility beyond the tested build. Investigate and update the chain or
-add object identification/root signature support when the game changes.
+Runtime now resolves the root pointer slot from a unique executable launcher
+constructor signature. Its `mov [rip+disp32],rbx` operand supplies the slot address;
+the slot must be aligned and inside the loaded image. Missing or ambiguous code
+rejects startup, without falling back to the historical RVA.
+
+The current UI array is enumerated, and exact game-module MSVC script RTTI
+`.?AVUIGamePlayControlRootStatusGauge@uiCommonScript@pa@@` selects the render root.
+The outer index 5 is no longer used. Duplicate identities or unreadable relevant
+entries yield unknown. Immutable RTTI classifications are cached; live heap links
+are re-read. From the identified root, traversal remains 48,0,290,18 followed by
+byte +BE. Owner[0], child[0] and leaf[3] remain historical selections. Shared
+controller RTTI cannot distinguish the 17 leaf widgets; no automatic leaf repair
+is claimed. Future instruction context, structure or field semantics changes
+can still require CE research. Compatibility beyond the tested build is unverified.
 
 MinimapObserver belongs to game_observers, has no rendering/config dependencies,
 installs no hooks and is restartable. start resolves the executable module; poll

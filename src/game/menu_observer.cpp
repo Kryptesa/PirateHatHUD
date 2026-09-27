@@ -13,35 +13,6 @@ std::atomic<bool> g_claimed{false};
 std::atomic<bool> g_capturing{false};
 std::atomic<uintptr_t> g_root{0};
 detail::MenuCapture g_events;
-// The game's loaded image survives this observer. Cache only non-writable image sections.
-detail::MenuIdentityCache identity_cache(HMODULE module) {
-  detail::MenuIdentityCache cache;
-  const auto* image = reinterpret_cast<const uint8_t*>(module);
-  const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(image);
-  const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS64*>(image + dos->e_lfanew);
-  const auto* sections = IMAGE_FIRST_SECTION(nt);
-  for (unsigned i = 0; i < nt->FileHeader.NumberOfSections; ++i) {
-    const auto& section = sections[i];
-    if (!(section.Characteristics & IMAGE_SCN_MEM_READ) ||
-        (section.Characteristics & IMAGE_SCN_MEM_WRITE) ||
-        section.VirtualAddress >= nt->OptionalHeader.SizeOfImage ||
-        section.Misc.VirtualSize > nt->OptionalHeader.SizeOfImage - section.VirtualAddress) {
-      continue;
-    }
-    const auto begin = reinterpret_cast<uintptr_t>(image + section.VirtualAddress);
-    MEMORY_BASIC_INFORMATION region{};
-    if (VirtualQuery(reinterpret_cast<const void*>(begin), &region, sizeof(region)) &&
-        region.State == MEM_COMMIT &&
-        (region.Protect == PAGE_READONLY || region.Protect == PAGE_EXECUTE_READ) &&
-        begin >= reinterpret_cast<uintptr_t>(region.BaseAddress) &&
-        begin - reinterpret_cast<uintptr_t>(region.BaseAddress) <= region.RegionSize &&
-        section.Misc.VirtualSize <=
-            region.RegionSize - (begin - reinterpret_cast<uintptr_t>(region.BaseAddress))) {
-      cache.immutable_ranges.push_back({begin, section.Misc.VirtualSize});
-    }
-  }
-  return cache;
-}
 void capture_open(safetyhook::Context& ctx) {
   if (g_capturing.load(std::memory_order_acquire) &&
       ctx.rbx == g_root.load(std::memory_order_acquire)) {
@@ -61,7 +32,8 @@ struct MenuObserver::Impl {
   MenuState current = MenuState::unknown;
   MenuState published = MenuState::unknown;
   uintptr_t module = 0;
-  detail::MenuIdentityCache identities;
+  uintptr_t state_offset = 0;
+  detail::UiIdentityCache identities;
   bool claimed = false;
   bool running = false;
   LogCallback logger = nullptr;
@@ -109,10 +81,17 @@ bool MenuObserver::start() {
     return false;
   }
   impl.module = reinterpret_cast<uintptr_t>(module);
-  impl.identities = identity_cache(module);
+  auto root_scan = find_hook_sites(module, false, true);
+  if (root_scan.status != ScanStatus::found) {
+    stop();
+    return false;
+  }
+  impl.identities = detail::make_ui_identity_cache(reinterpret_cast<uintptr_t>(module));
+  impl.identities.root_slot = root_scan.root_slot;
+  impl.state_offset = scan.state_offset;
   auto root = detail::find_menu_root(impl.module, detail::read_memory, &impl.identities);
   g_root.store(root, std::memory_order_release);
-  impl.current = detail::sample_menu(root, detail::read_memory);
+  impl.current = detail::sample_menu(root, impl.state_offset, detail::read_memory);
   auto clear = safetyhook::MidHook::create(reinterpret_cast<void*>(scan.sites.enter), capture_close,
                                            safetyhook::MidHook::StartDisabled);
   if (!clear) {
@@ -135,8 +114,7 @@ bool MenuObserver::start() {
   }
   impl.running = true;
   if (impl.logger) {
-    impl.logger(LogLevel::info,
-                "Menu hooks active (2.03.02 UI root slot); identity resolved by script RTTI");
+    impl.logger(LogLevel::info, "Menu hooks active; UI slot and state offset resolved from code");
   }
   return true;
 }
@@ -149,7 +127,7 @@ void MenuObserver::poll() {
   const auto root = detail::find_menu_root(impl.module, detail::read_memory, &impl.identities);
   g_root.store(root, std::memory_order_release);
   const auto before = g_events.take();
-  const auto sampled = detail::sample_menu(root, detail::read_memory);
+  const auto sampled = detail::sample_menu(root, impl.state_offset, detail::read_memory);
   const auto after = g_events.take();
   if (const auto value = detail::menu_poll_state(sampled, before, after)) {
     impl.publish(*value);

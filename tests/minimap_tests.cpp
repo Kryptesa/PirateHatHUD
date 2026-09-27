@@ -12,57 +12,82 @@
 
 int main() {
   using namespace phi;
-  // Independent literal CE offsets: tests every dereference, including zero slots.
-  constexpr uintptr_t module = 0x100000;
-  constexpr uintptr_t offsets[] = {0x30, 0x18, 0x88, 0x78, 0,     0x30EB8, 0x28,
-                                   0xA0, 0x10, 0x48, 0,    0x290, 0x18};
-  std::map<uintptr_t, uintptr_t> pointers;
-  std::vector<uintptr_t> locations;
-  uintptr_t current = 0x200000;
-  pointers[module + 0x6C8CC00] = current;
-  locations.push_back(module + 0x6C8CC00);
-  for (auto offset : offsets) {
-    locations.push_back(current + offset);
-    pointers[current + offset] = current + 0x100000;
-    current += 0x100000;
-  }
-  const auto byte_address = current + 0xBE;
-  uint8_t value = 1;
-  uintptr_t failure = 0;
+  constexpr uintptr_t module = 0x140000000;
+  std::map<uintptr_t, std::vector<uint8_t>> memory;
+  auto put = [&](uintptr_t address, const auto& value) {
+    auto bytes = reinterpret_cast<const uint8_t*>(&value);
+    memory[address] = {bytes, bytes + sizeof(value)};
+  };
+  auto ptr = [&](uintptr_t address, uintptr_t value) { put(address, value); };
+  uintptr_t failed = 0;
+  size_t reads = 0;
   auto read = [&](uintptr_t address, void* out, size_t size) {
-    if (address == failure) {
+    ++reads;
+    auto it = memory.find(address);
+    if (address == failed || it == memory.end() || it->second.size() != size) {
       return false;
     }
-    if (size == 1 && address == byte_address) {
-      std::memcpy(out, &value, size);
-      return true;
-    }
-    auto it = pointers.find(address);
-    if (it == pointers.end() || size != sizeof(uintptr_t)) {
-      return false;
-    }
-    std::memcpy(out, &it->second, size);
+    std::memcpy(out, it->second.data(), size);
     return true;
   };
-  CHECK(detail::sample_minimap(module, read) == MinimapState::visible);
-  value = 0;
-  CHECK(detail::sample_minimap(module, read) == MinimapState::hidden);
-  value = 2;
-  CHECK(detail::sample_minimap(module, read) == MinimapState::unknown);
-  value = 1;
-  for (auto address : locations) {
-    failure = address;
-    CHECK(detail::sample_minimap(module, read) == MinimapState::unknown);
+  detail::UiIdentityCache location;
+  location.root_slot = module + 0x6C8CC00;
+  uintptr_t owner = 0x100000;
+  ptr(module + 0x6C8CC00, owner);
+  for (auto offset : {0x30u, 0x18u, 0x88u, 0x78u, 0u}) {
+    ptr(owner + offset, owner + 0x10000);
+    owner += 0x10000;
   }
-  failure = byte_address;
-  CHECK(detail::sample_minimap(module, read) == MinimapState::unknown);
-  failure = 0;
-  CHECK(detail::sample_minimap(0, read) == MinimapState::unknown);
-  CHECK(detail::sample_minimap(UINTPTR_MAX, read) == MinimapState::unknown);
-  pointers[locations[0]] = UINTPTR_MAX;
-  CHECK(detail::sample_minimap(module, read) == MinimapState::unknown);
-  pointers[locations[0]] = 0;
-  CHECK(detail::sample_minimap(module, read) == MinimapState::unknown);
+  ptr(owner + 0x30EB8, 0x200000);
+  put(owner + 0x30EC0, uint32_t{1});
+  ptr(0x200000, 0x300000);
+  ptr(0x3000A0, 0x400000);
+  ptr(0x400010, 0x500000);
+  ptr(0x500118, 0x600000);
+  ptr(0x600000, 0x700000);
+  ptr(0x6FFFF8, module + 0x1000);
+  std::array<uint32_t, 6> col{1, 0, 0, 0x2000, 0, 0x1000};
+  put(module + 0x1000, col);
+  const char name[] = ".?AVUIGamePlayControlRootStatusGauge@uiCommonScript@pa@@";
+  put(module + 0x2010, name);
+  ptr(0x500048, 0x800000);
+  ptr(0x800000, 0x900000);
+  ptr(0x900290, 0xA00000);
+  ptr(0xA00018, 0xB00000);
+  put(0xB000BE, uint8_t{1});
+  CHECK(detail::sample_minimap(module, read, &location) == MinimapState::visible);
+  put(0xB000BE, uint8_t{0});
+  CHECK(detail::sample_minimap(module, read, &location) == MinimapState::hidden);
+  put(0xB000BE, uint8_t{2});
+  CHECK(detail::sample_minimap(module, read, &location) == MinimapState::unknown);
+  put(0xB000BE, uint8_t{1});
+  for (const auto& [address, bytes] : memory) {
+    failed = address;
+    CHECK(detail::sample_minimap(module, read, &location) == MinimapState::unknown);
+  }
+  failed = 0;
+  // Reordering the outer UI array preserves the typed root.
+  put(owner + 0x30EC0, uint32_t{2});
+  ptr(0x200000, 0);
+  ptr(0x200008, 0x300000);
+  CHECK(detail::sample_minimap(module, read, &location) == MinimapState::visible);
+  ptr(0x200000, 0x300000);
+  CHECK(detail::sample_minimap(module, read, &location) == MinimapState::unknown);
+  ptr(0x200000, 0);
+  auto wrong_name = std::array<char, sizeof(name)>{};
+  std::memcpy(wrong_name.data(), ".?AVUIGamePlayControlRootMiniMap", 30);
+  put(module + 0x2010, wrong_name);
+  CHECK(detail::sample_minimap(module, read, &location) == MinimapState::unknown);
+  put(module + 0x2010, name);
+  // A replaced root is followed through live links.
+  ptr(0x400010, 0x520000);
+  ptr(0x520118, 0x600000);
+  ptr(0x520048, 0x800000);
+  CHECK(detail::sample_minimap(module, read, &location) == MinimapState::visible);
+  ptr(0x520048, 0);
+  CHECK(detail::sample_minimap(module, read, &location) == MinimapState::unknown);
+  CHECK(detail::sample_minimap(0, read, &location) == MinimapState::unknown);
+  CHECK(detail::sample_minimap(UINTPTR_MAX, read, &location) == MinimapState::unknown);
   MinimapObserver observer;
   CHECK(observer.state() == MinimapState::unknown);
   unsigned changes = 0;
