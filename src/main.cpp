@@ -17,6 +17,12 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID) {
   if (reason == DLL_PROCESS_ATTACH) {
     DisableThreadLibraryCalls(module);
 
+    // ASI loaders can also load this file into the game's crash handler.
+    // Only the game process may start observation, graphics hooks or hotkeys.
+    if (GetModuleHandleW(L"CrimsonDesert.exe") != GetModuleHandleW(nullptr)) {
+      return TRUE;
+    }
+
     if (HANDLE thread = CreateThread(nullptr, 0, worker, module, 0, nullptr)) {
       CloseHandle(thread);
     }

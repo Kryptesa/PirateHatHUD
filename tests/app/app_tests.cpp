@@ -29,6 +29,7 @@ struct Scenario {
   std::wstring icon_path;
   bool embedded_icon = false;
   std::vector<std::string> calls;
+  std::vector<std::string> messages;
   bool icon_valid = true;
   phi::Signal<phi::MinimapStateChanged>* minimap_signal = nullptr;
   unsigned minimap_subscriber_calls = 0;
@@ -289,7 +290,8 @@ void close_log() {
   }
 }
 
-void log(LogLevel, const char*) {
+void log(LogLevel, const char* message) {
+  scenario.messages.emplace_back(message);
   step("log");
 }
 
@@ -325,6 +327,10 @@ HotkeyActions poll_hotkeys(int, int) {
 
 bool game_is_foreground() {
   return scenario.foreground;
+}
+
+void stop_hotkeys() noexcept {
+  scenario.calls.emplace_back("hotkeys_stop");
 }
 
 SoundPlayer::~SoundPlayer() {
@@ -466,8 +472,19 @@ int main() {
   CHECK(run() == AppExitDisposition::unload_allowed);
   CHECK(scenario.cleanup_order_valid);
   CHECK(scenario.hud_visible);
+  CHECK(std::ranges::any_of(scenario.messages, [](const auto& message) {
+    return message.starts_with("Game EXE version: ");
+  }));
+  for (const auto* prefix : {"Process EXE: ", "Mod ASI: "}) {
+    const auto entry = std::ranges::find_if(scenario.messages, [prefix](const auto& message) {
+      return message.starts_with(prefix);
+    });
+    CHECK(entry != scenario.messages.end());
+    CHECK(entry->substr(std::string(prefix).size()).find_first_of("\\/:") == std::string::npos);
+  }
   CHECK(before("minimap_poll", "hotkeys"));
   CHECK(before("menu_poll", "hotkeys"));
+  CHECK(before("hotkeys_stop", "observer_stop"));
   CHECK(before("menu_stop", "overlay_stop"));
   CHECK(before("minimap_stop", "overlay_stop"));
   CHECK(before("observer_stop", "overlay_stop"));
@@ -475,6 +492,7 @@ int main() {
   CHECK(before("clear_logger", "close_log"));
   CHECK(std::count(scenario.calls.begin(), scenario.calls.end(), "observer_stop") == 1);
   CHECK(std::count(scenario.calls.begin(), scenario.calls.end(), "overlay_stop") == 1);
+  CHECK(std::count(scenario.calls.begin(), scenario.calls.end(), "hotkeys_stop") == 1);
   CHECK(!has("sound_play")); // Immediate unload suppresses audio.
   CHECK(before("sound_stop", "overlay_stop"));
 

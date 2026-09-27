@@ -12,6 +12,7 @@
 #include "platform/sound.hpp"
 #include <exception>
 #include <string>
+#include <vector>
 
 namespace phi {
 
@@ -19,6 +20,84 @@ namespace {
 struct ExitState {
   bool retain = false;
 };
+
+std::wstring module_path(HMODULE module) {
+  std::wstring path(32768, L'\0');
+  const auto length = GetModuleFileNameW(module, path.data(), static_cast<DWORD>(path.size()));
+  if (!length || length >= path.size()) {
+    return {};
+  }
+
+  path.resize(length);
+  return path;
+}
+
+std::string module_name_utf8(HMODULE module) {
+  auto path = module_path(module);
+  if (path.empty()) {
+    return "<unavailable>";
+  }
+  const auto separator = path.find_last_of(L"\\/");
+  if (separator != std::wstring::npos) {
+    path.erase(0, separator + 1);
+  }
+
+  const auto size = WideCharToMultiByte(
+    CP_UTF8,
+    0,
+    path.data(),
+    static_cast<int>(path.size()),
+    nullptr,
+    0,
+    nullptr,
+    nullptr
+  );
+  if (!size) {
+    return "<unavailable>";
+  }
+
+  std::string result(size, '\0');
+  WideCharToMultiByte(
+    CP_UTF8,
+    0,
+    path.data(),
+    static_cast<int>(path.size()),
+    result.data(),
+    size,
+    nullptr,
+    nullptr
+  );
+  return result;
+}
+
+std::string executable_version() {
+  const auto path = module_path(nullptr);
+  const auto size = GetFileVersionInfoSizeW(path.c_str(), nullptr);
+  if (!size) {
+    return "<unavailable>";
+  }
+  std::vector<std::uint8_t> bytes(size);
+  if (!GetFileVersionInfoW(path.c_str(), 0, size, bytes.data())) {
+    return "<unavailable>";
+  }
+  VS_FIXEDFILEINFO* info = nullptr;
+  UINT info_size = 0;
+  if (
+    !VerQueryValueW(bytes.data(), L"\\", reinterpret_cast<void**>(&info), &info_size) ||
+    !info ||
+    info_size < sizeof(*info) ||
+    info->dwSignature != 0xFEEF04BD
+  ) {
+    return "<unavailable>";
+  }
+  return std::to_string(HIWORD(info->dwFileVersionMS)) +
+    "." +
+    std::to_string(LOWORD(info->dwFileVersionMS)) +
+    "." +
+    std::to_string(HIWORD(info->dwFileVersionLS)) +
+    "." +
+    std::to_string(LOWORD(info->dwFileVersionLS));
+}
 
 void report_exception(const char* message) noexcept {
   try {
@@ -143,7 +222,7 @@ public:
       if (actions.toggle) {
         indicator_.toggle();
         enabled_ = !enabled_;
-        log(LogLevel::info, "Indicator toggled by hotkey");
+        log(LogLevel::info, enabled_ ? "Mod enabled by hotkey" : "Mod disabled by hotkey");
       }
 
       set_overlay_hud(indicator_.hud_state());
@@ -186,6 +265,7 @@ private:
     }
 
     finished_ = true;
+    stop_hotkeys();
     const auto observer_stop = observer_.stop();
     exit_.retain |= observer_stop.module_must_remain_loaded || !observer_stop.hooks_disabled;
 
@@ -258,6 +338,10 @@ AppExitDisposition run_app(HMODULE module) noexcept {
       const auto config = read_config(legacy_config ? legacy_config_path : config_path);
       logging.open(folder, config.logging);
       log(LogLevel::info, PHI_VERSION);
+      log(LogLevel::info, ("Game EXE version: " + executable_version()).c_str());
+      log(LogLevel::info, ("Process PID: " + std::to_string(GetCurrentProcessId())).c_str());
+      log(LogLevel::info, ("Process EXE: " + module_name_utf8(nullptr)).c_str());
+      log(LogLevel::info, ("Mod ASI: " + module_name_utf8(module)).c_str());
 
       if (legacy_config) {
         log(

@@ -73,6 +73,10 @@ in the same task, including any constraints passed to delegated agents.
 - `overlay`: DX12 resources and drawing from a coherent `HudState` snapshot.
 - `platform`: INI configuration, Windows hotkeys, file logging and asynchronous WAV
   playback through `platform/sound`.
+  Hotkeys register owner-thread WM_HOTKEY delivery with MOD_NOREPEAT while the game
+  is foreground, falling back per unavailable binding to key-state edge detection.
+  Registrations and atom IDs are released on focus loss and during application
+  cleanup on that same thread, including exceptional exits.
 - `app`: composition, polling and exception-safe shutdown. `main.cpp` starts the worker
   and unloads only when the application explicitly permits it.
 
@@ -316,3 +320,8 @@ logger and wires the callback. Hook capture remains free of observer event loggi
 The logger serializes writes and rotation, bounds records, and disables writing on I/O
 failure without throwing. UTC timestamp files rotate on startup and size; retention
 matches only the logger's exact filename pattern and includes the current file.
+Startup logs include the mod version, the executable's Windows file version, PID,
+and EXE/ASI basenames without installation paths. The executable file version may
+differ from the game's public patch number. Successful hotkey registration is logged
+at debug level; registration fallback remains a warning. Application composition
+links the Windows version library to read the executable's version resource.

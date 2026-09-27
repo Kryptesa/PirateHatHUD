@@ -69,7 +69,7 @@ target_compile_definitions(PirateHatHUD PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNI
   PHI_VERSION="${PROJECT_VERSION}")
 target_compile_options(PirateHatHUD PRIVATE /W4 /EHsc)
 target_link_libraries(PirateHatHUD PRIVATE game_observers treasure_indicator safetyhook
-  imgui_static d3d12 dxgi d3dcompiler ole32 windowscodecs winmm)
+  imgui_static d3d12 dxgi d3dcompiler ole32 windowscodecs winmm version)
 set_target_properties(PirateHatHUD PROPERTIES PREFIX "" SUFFIX ".asi")
 
 add_custom_command(TARGET PirateHatHUD POST_BUILD
@@ -112,4 +112,4 @@ endif()
 phi_check_target(game_observers safetyhook)
 phi_check_target(treasure_indicator)
 phi_check_target(PirateHatHUD game_observers treasure_indicator safetyhook
-  imgui_static d3d12 dxgi d3dcompiler ole32 windowscodecs winmm)
+  imgui_static d3d12 dxgi d3dcompiler ole32 windowscodecs winmm version)

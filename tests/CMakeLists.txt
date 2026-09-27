@@ -168,7 +168,7 @@ set_tests_properties(
 
 # App
 add_executable(app_tests app/app_tests.cpp "${PROJECT_SOURCE_DIR}/src/app.cpp")
-target_link_libraries(app_tests PRIVATE treasure_indicator)
+target_link_libraries(app_tests PRIVATE treasure_indicator version)
 target_compile_definitions(app_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX
   PHI_VERSION="${PROJECT_VERSION}")
 add_test(NAME app_tests COMMAND app_tests)

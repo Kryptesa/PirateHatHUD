@@ -30,6 +30,8 @@ private:
 };
 
 HotkeyActions poll_hotkeys(int toggle_key, int unload_key);
+// Call on the polling thread before shutdown, including exceptional exits.
+void stop_hotkeys() noexcept;
 
 bool game_is_foreground();
 } // namespace phi

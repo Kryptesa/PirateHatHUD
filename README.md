@@ -88,6 +88,9 @@ works. Restoring volume does not replay missed notifications. Nonzero changes ap
 to the next sound, using linear scaling of both sliders.
 
 Hotkeys can be set to F8, F9, F10 or F11.
+They are registered with Windows while the game is focused and released when it
+loses focus or the mod stops. A binding that cannot be registered uses key-state
+polling instead; the log reports this fallback.
 
 ### Custom icon
 
