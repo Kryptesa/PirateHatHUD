@@ -183,4 +183,4 @@ The mod reads the game's treasure state; it doesn't change the counter.
 [MIT](LICENSE). Third-party licenses are included in the archive and listed in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-[Release notes](release_notes.md) · [Changelog](CHANGELOG.md)
+[Release workflow](docs/releases.md) ? [Release notes](release_notes.md) · [Changelog](CHANGELOG.md)

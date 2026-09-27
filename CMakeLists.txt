@@ -106,6 +106,8 @@ include(CPack)
 
 include(CTest)
 if(BUILD_TESTING)
+  find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  add_test(NAME release_validation_tests COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/release_validation_tests.py")
   find_program(PHI_TEST_PYTHON NAMES python python3 REQUIRED)
   add_test(NAME format_cpp_tests COMMAND "${PHI_TEST_PYTHON}"
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/format_cpp_tests.py")

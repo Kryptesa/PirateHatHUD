@@ -1,0 +1,78 @@
+name: Prepare release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag (vX.Y.Z)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prepare-release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - name: Validate request
+        env:
+          SELECTED_REF: ${{ github.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if ($env:SELECTED_REF -ne "refs/heads/$env:DEFAULT_BRANCH") {
+            throw 'Run this workflow from the default branch.'
+          }
+          if ($env:RELEASE_TAG -cnotmatch '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
+            throw 'Use an existing tag in the form vX.Y.Z.'
+          }
+      - name: Check out release tag
+        uses: actions/checkout@v5
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          persist-credentials: false
+      - name: Validate release metadata
+        run: |
+          $subject = git log -1 --format=%s
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot read release commit.' }
+          python tools/release/check_release.py --tag $env:RELEASE_TAG --subject $subject
+          if ($LASTEXITCODE -ne 0) { throw 'Release metadata validation failed.' }
+      - name: Check formatting
+        run: |
+          python -m pip install --target build/format-tools -r requirements-format.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Formatter installation failed.' }
+          cmake -DCHECK=ON -P cmake/Format.cmake
+          if ($LASTEXITCODE -ne 0) { throw 'Formatting failed.' }
+      - name: Build, test and package
+        run: ./cmake/Build.ps1
+      - name: Check research tools
+        run: |
+          python -m pip install --target build/game-research-test-tools lupa==2.8
+          if ($LASTEXITCODE -ne 0) { throw 'Lua test runtime installation failed.' }
+          python -m unittest discover -s tools/game-research/tests -v
+          if ($LASTEXITCODE -ne 0) { throw 'Research tool tests failed.' }
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $existingTags = gh api --paginate "repos/$env:GH_REPO/releases" --jq '.[].tag_name'
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot check existing releases.' }
+          if ($env:RELEASE_TAG -cin @($existingTags)) { throw 'A release or draft already exists for this tag.' }
+          $version = $env:RELEASE_TAG.Substring(1)
+          $archive = "dist/PirateHatHUD-$version.zip"
+          if (-not (Test-Path -LiteralPath $archive)) { throw 'Release archive missing.' }
+          gh release create $env:RELEASE_TAG $archive --verify-tag --draft --title "Pirate Hat HUD $version" --notes-file release_notes.md
+          if ($LASTEXITCODE -ne 0) { throw 'Draft creation or upload failed. Inspect Releases before retrying.' }
