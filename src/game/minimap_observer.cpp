@@ -44,7 +44,7 @@ bool MinimapObserver::start() {
   if (impl_->logger) {
     impl_->logger(
       impl_->running ? LogLevel::info : LogLevel::warn,
-      impl_->running ? "Minimap observer started; UI slot from code, root by RTTI"
+      impl_->running ? "Minimap observer started; native canvas and ancestor draw gates"
                      : "Minimap observer unavailable: executable/root slot invalid"
     );
   }

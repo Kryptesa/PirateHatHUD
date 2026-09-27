@@ -52,6 +52,11 @@ in the same task, including any constraints passed to delegated agents.
   and expose explicit functions instead of boolean selectors.
 - `game_observers`: game-specific scanning, hooks and safe memory reads. Public entry
   points: `include/game/treasure_observer.hpp` `include/game/minimap_observer.hpp` and `include/game/menu_observer.hpp`. No HUD, configuration or DirectX dependency.
+  Internal `ui_memory`, `minimap_memory` and `menu_memory` headers declare sampling
+  interfaces and shared data types; their implementations live in matching `.cpp`
+  files. A shared `MemoryReader` callback allows simulated-memory tests to exercise
+  the same compiled implementation as production. Observer files own lifecycle
+  and event publication, while memory files own traversal and state interpretation.
 - `core/signal.hpp`: reusable typed synchronous signals and move-only RAII subscriptions.
 - `treasure_indicator`: presentation policy for this mod, producing a `HudState`.
 - `features/treasure_sound`: notification policy using observer state values and a
@@ -166,7 +171,7 @@ the minimap is hidden. Application composition polls all observers before
 publishing one HUD snapshot, then stops all observers and resets subscriptions
 before graphics shutdown. The minimap observer may restart after stop; treasure
 hook retirement rules do not apply to it. See [minimap observation](minimap-observation.md)
-for the 2.03.02 chain, remaining child/leaf slot limitations and validation evidence.
+for the native canvas/ancestor checks, remaining layout limitations and validation evidence.
 
 Another mod can link `game_observers` without linking the indicator or ImGui. The static
 library still requires Windows x64, SafetyHook, and a compatible Crimson Desert build.
@@ -193,7 +198,8 @@ CTest covers scanning, typed subscription lifetime/dispatch behavior, indicator 
 observer startup failure without the game, hook retention and partial activation,
 application cleanup under exceptions, bounded GPU wait policy, and WIC image decoding/retry.
 Minimap tests cover the pointer traversal, read failures, null pointers, address
-overflow, invalid visibility bytes and startup without the game. Indicator and app
+overflow, canvas ownership, ancestor cycles/depth, draw flags, clipping, invalid
+opacity and startup without the game. Indicator and app
 tests cover minimap gating, force_show and minimap lifecycle exceptions. The chain
 was separately verified in Cheat Engine on 2.03.02; compiled feature integration
 still requires in-game validation.

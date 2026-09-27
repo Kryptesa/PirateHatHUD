@@ -97,14 +97,14 @@ The supplied scripts do not automatically discover or implement new events.
 3. Check the UI root and pointer chain against `include/game/minimap_memory.hpp`
    and `include/game/menu_memory.hpp`. Investigate the specific failing step
    rather than starting a general scan for all 0/1 values.
-4. To replace the fixed root RVA, investigate the write at historical RVA
-   0x86D2AA8 and references to slot 0x6C8CC00. Capture nearby instructions,
-   mask address operands in the signature, verify uniqueness, and decode the
-   slot address from the matched instruction. Root signature scanning is
-   **not implemented yet**.
-5. Check UI types through RTTI. The menu is already resolved by exact type;
-   the minimap still depends on fixed array entries. RootStatusGauge and
-   RootMiniMap are different objects; verify behavior before substituting one.
+4. Verify the launcher store signature and decoded RIP-relative UI slot in
+   `src/game/ui_root_scan.cpp`. Root signature scanning is implemented;
+   do not restore the historical slot RVA as a fallback.
+5. Check UI types through RTTI. Menu and minimap roots are resolved by exact
+   script type. For the minimap, verify the native canvas binding, exact
+   definition names, ownership and bounded parent chain. Check draw flags,
+   clipping and computed opacity on every ancestor; see
+   `docs/minimap-observation.md` for evidence and remaining limitations.
 6. Verify state semantics in game: Esc/M/I, minimap settings, treasure detection,
    loading/teleport, restart, force_show, and F9/F10.
 7. After code changes, run `./cmake/Build.ps1` (architecture-check and CTest),

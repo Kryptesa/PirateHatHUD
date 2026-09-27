@@ -1,46 +1,97 @@
 # Minimap visibility observation
 
 The icon requires a valid visible minimap sample, including in force_show mode.
-Unknown memory or a byte other than 0/1 hides the icon; polling retries naturally.
-Treasure state is retained while menus hide the minimap.
+Unknown memory hides the icon; polling retries naturally. Treasure state is
+retained while menus or cutscenes hide the minimap.
 
-Timing caveat: the current byte lags menu opening, and the user observed the HUD
-over the map closing animation. The checks below established eventual state,
-not timely transitions. RTTI enumeration identifies the original array element
-as RootStatusGauge (index 5), with a separate RootMiniMap at index 6. No earlier
-replacement signal for the minimap has been validated yet.
+## Runtime sampling
 
-The user verified this memory chain on Crimson Desert 2.03.02 in Cheat Engine:
-menu and inventory transitions, minimap setting disabled/enabled, teleport and one
-full game restart. The compiled observer/HUD integration still requires in-game
-verification, including force_show, toggle/stop hotkeys, normal treasure detection,
-load/save transitions and graphics settings/logs.
+The UI root pointer slot comes from a unique executable launcher constructor
+signature. Its RIP-relative store supplies the slot address, which must be
+aligned and inside the loaded image. Missing or ambiguous code rejects startup;
+there is no historical RVA fallback.
 
-The root pointer slot is CrimsonDesert.exe RVA 0x6C8CC00. Read its pointer, then
-read pointers at these offsets in traversal order:
-30, 18, 88, 78, 0, 30EB8, 28, A0, 10, 48, 0, 290, 18 (all hexadecimal).
-Finally read a byte at +BE: 0 hidden, 1 visible.
+The observer follows the shared guarded UI owner chain and enumerates the live
+UI array. Exact game-module MSVC script RTTI
+`.?AVUIGamePlayControlRootMiniMap@uiCommonScript@pa@@`
+selects exactly one render root. Array position is irrelevant; duplicate roots
+or failed relevant reads yield unknown. Only immutable RTTI information is cached.
 
-Runtime now resolves the root pointer slot from a unique executable launcher
-constructor signature. Its `mov [rip+disp32],rbx` operand supplies the slot address;
-the slot must be aligned and inside the loaded image. Missing or ambiguous code
-rejects startup, without falling back to the historical RVA.
+From the render root, +118 supplies the script and +120 the native definition
+named `MinimapView`. Script +8 must identify `MinimapHudBody`; its +3F0 binding
+supplies the native minimap canvas. Canvas +8 must identify `MinimapCanvas`,
+and definition +D8 must point back to that canvas. Definition names are exact,
+including their terminators, through the C-string pointer at +F8.
 
-The current UI array is enumerated, and exact game-module MSVC script RTTI
-`.?AVUIGamePlayControlRootStatusGauge@uiCommonScript@pa@@` selects the render root.
-The outer index 5 is no longer used. Duplicate identities or unreadable relevant
-entries yield unknown. Immutable RTTI classifications are cached; live heap links
-are re-read. From the identified root, traversal remains 48,0,290,18 followed by
-byte +BE. Owner[0], child[0] and leaf[3] remain historical selections. Shared
-controller RTTI cannot distinguish the 17 leaf widgets; no automatic leaf repair
-is claimed. Future instruction context, structure or field semantics changes
-can still require CE research. Compatibility beyond the tested build is unverified.
+Sampling follows definition +38 parents from the canvas to the identified view.
+The chain must include the owning script body. At most 24 definitions are read;
+null links, cycles, excessive depth and an unrelated view yield unknown. Every
+definition in the chain must pass these native draw admission conditions:
 
-MinimapObserver belongs to game_observers, has no rendering/config dependencies,
-installs no hooks and is restartable. start resolves the executable module; poll
-samples and publishes state changes on the owner thread. stop resets state to
-unknown; a subsequent poll publishes the reset if needed. App stops observers,
-releases both subscriptions and then stops rendering. The renderer receives one
-snapshot after both observers have polled. Reads validate committed readable
-regions and use ReadProcessMemory to tolerate unmapping races; failures hide the
-icon. Startup and state transitions are logged, avoiding per-poll diagnostic noise.
+- Definition +B0: `(flags & 0x60) == 0x40` and bit 0x80 set.
+- Definition +97: clipping bit 0x20 clear.
+- Definition +C0 points to computed properties; float +40 is positive.
+
+Zero opacity or a rejected draw flag yields hidden. Missing properties,
+non-finite opacity, opacity outside [0, 1], or any failed relevant read yields
+unknown, even if another ancestor already indicated hidden. All required reads
+are completed before publishing a known state. No game functions are called,
+no visibility hooks are installed, and no status-icon fallback is used.
+
+All heap links, names and properties are read afresh on each poll. The binding
+and field offsets remain specific to the investigated game layout; signatures
+and RTTI do not automatically repair changed structure semantics. Reads are not
+an atomic game-frame snapshot, so transient inconsistent data can yield unknown.
+This samples verified draw admission conditions, rather than proving final
+pixel visibility or reproducing every debug/override branch of the UI renderer.
+
+## Live evidence on Crimson Desert 2.03.02
+
+Read-only research traced the native canvas virtual draw dispatch to the UI
+draw admission function, which checks flags, clipping and computed opacity.
+The observed parent chain was:
+
+`MinimapCanvas -> NoStickyIconContainer -> MinimapScaleLayer ->
+MinimapMaskContainer -> MinimapDisplayWrap -> MinimapHud ->
+UIHudScaleMinimapHudWrap -> MinimapHudBody -> MinimapView`.
+
+A 100-second capture at 100 ms intervals sampled the canvas and five ancestors,
+plus the old proxy and menu state. All 20 fields remained readable:
+
+- Visible gameplay: sampled draw flags D0, opacity 1.0.
+- Hide setting enabled in gameplay: canvas and sampled ancestors changed to 50.
+- Menu open: canvas could retain D0 and positive opacity, while the view changed
+  to 90 and its opacity became zero.
+- Returning to gameplay and disabling hiding restored the relevant flags.
+
+A second capture sampled 270 times over 42 seconds at 150 ms intervals, with no
+unreadable fields. During a user-triggered dialogue/cutscene, the view changed
+D0 -> 90 -> D0 while the menu byte stayed zero. Sampled opacity fell to about
+0.0885, then returned to 1.0. The user confirmed that the minimap disappeared
+and reappeared. Positive opacity alone would incorrectly report visible;
+the view's rejected draw flag supplies the necessary ancestor gating.
+This covers one sequence, not all dialogue or cutscene types.
+
+Earlier research used byte +BE of a CommonInfoDescription named
+`CoolTimeToolIcon4` beneath RootStatusGauge as an empirical proxy. That byte
+tracked several transitions but belonged to a status icon. The current observer
+has replaced it with the native minimap canvas and ancestor checks.
+
+## Validation and remaining checks
+
+Unit tests cover canvas/ancestor draw gates, clipping, opacity, failed reads,
+exact names, ownership, nulls, cycles, bounded depth, duplicate roots, outer
+array reordering, replaced render roots/canvases and startup without the game.
+
+The newly compiled observer still needs in-game validation after a fresh process
+start and save reload: menu/inventory, settings, dialogue/cutscene, teleport,
+force_show, F9/F10 and normal treasure detection. Record game version, graphics
+settings and relevant logs. Earlier restart/teleport checks applied to the old
+proxy; they do not establish compatibility of this replacement.
+
+MinimapObserver belongs to game_observers and has no rendering/config dependency.
+It publishes typed state changes from poll on the owner thread. Stop resets state
+to unknown; the observer can restart. Application composition polls all sources
+before publishing a coherent HUD snapshot and resets subscriptions before
+graphics shutdown. The guarded memory reader validates committed readable
+regions and uses ReadProcessMemory to tolerate unmapping races.

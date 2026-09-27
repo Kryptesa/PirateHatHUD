@@ -46,7 +46,8 @@ target_include_directories(imgui_static PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURC
 target_compile_definitions(imgui_static PRIVATE IMGUI_DISABLE_OBSOLETE_FUNCTIONS)
 
 add_library(game_observers STATIC src/game/treasure_observer.cpp src/game/minimap_observer.cpp
-  src/game/menu_observer.cpp src/game/ui_memory.cpp src/game/memory_reader.cpp src/game/hook_scan.cpp src/game/ui_root_scan.cpp src/pattern_scan.cpp)
+  src/game/menu_observer.cpp src/game/ui_memory.cpp src/game/minimap_memory.cpp src/game/menu_memory.cpp
+  src/game/memory_reader.cpp src/game/hook_scan.cpp src/game/ui_root_scan.cpp src/pattern_scan.cpp)
 target_include_directories(game_observers PUBLIC include)
 target_compile_definitions(game_observers PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
 target_compile_options(game_observers PRIVATE /W4 /EHsc)

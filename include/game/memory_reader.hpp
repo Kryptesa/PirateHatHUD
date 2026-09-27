@@ -2,8 +2,12 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 
 namespace phi::detail {
+
+// Internal read seam shared by production sampling and simulated-memory tests.
+using MemoryReader = std::function<bool(uintptr_t, void*, size_t)>;
 
 // Reads only a nonempty range inside one committed, readable memory region.
 // ReadProcessMemory handles protection changes after the preliminary query.

@@ -1,6 +1,7 @@
 #include "game/menu_memory.hpp"
 #include "game/menu_observer.hpp"
 #include "game/menu_capture.hpp"
+#include <array>
 #include <iostream>
 #include <map>
 #include <vector>
