@@ -35,15 +35,11 @@ definition in the chain must pass these native draw admission conditions:
 Zero opacity or a rejected draw flag yields hidden. Missing properties,
 non-finite opacity, opacity outside [0, 1], or any failed relevant read yields
 unknown, even if another ancestor already indicated hidden. All required reads
-are completed before publishing a known state. No game functions are called,
-no visibility hooks are installed, and no status-icon fallback is used.
+are completed before publishing a known state.
 
 All heap links, names and properties are read afresh on each poll. The binding
-and field offsets remain specific to the investigated game layout; signatures
-and RTTI do not automatically repair changed structure semantics. Reads are not
-an atomic game-frame snapshot, so transient inconsistent data can yield unknown.
-This samples verified draw admission conditions, rather than proving final
-pixel visibility or reproducing every debug/override branch of the UI renderer.
+and field offsets depend on the game version. Transient changes between reads
+can yield unknown. The observer samples draw flags, clipping and opacity.
 
 ## Live evidence on Crimson Desert 2.03.02
 
@@ -70,7 +66,6 @@ D0 -> 90 -> D0 while the menu byte stayed zero. Sampled opacity fell to about
 0.0885, then returned to 1.0. The minimap disappeared and reappeared during
 the same sequence. Positive opacity alone would incorrectly report visible;
 the view's rejected draw flag supplies the necessary ancestor gating.
-This covers one sequence, not all dialogue or cutscene types.
 
 Earlier research used byte +BE of a CommonInfoDescription named
 `CoolTimeToolIcon4` beneath RootStatusGauge as an empirical proxy. That byte
@@ -91,7 +86,7 @@ without an instrumented measurement. Game version, graphics settings and logs
 were not recorded for this pass.
 
 Remaining compiled checks: F9/F10 and normal treasure detection with force_show
-disabled. Compatibility with future game updates remains unverified.
+disabled.
 
 MinimapObserver belongs to game_observers and has no rendering/config dependency.
 It publishes typed state changes from poll on the owner thread. Stop resets state

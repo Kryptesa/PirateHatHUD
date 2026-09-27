@@ -7,9 +7,8 @@ I like playing with helmets hidden, but then I can't see the Pirate King Hat's
 treasure detection cue.
 
 This mod adds a chest icon and a short sound when the hat detects nearby treasure,
-so I can keep helmets hidden and still know when it finds something. It uses the
-hat's existing detection, doesn't change its range or reveal treasure locations,
-and only works while the Pirate King Hat is equipped.
+so I can keep helmets hidden and still know when it finds something.
+The Pirate King Hat must be equipped.
 
 Source code and bug reports: [GitHub repository](https://github.com/Kryptesa/PirateHatHUD).
 
@@ -72,7 +71,7 @@ For CDUMM, enable the existing mod before importing an update, with the game clo
   and closed menus, and does not trigger sound.
 
 The UI layout was checked against game version 2.03.02. Game updates may require
-a mod update; compatibility with future versions is not guaranteed.
+a mod update.
 
 ## Bug reports and troubleshooting
 

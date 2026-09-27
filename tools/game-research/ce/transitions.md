@@ -41,8 +41,7 @@ bound to its original capture after a restart.
 Each sample records bytes in memory order, with elapsed milliseconds. Events
 record the initial value and later changes, including transitions to or from
 `unknown`. A failed read is unknown, never an inactive `0`. Report checks become
-`unknown` if any sample of a field was unreadable. Completion only means capture
-finished; it does not establish game compatibility or field semantics.
+`unknown` if any sample of a field was unreadable.
 
 Addresses are resolved once at startup. Replaced UI objects require a fresh
 capture with newly verified addresses. Polling can miss changes between samples;
@@ -55,4 +54,4 @@ samples. Byte widths are 1 through 8; the default interval is 100 ms (minimum
 20 ms). Reaching either the duration or sample limit ends capture. Explicit
 stop, restart, script reload and sampling errors destroy the timer. Only the
 named `PirateHatGameResearchTransitions` namespace is installed globally. The
-script reads bytes only: it sets no breakpoints and sends no game inputs.
+script samples the selected addresses on a CE timer.

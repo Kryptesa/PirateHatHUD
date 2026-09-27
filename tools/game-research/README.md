@@ -2,30 +2,28 @@
 
 This directory contains reproducible tools for investigating game events and
 checking compatibility after game updates.
-These are development tools; they are not included in the ASI or install bundle.
+Run these tools from your checkout during game research.
 
 - `ce/snapshot.lua`: reads the current UI chain and bytes at historical code sites.
 - `ce/check-signatures.lua`: checks treasure/menu instruction pairs and the UI root signature from the mod's source files.
 - `ce/inspect-ui.lua`: inspects the UI pointer chain and script RTTI.
-- `ce/capture-transitions.lua`: records changes at explicitly selected byte addresses.
+- `ce/capture-transitions.lua`: records changes at selected byte addresses.
 - `compare-reports.py`: compares structured reports from two runs.
-- `collect-diagnostics.ps1`: archives explicitly selected reports and logs.
+- `collect-diagnostics.ps1`: archives selected reports and logs.
 - `report-template.md`: records validation results for a specific game version.
 - `event-template.md`: records a candidate event and the evidence for its meaning.
 - Store raw reports, dumps, traces and experimental scripts under
   `research/events/<event>/<version>/` for event investigations or
   `research/game-update/<version>/` for updates. The entire `research/` directory
-  is ignored by Git. Existing research does not need to be moved.
+  is ignored by Git.
 
 ## Collecting baseline data
 
 Attach CE to the actual `CrimsonDesert.exe`, load a save and enter gameplay.
-The script does not write game memory or set breakpoints. It uses historical
-addresses from **2.03.02**; it does not discover new addresses automatically.
-Readable memory alone does not establish compatibility.
+The snapshot script reads the historical addresses from **2.03.02**.
 
 Run this in CE's Lua Engine. Replace `<checkout>` with your local repository
-directory; it is a placeholder, not a literal path:
+directory:
 
 ```lua
 print(dofile('<checkout>/tools/game-research/ce/snapshot.lua'))
@@ -51,11 +49,11 @@ print(dofile(GAME_RESEARCH_CONFIG.checkout .. '/tools/game-research/ce/check-sig
 print(dofile(GAME_RESEARCH_CONFIG.checkout .. '/tools/game-research/ce/inspect-ui.lua'))
 ```
 
-Use `return` instead of `print` through MCP. These checks read game memory and
-repository files; they do not install hooks or modify game memory. Run signature checks before loading the ASI: installed hooks replace the bytes
+Use `return` instead of `print` through MCP. Run signature checks before loading
+the ASI: installed hooks replace the bytes
 at their sites and can make the original signatures disappear. `inspect-ui.lua`
-remains a historical 2.03.02 chain/+25B probe, not the runtime resolver. A successful
-structural check is not proof that a field still has the expected meaning.
+checks the historical 2.03.02 chain and +25B field. Verify the field's behavior
+in game after checking its layout.
 
 See [transition recording](ce/transitions.md) for bounded state recordings and
 [report tools](report-tools.md) for comparison and diagnostic archives.
@@ -67,24 +65,23 @@ See [transition recording](ce/transitions.md) for bounded state recordings and
    state change (for example, pressing Esc versus a menu actually opening).
 2. Collect candidate fields or code sites through CE MCP memory scans, reference
    searches and disassembly. `inspect-ui.lua` can help with the current UI layout;
-   it is not a general discovery tool for arbitrary game systems.
+   use other scans for systems outside the UI.
 3. Resolve and label candidate field addresses, then use `capture-transitions.lua`
    while performing the action manually. Capture both positive and negative
    cases. An unreadable sample is unknown, not an inactive state.
 4. Inspect accesses to promising fields through CE MCP, recording instruction
    bytes, registers and relevant call stacks. Keep raw traces in the local event
-   directory. Correlation alone does not prove that a field represents the event.
+   directory.
 5. Repeat after loading, object replacement and a fresh process. Prefer stable
    code signatures and verified object identity over historical heap addresses.
 6. Compare reports from repeated experiments and record timing, missed transitions
-   and remaining uncertainty. The comparison tool compares evidence, not causality.
+   and remaining uncertainty.
 7. Once the observation is established, implement it within the game observer
    boundary described in `docs/architecture.md`. Hooks capture data only; publish
    events from `poll()` on the owner thread. Add validation for the new behavior.
 
 `check-signatures.lua` currently checks only the mod's treasure and menu pairs.
 New event signatures need explicit support before that script can validate them.
-The supplied scripts do not automatically discover or implement new events.
 
 ## Checking a game update
 
@@ -96,7 +93,7 @@ The supplied scripts do not automatically discover or implement new events.
    `src/game/shared/ui_root_scan.cpp`; `src/pattern_scan.cpp` supplies generic scan semantics.
 3. Check the UI root and pointer chain against `include/game/minimap/memory.hpp`
    and `include/game/menu/memory.hpp`. Investigate the specific failing step
-   rather than starting a general scan for all 0/1 values.
+   using the recorded pointer chain and field offsets.
 4. Verify the launcher store signature and decoded RIP-relative UI slot in
    `src/game/shared/ui_root_scan.cpp`. Root signature scanning is implemented;
    do not restore the historical slot RVA as a fallback.
@@ -130,8 +127,8 @@ ignored build directory if needed:
 python -m pip install --target build/game-research-test-tools lupa==2.8
 ```
 
-These tests do not replace validation against CE and the game. Lua tests are
-skipped when the optional runtime is unavailable.
+Lua tests are skipped when the optional runtime is unavailable. Check the tools
+in CE after changes to their memory reads or recording behavior.
 
 ## Related materials
 

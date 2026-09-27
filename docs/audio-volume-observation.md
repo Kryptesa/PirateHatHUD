@@ -40,16 +40,14 @@ This reduces exposure to intermediate updates; it is not an atomic game snapshot
 
 The application applies linear gain `master_percent * effects_percent / 10000` to
 fresh PCM bytes for every notification, additionally multiplied by the configured
-`[sound] volume_percent / 100` (default 100; zero mutes notifications). No native audio function is called and no
-mixer setting is changed. Wwise's exact slider gain curve is not established.
+`[sound] volume_percent / 100` (default 100; zero mutes notifications).
+Wwise's slider gain curve has not been measured.
 Unknown or muted samples stop sound; a skipped notification is consumed.
 Nonzero changes affect subsequent sounds. WinMM playback remains process-wide.
 
 Cheat Engine probing verified independent changes of both sliders, menu exits and
 resolution after a game restart with different heap addresses, including 50/25.
-These observations do not establish compatibility with later game versions; the
-signature and field layout remain game-specific. Tests cover missing reads, ownership,
-property names, percentage bounds, torn snapshots, signature uniqueness, PCM scaling
+Tests cover missing reads, ownership, property names, percentage bounds, torn snapshots, signature uniqueness, PCM scaling
 and notification suppression. The compiled integration still needs in-game playback
 verification at 100/100, reduced master/effects, and either slider at zero, including
 an optional custom WAV.

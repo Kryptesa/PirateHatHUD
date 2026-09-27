@@ -1,7 +1,6 @@
 # Module boundaries
 
-The project builds one ASI and two static libraries. Modules are linked into the ASI;
-they are not dynamically loaded plugins.
+The project builds one ASI and two static libraries linked into it.
 
 ## Required layout and dependencies
 
@@ -35,7 +34,7 @@ The checker enforces direct literal project includes, layout, selected external
 header restrictions, and the actual direct/interface link dependencies of the three
 production CMake targets. It is not a full C++ dependency analyzer: macro-generated
 includes, transitive standard-library includes, forward declarations and behavioral
-thread/lifetime contracts still require review. Do not use those gaps to bypass a boundary.
+thread/lifetime contracts still require review.
 
 Run `cmake --build build --target architecture-check`, or run
 `cmake -P cmake/Architecture.cmake` without configuring. The default build runs source
@@ -131,8 +130,7 @@ resources is unfinished, rather than blocking Present or waiting for unrelated s
 Each backbuffer owns its command list. Backend recreation resets the submission ring;
 minimized frames do not advance it. Shutdown and resize use a shared
 bounded fence-wait deadline; unresolved submissions retain their resources. Device loss
-stops drawing. Retaining backbuffer references can prevent ResizeBuffers from succeeding;
-this is an explicit failure mode, not a promise of recovery.
+stops drawing. Retaining backbuffer references can prevent ResizeBuffers from succeeding.
 
 The HUD supports only image commands for its prepared icon. Backend texture uploads are
 excluded from draw submission, avoiding the ImGui DX12 backend's unbounded texture-upload
@@ -187,7 +185,6 @@ Another mod can link `game_observers` without linking the indicator or ImGui. Th
 library still requires Windows x64, SafetyHook, and a compatible Crimson Desert build.
 Public observer types hide SafetyHook and game addresses. Scanner headers and patterns
 remain implementation details, even though they live under the shared include directory.
-Packaging/export rules and a stable DLL ABI are deliberately not implemented yet.
 
 Only one observer can install treasure hooks per linked copy of the library. Separate
 mods have separate copies and can still compete over the same instructions. A shared
@@ -298,8 +295,8 @@ or lifecycle are reconfigured. Zero stops current playback without replaying eve
 Each request scales a fresh copy of the prepared 8-bit or 16-bit PCM wave on the
 worker. A successful play retains that copy until replacement or synchronous stop;
 a refused play retains the previous buffer. Gain changes affect the next playback,
-except mute or unknown settings, which queue a stop. No game or Windows mixer settings
-are written. This follows the sliders but does not reproduce Wwise's unknown gain curve.
+except mute or unknown settings, which queue a stop. The PCM gain is linear;
+Wwise's slider gain curve has not been measured.
 See [audio volume observation](audio-volume-observation.md) for the supported layout
 and validation limits.
 Sound policy tests cover transitions, suppression and cooldown;

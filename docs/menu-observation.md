@@ -45,7 +45,7 @@ the existing ObserverHooks retention policy, including failed/partial activation
 Policy tests cover independent event order, 999/1000 ms boundary, cancellation,
 reopening, unknown sources and force_show gating. Memory tests cover identity,
 ambiguity, read failures, invalid bytes and startup outside the game. Application tests
-cover menu lifecycle, failures and DLL retention. These are not in-game verification.
+cover menu lifecycle, failures and DLL retention.
 
 The deterministic two-object fixture uses 24 reads on the cold identity pass and 18
 after immutable RTTI is cached. Partial caching with a writable type name saves the
@@ -57,8 +57,8 @@ The 257-entry fixture with two fully immutable script types reduces reader calls
 
 The compiled ASI passed the in-game check on 2026-09-27 for menu/map
 hiding and delayed return, dialogue/cutscene hiding, the hide-minimap setting,
-save loading and teleport in the requested fresh-process force_show check.
-See [minimap observation](minimap-observation.md) for the scope and evidence limits.
+save loading and teleport with force_show enabled after a fresh game start.
+See [minimap observation](minimap-observation.md) for the recorded scenarios.
 Specific Esc/M/I coverage, startup with an open menu and F9/F10 remain unchecked.
 Game version, graphics settings and logs were not recorded for this pass.
 The return animation timing has not been instrumented; adjust

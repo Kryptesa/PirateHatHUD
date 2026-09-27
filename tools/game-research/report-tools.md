@@ -1,7 +1,6 @@
 # Comparing and collecting reports
 
 These developer utilities use Python's standard library and native PowerShell.
-They do not change game memory or production code.
 
 ## Compare evidence
 
@@ -19,9 +18,8 @@ values are compared exactly, without normalizing spelling or subtracting ASLR.
 Prefer module-relative RVA fields when comparing runs.
 
 Output lists additions, removals and changes, including nested fields. Changes
-in timestamps or capture labels are evidence changes as well. The script does
-not infer game compatibility. Exit code 0 means comparison succeeded, including
-when differences exist; 2 means an invalid report, mismatched tool or I/O error.
+in timestamps or capture labels are included. Exit code 0 means comparison
+succeeded, including when differences exist; 2 means an invalid report, mismatched tool or I/O error.
 Duplicate JSON keys, duplicate check IDs and nonstandard numbers are rejected.
 
 ## Collect selected evidence
@@ -31,8 +29,7 @@ Duplicate JSON keys, duplicate check IDs and nonstandard numbers are rejected.
 ```
 
 The output directory must already exist. Existing archives are never overwritten.
-Select individual files explicitly; the collector does not search for logs or
-recursively include directories. The ZIP contains numbered basenames under
+Pass individual file paths in `-Files`. The ZIP contains numbered basenames under
 `files/` and a `manifest.json` with SHA-256 hashes, sizes, UTC collection time and
 the supplied version labels. It records no source directory paths. Duplicate
 basenames are retained as separate numbered entries.
@@ -40,6 +37,6 @@ basenames are retained as separate numbered entries.
 File contents are copied unchanged. Logs and reports may themselves contain
 personal paths, memory addresses or other sensitive information. Review the
 selected files, filenames and version labels before sharing the archive; the
-collector does not sanitize evidence automatically. Use stable, closed log files:
+archive contains the original file contents. Use stable, closed log files:
 files being written by another process can fail to open. An incomplete archive
 is removed if collection fails.

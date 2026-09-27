@@ -171,7 +171,6 @@ cmake -DCHECK=ON -P cmake/Format.cmake
 
 See [AGENTS.md](AGENTS.md) for contribution guidelines and
 [docs/architecture.md](docs/architecture.md) for module boundaries and hook lifetimes.
-The mod reads the game's treasure state; it doesn't change the counter.
 
 ## Credits
 
@@ -183,4 +182,4 @@ The mod reads the game's treasure state; it doesn't change the counter.
 [MIT](LICENSE). Third-party licenses are included in the archive and listed in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-[Release workflow](docs/releases.md) ? [Release notes](release_notes.md) · [Changelog](CHANGELOG.md)
+[Release workflow](docs/releases.md) · [Release notes](release_notes.md) · [Changelog](CHANGELOG.md)

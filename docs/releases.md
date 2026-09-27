@@ -1,8 +1,7 @@
 # Preparing a release
 
-Releases are prepared explicitly through the **Prepare release** GitHub Actions
-workflow. Ordinary pushes, pull requests and tag pushes do not start it. The
-workflow creates a draft, never publishes it and never updates an existing release.
+Run the **Prepare release** GitHub Actions workflow manually to build a release
+draft. Review and publish the draft from the Releases page.
 
 ## One-time setup
 
@@ -55,8 +54,6 @@ It is the installable asset; GitHub's automatic source archives are not mod pack
 
 Review the draft's notes and ZIP in **Releases**, then publish it manually when
 ready. Upload that same ZIP to Nexus if desired; Nexus publication is separate.
-Publish the source repository when you are ready for the Nexus repository link
-to become accessible to everyone.
 
 A failed build creates no release. A failed upload may leave a partial draft;
 inspect Releases before retrying. Repeated runs for the same tag are serialized,
