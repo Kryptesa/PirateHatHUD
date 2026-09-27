@@ -44,8 +44,9 @@ bool MinimapObserver::start() {
   if (impl_->logger) {
     impl_->logger(
       impl_->running ? LogLevel::info : LogLevel::warn,
-      impl_->running ? "Minimap observer started; native canvas and ancestor draw gates"
-                     : "Minimap observer unavailable: executable/root slot invalid"
+      impl_->running
+        ? "Minimap observer started; native canvas and ancestor draw gates"
+        : "Minimap observer unavailable: executable/root slot invalid"
     );
   }
 
@@ -61,9 +62,11 @@ void MinimapObserver::poll() {
     impl_->logged_sample = true;
     impl_->logger(
       LogLevel::debug,
-      impl_->sampled == MinimapState::unknown     ? "Minimap sample unavailable; icon hidden"
-        : impl_->sampled == MinimapState::visible ? "Minimap visible"
-                                                  : "Minimap hidden"
+      impl_->sampled == MinimapState::unknown
+        ? "Minimap sample unavailable; icon hidden"
+        : impl_->sampled == MinimapState::visible
+          ? "Minimap visible"
+          : "Minimap hidden"
     );
   }
 

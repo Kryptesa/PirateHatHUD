@@ -114,8 +114,9 @@ public:
     exit_.retain |= overlay_started;
     log(
       overlay_started ? LogLevel::info : LogLevel::error,
-      overlay_started ? "DX12 hooks installed; waiting for swapchain"
-                      : "DX12 hooks unavailable; overlay disabled"
+      overlay_started
+        ? "DX12 hooks installed; waiting for swapchain"
+        : "DX12 hooks unavailable; overlay disabled"
     );
 
     exit_.retain |= observer_.start();

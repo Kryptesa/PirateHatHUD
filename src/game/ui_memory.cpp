@@ -90,8 +90,8 @@ UiIdentity identify_ui_script(
 
   const auto identity =
     std::memcmp(actual.data(), name.data(), name.size()) == 0 && actual[name.size()] == '\0'
-    ? UiIdentity::matched
-    : UiIdentity::other;
+      ? UiIdentity::matched
+      : UiIdentity::other;
 
   if (cache_locator && cache->types.size() < 4096) {
     // MSVC type descriptors may live in writable .data: cache the immutable locator,

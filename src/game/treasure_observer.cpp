@@ -69,8 +69,9 @@ TreasureState read_state() {
   }
 
   __try {
-    return *reinterpret_cast<volatile const std::uint32_t*>(address) > 0 ? TreasureState::active
-                                                                         : TreasureState::inactive;
+    return *reinterpret_cast<volatile const std::uint32_t*>(address) > 0
+      ? TreasureState::active
+      : TreasureState::inactive;
   } __except (EXCEPTION_EXECUTE_HANDLER) {
     g_state_base.compare_exchange_strong(base, 0);
 
@@ -146,9 +147,11 @@ bool TreasureObserver::start() {
   const auto scan = find_treasure_hook_sites(module);
 
   if (scan.status != ScanStatus::found) {
-    const char* reason = scan.status == ScanStatus::ambiguous ? "ambiguous"
-      : scan.status == ScanStatus::no_match                   ? "no pair"
-                                                              : "invalid image";
+    const char* reason = scan.status == ScanStatus::ambiguous
+      ? "ambiguous"
+      : scan.status == ScanStatus::no_match
+        ? "no pair"
+        : "invalid image";
     impl.log(LogLevel::warn, (std::string("State hooks disabled: ") + reason).c_str());
     stop();
 

@@ -21,13 +21,13 @@ file(GLOB_RECURSE FORMAT_SOURCES
   "${PROJECT_ROOT}/src/*.cpp" "${PROJECT_ROOT}/src/*.hpp" "${PROJECT_ROOT}/src/*.h"
   "${PROJECT_ROOT}/include/*.hpp" "${PROJECT_ROOT}/include/*.h"
   "${PROJECT_ROOT}/tests/*.cpp" "${PROJECT_ROOT}/tests/*.hpp" "${PROJECT_ROOT}/tests/*.h")
+find_program(FORMAT_PYTHON NAMES python python3 REQUIRED)
 if(CHECK)
-  set(FORMAT_ARGS --dry-run --Werror)
-else()
-  set(FORMAT_ARGS -i)
+  set(FORMAT_ARGS --check)
 endif()
 execute_process(
-  COMMAND "${CLANG_FORMAT}" --style=file --fallback-style=none ${FORMAT_ARGS} ${FORMAT_SOURCES}
+  COMMAND "${FORMAT_PYTHON}" "${PROJECT_ROOT}/tools/format_cpp.py"
+    --clang-format "${CLANG_FORMAT}" ${FORMAT_ARGS} ${FORMAT_SOURCES}
   WORKING_DIRECTORY "${PROJECT_ROOT}"
   RESULT_VARIABLE FORMAT_RESULT)
 if(NOT FORMAT_RESULT EQUAL 0)

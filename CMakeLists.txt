@@ -6,7 +6,7 @@ add_custom_target(architecture-check ALL
   COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Architecture.cmake"
   VERBATIM)
 
-set(CLANG_FORMAT "" CACHE FILEPATH "Path to clang-format 20.1.8")
+set(CLANG_FORMAT "" CACHE FILEPATH "Path to clang-format 22.1.8")
 add_custom_target(format
   COMMAND ${CMAKE_COMMAND} "-DCLANG_FORMAT=${CLANG_FORMAT}"
     -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Format.cmake"
@@ -105,6 +105,9 @@ include(CPack)
 
 include(CTest)
 if(BUILD_TESTING)
+  find_program(PHI_TEST_PYTHON NAMES python python3 REQUIRED)
+  add_test(NAME format_cpp_tests COMMAND "${PHI_TEST_PYTHON}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/format_cpp_tests.py")
   add_test(NAME packaging_tests COMMAND ${CMAKE_COMMAND}
     "-DSTAGE_DIR=$<TARGET_FILE_DIR:PirateHatHUD>/PirateHatHUD"
     "-DEXPECTED_VERSION=${PROJECT_VERSION}"

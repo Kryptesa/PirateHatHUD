@@ -75,8 +75,9 @@ MinimapState sample_minimap(uintptr_t module, const MemoryReader& read, UiIdenti
     // Native draw admission requires these bits and positive computed opacity.
     hidden = hidden || (flags & 0x60) != 0x40 || !(flags & 0x80) || (clip & 0x20) || opacity == 0;
     if (definition == view) {
-      return found_body ? (hidden ? MinimapState::hidden : MinimapState::visible)
-                        : MinimapState::unknown;
+      return found_body
+        ? (hidden ? MinimapState::hidden : MinimapState::visible)
+        : MinimapState::unknown;
     }
     if (!field(definition, 0x38, definition)) {
       return MinimapState::unknown;

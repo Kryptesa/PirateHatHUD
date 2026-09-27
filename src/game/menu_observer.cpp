@@ -56,9 +56,11 @@ struct MenuObserver::Impl {
       if (logger) {
         logger(
           LogLevel::debug,
-          value == MenuState::open       ? "Menu open"
-            : value == MenuState::closed ? "Menu closed"
-                                         : "Menu unknown; icon hidden"
+          value == MenuState::open
+            ? "Menu open"
+            : value == MenuState::closed
+              ? "Menu closed"
+              : "Menu unknown; icon hidden"
         );
       }
 

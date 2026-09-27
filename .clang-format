@@ -14,6 +14,8 @@ BreakBeforeCloseBracketBracedList: true
 BracedInitializerIndentWidth: 2
 BreakBinaryOperations: RespectPrecedence
 AlignOperands: DontAlign
+# tools/format_cpp.py puts multiline conditional branches below their condition.
+BreakBeforeTernaryOperators: true
 ContinuationIndentWidth: 2
 BinPackArguments: false
 BinPackParameters: OnePerLine
