@@ -4,6 +4,7 @@
 #include "game/treasure_observer.hpp"
 #include "game/minimap_observer.hpp"
 #include "game/menu_observer.hpp"
+#include "game/audio_volume_observer.hpp"
 #include "overlay.hpp"
 #include "platform/config.hpp"
 #include "platform/hotkeys.hpp"
@@ -68,13 +69,15 @@ public:
       enabled_(config.enabled),
       observer_(log),
       minimap_(log),
-      menu_(log) {}
+      menu_(log),
+      audio_volume_(log) {}
 
   ~AppSession() noexcept {
     finish();
   }
 
-  void run(const Config& config, const std::wstring& folder) {
+  void run(const Config& config, const std::wstring& folder, const std::wstring& config_path) {
+    SoundVolumeConfig sound_volume(config_path, config.sound_volume_percent);
     const auto sound_path = folder + L"PirateHatHUD_treasure.wav";
     const bool custom_sound = GetFileAttributesW(sound_path.c_str()) != INVALID_FILE_ATTRIBUTES;
 
@@ -122,11 +125,17 @@ public:
     exit_.retain |= observer_.start();
     minimap_.start();
     exit_.retain |= menu_.start();
+    if (config.sound_enabled) {
+      audio_volume_.start();
+    }
 
     for (;;) {
       observer_.poll();
       minimap_.poll();
       menu_.poll();
+      if (config.sound_enabled) {
+        audio_volume_.poll();
+      }
       indicator_.update();
 
       const auto actions = poll_hotkeys(config.toggle_key, config.unload_key);
@@ -149,12 +158,19 @@ public:
         menu_state_ == MenuState::closed &&
         game_is_foreground();
 
-      if (!sound_allowed) {
+      const auto volume = audio_volume_.state();
+      const auto volume_percent = sound_volume.poll();
+      const float gain = volume.known
+        ? static_cast<float>(volume.master_percent * volume.effects_percent) /
+          10000.0f *
+          (volume_percent / 100.0f)
+        : 0.0f;
+      if (!sound_allowed || gain == 0.0f) {
         sound_.stop();
       }
 
-      if (sound_policy_.update(treasure_state_, sound_allowed)) {
-        sound_.play();
+      if (sound_policy_.update(treasure_state_, sound_allowed) && gain > 0.0f) {
+        sound_.play(gain);
       }
 
       // Keep menu visibility sampling responsive without busy-waiting. Windows may
@@ -174,6 +190,7 @@ private:
     exit_.retain |= observer_stop.module_must_remain_loaded || !observer_stop.hooks_disabled;
 
     minimap_.stop();
+    audio_volume_.stop();
     const auto menu_stop = menu_.stop();
     exit_.retain |= menu_stop.module_must_remain_loaded || !menu_stop.hooks_disabled;
 
@@ -209,6 +226,7 @@ private:
   TreasureObserver observer_;
   MinimapObserver minimap_;
   MenuObserver menu_;
+  AudioVolumeObserver audio_volume_;
   Subscription menu_subscription_;
   Subscription subscription_;
   Subscription minimap_subscription_;
@@ -255,7 +273,7 @@ AppExitDisposition run_app(HMODULE module) noexcept {
         log(LogLevel::error, "Embedded icon or PirateHatHUD_treasure.png invalid; mod not started");
       } else {
         AppSession session(config, exit);
-        session.run(config, folder);
+        session.run(config, folder, legacy_config ? legacy_config_path : config_path);
       }
 
       log(LogLevel::info, exit.retain ? "Stopped; DLL retained" : "Stopped; DLL unload allowed");

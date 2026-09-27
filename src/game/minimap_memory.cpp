@@ -5,7 +5,7 @@
 #include <cstring>
 
 namespace phi::detail {
-// Follow the native canvas binding and its live ancestors, not a sibling status icon.
+// Follow the native canvas binding and its live ancestors.
 MinimapState sample_minimap(uintptr_t module, const MemoryReader& read, UiIdentityCache* cache) {
   constexpr char root_type[] = ".?AVUIGamePlayControlRootMiniMap@uiCommonScript@pa@@";
   const auto root = find_ui_root(module, read, root_type, cache);

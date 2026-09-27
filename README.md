@@ -42,6 +42,7 @@ show_delay_ms=1000
 [sound]
 enabled=1
 cooldown_ms=1000
+volume_percent=100
 
 [hotkeys]
 toggle=F9
@@ -66,6 +67,12 @@ max_files=3
   treasure. It still hides in menus and when the minimap is off.
 - **Sound:** `[sound] enabled=0` disables the notification. `cooldown_ms` sets the
   minimum interval between sounds (0 to 60000 ms; default 1000).
+  `volume_percent` further scales notification volume (0 to 100; default 100).
+  For example, 50 halves its amplitude after applying the game sliders; 0 mutes it.
+  At startup, values outside this range fall back to 100. Saved changes to
+  `volume_percent` are checked once per second and affect the next notification;
+  zero stops current playback. Missing or invalid values during reload retain the
+  last working volume. Other settings still require restarting the game.
 
 The sound plays once when observed treasure detection changes from inactive to active.
 On startup, an already active perk also notifies once when gameplay first becomes
@@ -73,6 +80,12 @@ eligible for sound. After this initial sample, detection while the mod is disabl
 the game is unfocused, a menu is open or unknown, or the minimap is hidden or unknown
 is silent and is not replayed later. Sound is independent of the icon's return delay;
 `force_show` does not trigger it.
+
+Both embedded and custom notification sounds follow the game's overall and effects
+volume sliders. Either slider at zero mutes the notification. If the game settings
+cannot be read safely, sound is suppressed and a diagnostic is logged; the icon still
+works. Restoring volume does not replay missed notifications. Nonzero changes apply
+to the next sound, using linear scaling of both sliders.
 
 Hotkeys can be set to F8, F9, F10 or F11.
 

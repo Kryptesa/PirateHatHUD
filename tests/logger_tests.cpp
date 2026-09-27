@@ -167,6 +167,14 @@ int main() {
   const auto defaults = read_config((folder / "missing.ini").wstring());
   CHECK(defaults.sound_enabled);
   CHECK(defaults.sound_cooldown_ms == 1000);
+  CHECK(defaults.sound_volume_percent == 100);
+  for (int volume : {0, 25, 100, -1, 101}) {
+    std::ofstream(ini) << "[sound]\nvolume_percent=" << volume << "\n";
+    CHECK(
+      read_config(ini.wstring()).sound_volume_percent ==
+      (volume >= 0 && volume <= 100 ? volume : 100)
+    );
+  }
 
   std::ofstream(ini) << "[sound]\nenabled=0\ncooldown_ms=2500\n";
   auto sound_settings = read_config(ini.wstring());
@@ -186,4 +194,35 @@ int main() {
 
   std::ofstream(ini) << "[sound]\ncooldown_ms=60001\n";
   CHECK(read_config(ini.wstring()).sound_cooldown_ms == 1000);
+  using Clock = std::chrono::steady_clock;
+  const auto now = Clock::now();
+  SoundVolumeConfig live(ini.wstring(), 75);
+  auto stamp = std::filesystem::last_write_time(ini);
+  const auto save_volume = [&](const char* contents) {
+    std::ofstream(ini) << contents;
+    stamp += std::chrono::seconds(2);
+    std::filesystem::last_write_time(ini, stamp);
+  };
+  save_volume("[sound]\nvolume_percent=25\n");
+  CHECK(live.poll(now) == 25);
+  save_volume("[sound]\nvolume_percent=50\n"); // Same-length edit must still be noticed.
+  CHECK(live.poll(now + std::chrono::milliseconds(500)) == 25);
+  CHECK(live.poll(now + std::chrono::seconds(1)) == 50);
+  save_volume("[sound]\nvolume_percent=0\n");
+  CHECK(live.poll(now + std::chrono::seconds(2)) == 0);
+  unsigned second = 3;
+  for (const auto* invalid :
+    {"",
+      "[sound]\n",
+      "[sound]\nvolume_percent=nope\n",
+      "[sound]\nvolume_percent=101\n",
+      "[sound]\nvolume_percent=-1\n",
+      "[sound]\nvolume_percent=25junk\n"}) {
+    save_volume(invalid);
+    CHECK(live.poll(now + std::chrono::seconds(second++)) == 0);
+  }
+  std::filesystem::remove(ini);
+  CHECK(live.poll(now + std::chrono::seconds(second++)) == 0);
+  save_volume("[sound]\nvolume_percent=100\n");
+  CHECK(live.poll(now + std::chrono::seconds(second++)) == 100);
 }

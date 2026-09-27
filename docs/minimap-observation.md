@@ -65,10 +65,10 @@ plus the old proxy and menu state. All 20 fields remained readable:
 - Returning to gameplay and disabling hiding restored the relevant flags.
 
 A second capture sampled 270 times over 42 seconds at 150 ms intervals, with no
-unreadable fields. During a user-triggered dialogue/cutscene, the view changed
+unreadable fields. During a dialogue/cutscene, the view changed
 D0 -> 90 -> D0 while the menu byte stayed zero. Sampled opacity fell to about
-0.0885, then returned to 1.0. The user confirmed that the minimap disappeared
-and reappeared. Positive opacity alone would incorrectly report visible;
+0.0885, then returned to 1.0. The minimap disappeared and reappeared during
+the same sequence. Positive opacity alone would incorrectly report visible;
 the view's rejected draw flag supplies the necessary ancestor gating.
 This covers one sequence, not all dialogue or cutscene types.
 
@@ -83,11 +83,15 @@ Unit tests cover canvas/ancestor draw gates, clipping, opacity, failed reads,
 exact names, ownership, nulls, cycles, bounded depth, duplicate roots, outer
 array reordering, replaced render roots/canvases and startup without the game.
 
-The newly compiled observer still needs in-game validation after a fresh process
-start and save reload: menu/inventory, settings, dialogue/cutscene, teleport,
-force_show, F9/F10 and normal treasure detection. Record game version, graphics
-settings and relevant logs. Earlier restart/teleport checks applied to the old
-proxy; they do not establish compatibility of this replacement.
+The compiled ASI passed the in-game check on 2026-09-27 after a full game restart
+with force_show enabled: visible gameplay; hiding in menus and the map; delayed
+return; the hide-minimap setting; dialogue/cutscene hiding and return; continued
+operation after save loading and teleport. Return timing was checked visually,
+without an instrumented measurement. Game version, graphics settings and logs
+were not recorded for this pass.
+
+Remaining compiled checks: F9/F10 and normal treasure detection with force_show
+disabled. Compatibility with future game updates remains unverified.
 
 MinimapObserver belongs to game_observers and has no rendering/config dependency.
 It publishes typed state changes from poll on the owner thread. Stop resets state

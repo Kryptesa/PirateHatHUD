@@ -26,8 +26,9 @@ public:
 
   bool prepare_embedded();
 
+  // Queues a linear PCM gain in [0, 1]; zero queues a stop.
   // Returns whether a request was queued, not whether the device played it.
-  bool play() noexcept;
+  bool play(float gain = 1.0f) noexcept;
 
   void stop() noexcept;
 
@@ -44,6 +45,7 @@ private:
   std::mutex mutex_;
   std::condition_variable wake_;
   Command pending_ = Command::none;
+  float pending_gain_ = 1.0f;
   std::thread worker_;
 };
 } // namespace phi

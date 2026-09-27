@@ -55,7 +55,11 @@ size in game before changing the polling interval or caching live root identitie
 The 257-entry fixture with two fully immutable script types reduces reader calls from
 2064 to 1293 while still inspecting every live entry and detecting duplicates.
 
-Pending compiled integration checks: Esc/M/I, cutscenes, minimap setting disabled,
-startup with an open menu, F9/F10, teleport and fresh process restart. Record game
-version, graphics settings and logs. Measure any map animation remaining after return
-and adjust `[indicator] show_delay_ms` (default 1000, valid 0..60000).
+The compiled ASI passed the in-game check on 2026-09-27 for menu/map
+hiding and delayed return, dialogue/cutscene hiding, the hide-minimap setting,
+save loading and teleport in the requested fresh-process force_show check.
+See [minimap observation](minimap-observation.md) for the scope and evidence limits.
+Specific Esc/M/I coverage, startup with an open menu and F9/F10 remain unchecked.
+Game version, graphics settings and logs were not recorded for this pass.
+The return animation timing has not been instrumented; adjust
+`[indicator] show_delay_ms` (default 1000, valid 0..60000) if needed.

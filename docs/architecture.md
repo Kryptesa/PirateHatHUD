@@ -51,7 +51,7 @@ in the same task, including any constraints passed to delegated agents.
   `game/patterns.hpp` holds the treasure constants. These use the generic scanner
   and expose explicit functions instead of boolean selectors.
 - `game_observers`: game-specific scanning, hooks and safe memory reads. Public entry
-  points: `include/game/treasure_observer.hpp` `include/game/minimap_observer.hpp` and `include/game/menu_observer.hpp`. No HUD, configuration or DirectX dependency.
+  points: `include/game/treasure_observer.hpp` `include/game/minimap_observer.hpp` `include/game/menu_observer.hpp` and `include/game/audio_volume_observer.hpp`. No HUD, configuration or DirectX dependency.
   Internal `ui_memory`, `minimap_memory` and `menu_memory` headers declare sampling
   interfaces and shared data types; their implementations live in matching `.cpp`
   files. A shared `MemoryReader` callback allows simulated-memory tests to exercise
@@ -265,7 +265,32 @@ destruction join any existing worker, which stops playback before PCM bytes are 
 The worker is always joined before application exit and possible DLL unload.
 The default WAV is embedded as RCDATA resource 102 in the ASI. An optional external
 `PirateHatHUD_treasure.wav` overrides it; no standalone WAV is packaged. Both paths
-validate PCM bytes before playback. Sound policy tests cover transitions, suppression and cooldown;
+validate PCM bytes before playback.
+The embedded WAV was attenuated twice by a PCM gain of 0.75, for a combined gain
+of approximately 0.5625 (about -5 dB relative to the original); custom WAV
+files retain their own base amplitude. `AudioVolumeObserver` samples the game's master
+and effects percentages at up to 20 Hz. It resolves an engine slot by unique signature,
+validates object ownership and exact property names, and requires two matching live
+option sets in two complete reads. Heap addresses are never cached. Unknown settings
+or either slider at zero suppress playback and stop the current sound without deferring
+notifications. This hook-free observer can restart after stop.
+
+Application composition converts both percentages to linear PCM gain
+(`master * effects / 10000`), multiplies it by `[sound] volume_percent / 100`
+(default 100, range 0..100), and passes it to the platform player. Game observation
+has no audio playback dependency, and the player has no game memory dependency.
+`platform/config` checks the selected INI's modification time and size at most once
+per second on the owner thread and reloads only `volume_percent`. Missing, incomplete
+or invalid values retain the last valid volume and are retried. No observer settings
+or lifecycle are reconfigured. Zero stops current playback without replaying events.
+Each request scales a fresh copy of the prepared 8-bit or 16-bit PCM wave on the
+worker. A successful play retains that copy until replacement or synchronous stop;
+a refused play retains the previous buffer. Gain changes affect the next playback,
+except mute or unknown settings, which queue a stop. No game or Windows mixer settings
+are written. This follows the sliders but does not reproduce Wwise's unknown gain curve.
+See [audio volume observation](audio-volume-observation.md) for the supported layout
+and validation limits.
+Sound policy tests cover transitions, suppression and cooldown;
 actual playback, focus changes and notification timing require in-game verification.
 The player preloads bounded, validated PCM RIFF bytes and retains them until a
 synchronous PlaySound stop completes on the audio worker. Tests use a blocked audio

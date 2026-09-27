@@ -8,6 +8,8 @@
 #include <fstream>
 #include <future>
 #include <mutex>
+#include <limits>
+#include <vector>
 #include <thread>
 #include <type_traits>
 
@@ -27,6 +29,8 @@ struct BlockingAudio {
   bool bytes_valid = true;
   unsigned plays = 0;
   unsigned stops = 0;
+  const uint8_t* retained = nullptr;
+  std::vector<int> samples;
   std::thread::id worker;
 
   bool wait_for(unsigned expected_plays, unsigned expected_stops) {
@@ -57,7 +61,17 @@ bool blocking_playback(const std::uint8_t* bytes) noexcept {
     audio.changed.notify_all();
     audio.changed.wait(lock, [] { return audio.release_play; });
     audio.bytes_valid &= std::memcmp(bytes, "RIFF", 4) == 0;
+    audio.samples.push_back(bytes[44] | (bytes[45] << 8));
+    if (audio.plays == 3) {
+      // A busy device refuses the new buffer; the prior buffer must survive.
+      return false;
+    }
+    audio.retained = bytes;
   } else {
+    audio.bytes_valid &= audio.retained && std::memcmp(audio.retained, "RIFF", 4) == 0;
+    audio.bytes_valid &=
+      (audio.retained[44] | (audio.retained[45] << 8)) == audio.samples[audio.stops];
+    audio.retained = nullptr;
     ++audio.stops;
     audio.changed.notify_all();
     audio.changed.wait(lock, [] { return audio.release_stop; });
@@ -179,11 +193,18 @@ int main() {
   CHECK(fixture.write(valid));
   CHECK(player.prepare(fixture.path.wstring()));
 
+  auto audible = valid;
+  audible[44] = 0x10;
+  audible[45] = 0x27; // 10000: verify each playback scales the original sample.
+  CHECK(fixture.write(audible));
   {
     phi::SoundPlayer threaded(blocking_playback);
     ReleaseAudio release_on_failure;
     CHECK(threaded.prepare(fixture.path.wstring()));
-    CHECK(threaded.play());
+    CHECK(!threaded.play(-1));
+    CHECK(!threaded.play(1.1f));
+    CHECK(!threaded.play(std::numeric_limits<float>::quiet_NaN()));
+    CHECK(threaded.play(0.5f));
     CHECK(audio.wait_for(1, 0));
 
     // Slow audio startup must not make stop wait on the device or its mutex.
@@ -196,16 +217,19 @@ int main() {
     CHECK(audio.wait_for(1, 1));
 
     // Slow audio shutdown must not prevent a new notification being queued.
-    auto play = std::async(std::launch::async, [&] { return threaded.play(); });
+    auto play = std::async(std::launch::async, [&] { return threaded.play(0.25f); });
     const bool play_ready =
       play.wait_for(std::chrono::milliseconds(500)) == std::future_status::ready;
     audio.release(false, true);
     CHECK(play.get());
     CHECK(play_ready);
     CHECK(audio.wait_for(2, 1));
+    CHECK(threaded.play(0.125f));
+    CHECK(audio.wait_for(3, 1));
   } // Destruction joins the worker and stops playback before freeing PCM bytes.
-  CHECK(audio.plays == 2 && audio.stops == 2);
+  CHECK(audio.plays == 3 && audio.stops == 2);
   CHECK(audio.bytes_valid);
+  CHECK(audio.samples == std::vector<int>({5000, 2500, 1250}));
   CHECK(audio.worker != std::this_thread::get_id());
 
   return 0;

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Added `[sound] volume_percent` (0 to 100, default 100) for additional notification
+  volume control after the game sliders. Saved volume changes apply without a restart.
+
+- Notification sound now follows the game's overall and effects volume sliders,
+  including custom WAV files. Muted or unreadable settings suppress sound without
+  replaying notifications later.
+
 ## 0.5.0 — 2026-09-27
 
 - Added a single sound notification when treasure detection becomes active.

@@ -1,5 +1,8 @@
 #include "platform/config.hpp"
 #include <windows.h>
+#include <cwchar>
+#include <cerrno>
+#include <utility>
 
 namespace phi {
 
@@ -64,6 +67,13 @@ Config read_config(const std::wstring& path) {
     config.sound_cooldown_ms = defaults.sound_cooldown_ms;
   }
 
+  config.sound_volume_percent = static_cast<int>(
+    GetPrivateProfileIntW(L"sound", L"volume_percent", defaults.sound_volume_percent, path.c_str())
+  );
+  if (config.sound_volume_percent < 0 || config.sound_volume_percent > 100) {
+    config.sound_volume_percent = defaults.sound_volume_percent;
+  }
+
   wchar_t key[16]{};
   GetPrivateProfileStringW(L"hotkeys", L"toggle", L"", key, 16, path.c_str());
   config.toggle_key = key_from_name(key, config.toggle_key);
@@ -92,5 +102,50 @@ Config read_config(const std::wstring& path) {
   }
 
   return config;
+}
+
+SoundVolumeConfig::SoundVolumeConfig(std::wstring path, int initial_volume)
+  : path_(std::move(path)),
+    volume_(initial_volume) {}
+
+int SoundVolumeConfig::poll(std::chrono::steady_clock::time_point now) {
+  if (now < next_check_) {
+    return volume_;
+  }
+  next_check_ = now + std::chrono::seconds(1);
+
+  std::error_code error;
+  const auto modified = std::filesystem::last_write_time(path_, error);
+  if (error) {
+    return volume_;
+  }
+  const auto size = std::filesystem::file_size(path_, error);
+  if (error || (observed_ && modified == modified_ && size == size_)) {
+    return volume_;
+  }
+
+  wchar_t value[32]{};
+  const auto length =
+    GetPrivateProfileStringW(L"sound", L"volume_percent", L"", value, 32, path_.c_str());
+  wchar_t* end = nullptr;
+  errno = 0;
+  const auto parsed = std::wcstol(value, &end, 10);
+  if (
+    length == 0 ||
+    length >= 31 ||
+    end == value ||
+    *end ||
+    errno == ERANGE ||
+    parsed < 0 ||
+    parsed > 100
+  ) {
+    // Retry on the next check: editors may temporarily truncate or replace the file.
+    return volume_;
+  }
+  volume_ = static_cast<int>(parsed);
+  modified_ = modified;
+  size_ = size;
+  observed_ = true;
+  return volume_;
 }
 } // namespace phi

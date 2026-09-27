@@ -2,6 +2,7 @@
 #include "game/treasure_observer.hpp"
 #include "game/minimap_observer.hpp"
 #include "game/menu_observer.hpp"
+#include "game/audio_volume_observer.hpp"
 #include "overlay.hpp"
 #include "platform/config.hpp"
 #include "platform/hotkeys.hpp"
@@ -36,8 +37,12 @@ struct Scenario {
   bool force_show = false;
   bool enabled = true;
   bool sound_enabled = true;
+  int sound_volume_percent = 100;
+  std::vector<int> live_volumes;
   bool foreground = true;
   bool sound_valid = true;
+  std::vector<phi::AudioVolumeState> volumes = {{true, 100, 100}};
+  std::vector<float> sound_gains;
   unsigned polls = 0;
   std::vector<phi::TreasureState> treasure_states = {phi::TreasureState::active};
   bool overlay_started = false;
@@ -100,6 +105,24 @@ phi::AppExitDisposition run() {
 } // namespace
 
 namespace phi {
+struct AudioVolumeObserver::Impl {};
+AudioVolumeObserver::AudioVolumeObserver(LogCallback)
+  : impl_(std::make_unique<Impl>()) {}
+AudioVolumeObserver::~AudioVolumeObserver() = default;
+bool AudioVolumeObserver::start() {
+  step("audio_volume_start");
+  return true;
+}
+void AudioVolumeObserver::poll() {
+  step("audio_volume_poll");
+}
+void AudioVolumeObserver::stop() noexcept {
+  scenario.calls.emplace_back("audio_volume_stop");
+}
+AudioVolumeState AudioVolumeObserver::state() const {
+  return scenario.volumes
+    [std::min<size_t>(scenario.polls ? scenario.polls - 1 : 0, scenario.volumes.size() - 1)];
+}
 struct MenuObserver::Impl {
   Signal<MenuStateChanged> changes;
   bool stopped = false;
@@ -270,6 +293,17 @@ void log(LogLevel, const char*) {
   step("log");
 }
 
+SoundVolumeConfig::SoundVolumeConfig(std::wstring path, int initial_volume)
+  : path_(std::move(path)),
+    volume_(initial_volume) {}
+int SoundVolumeConfig::poll(std::chrono::steady_clock::time_point) {
+  if (!scenario.live_volumes.empty()) {
+    volume_ =
+      scenario.live_volumes[std::min<size_t>(scenario.polls - 1, scenario.live_volumes.size() - 1)];
+  }
+  return volume_;
+}
+
 Config read_config(const std::wstring& path) {
   scenario.config_path = path;
   step("config");
@@ -277,6 +311,7 @@ Config read_config(const std::wstring& path) {
   config.force_show = scenario.force_show;
   config.enabled = scenario.enabled;
   config.sound_enabled = scenario.sound_enabled;
+  config.sound_volume_percent = scenario.sound_volume_percent;
   config.show_delay_ms = 0;
 
   return config;
@@ -308,7 +343,8 @@ bool SoundPlayer::prepare_embedded() {
   return scenario.sound_valid;
 }
 
-bool SoundPlayer::play() noexcept {
+bool SoundPlayer::play(float gain) noexcept {
+  scenario.sound_gains.push_back(gain);
   scenario.calls.emplace_back("sound_play");
 
   return scenario.sound_valid;
@@ -448,6 +484,50 @@ int main() {
   CHECK(run() == AppExitDisposition::unload_allowed);
   CHECK(std::count(scenario.calls.begin(), scenario.calls.end(), "sound_play") == 1);
 
+  scenario = {};
+  scenario.volumes = {{true, 50, 25}};
+  scenario.treasure_states = {phi::TreasureState::active, phi::TreasureState::active};
+  CHECK(run() == AppExitDisposition::unload_allowed);
+  CHECK(scenario.sound_gains == std::vector<float>{0.125f});
+  CHECK(before("audio_volume_poll", "sound_play"));
+  CHECK(before("audio_volume_stop", "overlay_stop"));
+
+  scenario = {};
+  scenario.volumes = {{true, 50, 25}};
+  scenario.sound_volume_percent = 50;
+  scenario.treasure_states = {phi::TreasureState::active, phi::TreasureState::active};
+  CHECK(run() == AppExitDisposition::unload_allowed);
+  CHECK(scenario.sound_gains == std::vector<float>{0.0625f});
+
+  scenario = {};
+  scenario.sound_volume_percent = 0;
+  scenario.treasure_states = {phi::TreasureState::active, phi::TreasureState::active};
+  CHECK(run() == AppExitDisposition::unload_allowed);
+  CHECK(!has("sound_play"));
+
+  scenario = {};
+  scenario.live_volumes = {0, 50, 0, 100};
+  scenario.treasure_states = {
+    phi::TreasureState::inactive,
+    phi::TreasureState::active,
+    phi::TreasureState::active,
+    phi::TreasureState::active
+  };
+  CHECK(run() == AppExitDisposition::unload_allowed);
+  CHECK(scenario.sound_gains == std::vector<float>{0.5f});
+
+  for (const auto volume :
+    {phi::AudioVolumeState{},
+      phi::AudioVolumeState{true, 0, 100},
+      phi::AudioVolumeState{true, 100, 0}}) {
+    scenario = {};
+    scenario.volumes = {volume, {true, 100, 100}};
+    scenario.treasure_states =
+      {phi::TreasureState::active, phi::TreasureState::active, phi::TreasureState::active};
+    CHECK(run() == AppExitDisposition::unload_allowed);
+    CHECK(!has("sound_play")); // Restoring volume does not replay the consumed notification.
+  }
+
   for (int suppression = 0; suppression < 7; ++suppression) {
     scenario = {};
     scenario.treasure_states = {
@@ -503,6 +583,8 @@ int main() {
          "diagnostics",
          "hud_runtime",
          "sound_prepare",
+         "audio_volume_start",
+         "audio_volume_poll",
        }) {
     scenario = {};
     scenario.fail = failure;

@@ -47,6 +47,7 @@ target_compile_definitions(imgui_static PRIVATE IMGUI_DISABLE_OBSOLETE_FUNCTIONS
 
 add_library(game_observers STATIC src/game/treasure_observer.cpp src/game/minimap_observer.cpp
   src/game/menu_observer.cpp src/game/ui_memory.cpp src/game/minimap_memory.cpp src/game/menu_memory.cpp
+  src/game/audio_volume_observer.cpp src/game/audio_volume_memory.cpp src/game/audio_volume_scan.cpp
   src/game/memory_reader.cpp src/game/hook_scan.cpp src/game/ui_root_scan.cpp src/pattern_scan.cpp)
 target_include_directories(game_observers PUBLIC include)
 target_compile_definitions(game_observers PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
@@ -62,7 +63,7 @@ add_library(PirateHatHUD SHARED "${CMAKE_CURRENT_BINARY_DIR}/generated/icon.rc"
   src/render/dxgi_hooks.cpp src/render/dx12_renderer.cpp src/render/dx12_frames.cpp
   src/render/dx12_texture.cpp src/render/dx12_hdr.cpp src/render/hdr_bytecode.cpp
   src/render/image.cpp src/render/hud_draw.cpp
-  src/platform/config.cpp src/platform/hotkeys.cpp src/platform/logger.cpp src/platform/sound.cpp)
+  src/platform/config.cpp src/platform/hotkeys.cpp src/platform/logger.cpp src/platform/sound.cpp src/platform/wave_pcm.cpp)
 target_include_directories(PirateHatHUD PRIVATE include)
 target_compile_definitions(PirateHatHUD PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE
   PHI_VERSION="${PROJECT_VERSION}")
@@ -121,6 +122,12 @@ if(BUILD_TESTING)
   target_include_directories(scanner_tests PRIVATE include)
   target_compile_definitions(scanner_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
   add_test(NAME scanner_tests COMMAND scanner_tests)
+  add_executable(audio_volume_tests tests/audio_volume_tests.cpp)
+  target_link_libraries(audio_volume_tests PRIVATE game_observers)
+  add_test(NAME audio_volume_tests COMMAND audio_volume_tests)
+  add_executable(wave_pcm_tests tests/wave_pcm_tests.cpp src/platform/wave_pcm.cpp)
+  target_include_directories(wave_pcm_tests PRIVATE include)
+  add_test(NAME wave_pcm_tests COMMAND wave_pcm_tests)
   add_executable(events_tests tests/events_tests.cpp)
   target_include_directories(events_tests PRIVATE include)
   add_test(NAME events_tests COMMAND events_tests)
@@ -130,7 +137,7 @@ if(BUILD_TESTING)
   add_executable(treasure_sound_tests tests/treasure_sound_tests.cpp)
   target_link_libraries(treasure_sound_tests PRIVATE treasure_indicator)
   add_test(NAME treasure_sound_tests COMMAND treasure_sound_tests)
-  add_executable(sound_tests tests/sound_tests.cpp src/platform/sound.cpp
+  add_executable(sound_tests tests/sound_tests.cpp src/platform/sound.cpp src/platform/wave_pcm.cpp
     "${CMAKE_CURRENT_BINARY_DIR}/generated/icon.rc")
   target_include_directories(sound_tests PRIVATE include)
   target_compile_definitions(sound_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
