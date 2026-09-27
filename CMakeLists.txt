@@ -46,7 +46,7 @@ target_include_directories(imgui_static PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURC
 target_compile_definitions(imgui_static PRIVATE IMGUI_DISABLE_OBSOLETE_FUNCTIONS)
 
 add_library(game_observers STATIC src/game/treasure_observer.cpp src/game/minimap_observer.cpp
-  src/game/menu_observer.cpp src/game/ui_memory.cpp src/game/memory_reader.cpp src/pattern_scan.cpp)
+  src/game/menu_observer.cpp src/game/ui_memory.cpp src/game/memory_reader.cpp src/game/hook_scan.cpp src/game/ui_root_scan.cpp src/pattern_scan.cpp)
 target_include_directories(game_observers PUBLIC include)
 target_compile_definitions(game_observers PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
 target_compile_options(game_observers PRIVATE /W4 /EHsc)
@@ -113,7 +113,7 @@ if(BUILD_TESTING)
   add_test(NAME architecture_checker_tests COMMAND ${CMAKE_COMMAND}
     "-DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/architecture-tests"
     -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/ArchitectureTests.cmake")
-  add_executable(scanner_tests tests/scanner_tests.cpp src/pattern_scan.cpp)
+  add_executable(scanner_tests tests/scanner_tests.cpp src/game/hook_scan.cpp src/game/ui_root_scan.cpp src/pattern_scan.cpp)
   target_include_directories(scanner_tests PRIVATE include)
   target_compile_definitions(scanner_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
   add_test(NAME scanner_tests COMMAND scanner_tests)

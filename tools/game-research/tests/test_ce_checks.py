@@ -116,6 +116,20 @@ class CheckTests(unittest.TestCase):
     """)
     self.assertEqual(self.run_tool()["status"], "unknown")
 
+  def test_invalid_source_mask_is_unknown(self):
+    self.lua.execute("""
+     local open = io.open
+     io.open = function(path, mode)
+      if path:match('hook_scan.cpp$') then
+       local file = open(path, mode); local text = file:read('*a'); file:close()
+       text = text:gsub('clear_mask%[%]%s*=%s*{.-}', 'clear_mask[] = {1}')
+       return {read = function() return text end, close = function() end}
+      end
+      return open(path, mode)
+     end
+    """)
+    self.assertEqual(self.run_tool()["status"], "unknown")
+
   def test_ui_null_root_is_unknown(self):
     report = self.run_tool("inspect-ui")
     self.assertEqual(report["status"], "unknown")

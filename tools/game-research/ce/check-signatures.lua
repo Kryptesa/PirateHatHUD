@@ -31,16 +31,18 @@ local function opcode(text, name)
   assert(#bytes > 0, 'Empty opcode'); return bytes
 end
 local function main()
-  local patterns, scanner = source('include/patterns.hpp'), source('src/pattern_scan.cpp')
+  local patterns, scanner = source('include/game/patterns.hpp'), source('src/pattern_scan.cpp')
+  local hooks, root = source('src/game/hook_scan.cpp'), source('src/game/ui_root_scan.cpp')
   -- Fail on source refactors rather than silently keeping stale copied definitions.
   assert(scanner:find('section.Misc.VirtualSize', 1, true), 'Review scanner section semantics')
-  assert(scanner:find('offset + delta', 1, true), 'Review scanner pair semantics')
+  assert(scanner:find('offset + query.delta', 1, true), 'Review scanner pair semantics')
   local definitions = {
     {id = 'treasure', first = opcode(patterns, 'kEnter'), last = opcode(patterns, 'kLeave'),
      delta = number(assert(patterns:match('kExpectedDelta%s*=%s*([^;]+)')))},
-    {id = 'menu', first = opcode(scanner, 'clear'), last = opcode(scanner, 'set'),
-     delta = number(assert(scanner:match('delta%s*=%s*menu%s*%?%s*(%w+)')))},
-    {id = 'ui-root', first = opcode(scanner, 'context'), last = {}, delta = 0}
+    {id = 'menu', first = opcode(hooks, 'clear'), last = opcode(hooks, 'set'),
+     first_mask = opcode(hooks, 'clear_mask'), last_mask = opcode(hooks, 'set_mask'),
+     delta = number(assert(hooks:match('kMenuDelta%s*=%s*([^;]+)')))},
+    {id = 'ui-root', first = opcode(root, 'context'), first_mask = opcode(root, 'context_mask'), last = {}, delta = 0}
   }
   local base = safe(getAddressSafe, 'CrimsonDesert.exe')
   assert(base and base > 0, 'Attach CE to CrimsonDesert.exe')
@@ -67,6 +69,12 @@ local function main()
   end
   assert(#sections > 0, 'No executable sections')
   for _, definition in ipairs(definitions) do
+    for _, pair in ipairs({{definition.first, definition.first_mask}, {definition.last, definition.last_mask}}) do
+      if pair[2] then
+        assert(#pair[1] == #pair[2], 'Invalid mask length')
+        for _, byte in ipairs(pair[2]) do assert(byte == 0 or byte == 1, 'Invalid mask byte') end
+      end
+    end
     local matches = json.array()
     for _, section in ipairs(sections) do
       if #matches >= 2 then break end
@@ -80,10 +88,11 @@ local function main()
         assert(start + length <= section.size, 'Unsupported first opcode length')
         local bytes = safe(readBytes, section.address + start, length, true)
         assert(type(bytes) == 'table' and #bytes == length, 'Unreadable executable section')
-        local function at(offset, expected)
-          for j, byte in ipairs(expected) do local masked = definition.id == 'menu' and j >= 3 and j <= 6 or
-              definition.id == 'ui-root' and (j >= 5 and j <= 8 or j >= 15 and j <= 18 or j >= 21 and j <= 24)
-            if not masked and bytes[offset + j] ~= byte then return false end end
+        local function at(offset, expected, mask)
+          for j, byte in ipairs(expected) do
+            local masked = mask and mask[j] == 0
+            if not masked and bytes[offset + j] ~= byte then return false end
+          end
           return true
         end
         for offset = 0, starts - 1 do
@@ -97,7 +106,7 @@ local function main()
             local d = displacement(offset)
             valid = d > 0 and d <= 0x10000 and d == displacement(offset + definition.delta)
           end
-          if valid and at(offset, definition.first) and at(offset + definition.delta, definition.last) then
+          if valid and at(offset, definition.first, definition.first_mask) and at(offset + definition.delta, definition.last, definition.last_mask) then
             local address = section.address + start + offset
             if definition.id == 'ui-root' then
               local d = 0

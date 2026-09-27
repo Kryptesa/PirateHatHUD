@@ -70,3 +70,8 @@ file(WRITE "${TEST_ROOT}/render_to_logger/include/platform/logger.hpp" "#pragma 
 check_case(render_to_logger include/render/bad.hpp "#include \"platform/logger.hpp\"\n" "forbidden include")
 file(WRITE "${TEST_ROOT}/game_to_logger/include/platform/logger.hpp" "#pragma once\n")
 check_case(game_to_logger include/game/bad.hpp "#include \"platform/logger.hpp\"\n" "forbidden include")
+
+file(WRITE "${TEST_ROOT}/scanner_to_game/include/game/hook_scan.hpp" "#pragma once\n")
+check_case(scanner_to_game src/pattern_scan.cpp "#include \"game/hook_scan.hpp\"\n" "forbidden include")
+file(WRITE "${TEST_ROOT}/game_to_scanner/include/pattern_scan.hpp" "#pragma once\n")
+check_case(game_to_scanner src/game/good.cpp "#include \"pattern_scan.hpp\"\n" "PASS")

@@ -4,19 +4,27 @@
 #include <cstdint>
 #include <span>
 namespace phi {
-struct HookSites {
-  std::uintptr_t enter = 0;
-  std::uintptr_t leave = 0;
-};
 enum class ScanStatus { found, invalid_image, no_match, ambiguous };
-struct ScanResult {
-  HookSites sites{};
-  std::uintptr_t state_offset = 0;
-  std::uintptr_t root_slot = 0;
-  ScanStatus status = ScanStatus::invalid_image;
-  std::size_t candidate_pairs = 0;
+struct BytePattern {
+  std::span<const uint8_t> bytes;
+  // Empty mask means exact matching; otherwise 0 ignores a byte, 1 matches it.
+  std::span<const uint8_t> mask{};
 };
-ScanResult find_hook_sites(HMODULE game, bool menu = false, bool ui_root = false);
-ScanResult scan_code(std::span<const std::uint8_t> code, std::uintptr_t base, bool menu = false,
-                     bool ui_root = false);
+struct PatternQuery {
+  BytePattern first;
+  BytePattern second{};
+  size_t delta = 0;
+};
+struct PatternMatch {
+  uintptr_t address = 0;
+  ScanStatus status = ScanStatus::invalid_image;
+  size_t candidates = 0;
+  uintptr_t image_base = 0;
+  size_t image_size = 0;
+};
+using CandidateValidator = bool (*)(std::span<const uint8_t> code, size_t offset, uintptr_t base);
+PatternMatch scan_pattern(std::span<const uint8_t> code, uintptr_t base, const PatternQuery& query,
+                          CandidateValidator validate = nullptr);
+PatternMatch find_pattern(HMODULE image, const PatternQuery& query,
+                          CandidateValidator validate = nullptr);
 } // namespace phi

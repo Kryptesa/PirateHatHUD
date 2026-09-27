@@ -1,7 +1,7 @@
 #include "game/treasure_observer.hpp"
 #include "game/observer_hooks.hpp"
-#include "pattern_scan.hpp"
-#include "patterns.hpp"
+#include "game/hook_scan.hpp"
+#include "game/patterns.hpp"
 #include <windows.h>
 
 #include <safetyhook.hpp>
@@ -123,7 +123,7 @@ bool TreasureObserver::start() {
   }
   impl.claimed = true;
   const auto module = GetModuleHandleW(L"CrimsonDesert.exe");
-  const auto scan = find_hook_sites(module);
+  const auto scan = find_treasure_hook_sites(module);
   if (scan.status != ScanStatus::found) {
     const char* reason = scan.status == ScanStatus::ambiguous  ? "ambiguous"
                          : scan.status == ScanStatus::no_match ? "no pair"

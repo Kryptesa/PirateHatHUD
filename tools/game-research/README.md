@@ -92,7 +92,8 @@ The supplied scripts do not automatically discover or implement new events.
    report template.
 2. Check the current treasure and menu signatures across executable sections.
    Each must yield exactly one pair, with distances 0x2C and 0x141 respectively.
-   The sources of truth are `include/patterns.hpp` and `src/pattern_scan.cpp`.
+   The sources of truth are `include/game/patterns.hpp`, `src/game/hook_scan.cpp` and
+   `src/game/ui_root_scan.cpp`; `src/pattern_scan.cpp` supplies generic scan semantics.
 3. Check the UI root and pointer chain against `include/game/minimap_memory.hpp`
    and `include/game/menu_memory.hpp`. Investigate the specific failing step
    rather than starting a general scan for all 0/1 values.

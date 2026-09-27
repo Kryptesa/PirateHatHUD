@@ -3,7 +3,8 @@
 #include "game/menu_capture.hpp"
 #include "game/memory_reader.hpp"
 #include "game/observer_hooks.hpp"
-#include "pattern_scan.hpp"
+#include "game/hook_scan.hpp"
+#include "game/ui_root_scan.hpp"
 #include <Windows.h>
 #include <safetyhook.hpp>
 #include <atomic>
@@ -71,7 +72,7 @@ bool MenuObserver::start() {
   }
   impl.claimed = true;
   auto module = GetModuleHandleW(L"CrimsonDesert.exe");
-  auto scan = find_hook_sites(module, true);
+  auto scan = find_menu_hook_sites(module);
   if (scan.status != ScanStatus::found) {
     if (impl.logger) {
       impl.logger(LogLevel::warn,
@@ -81,7 +82,7 @@ bool MenuObserver::start() {
     return false;
   }
   impl.module = reinterpret_cast<uintptr_t>(module);
-  auto root_scan = find_hook_sites(module, false, true);
+  auto root_scan = find_ui_root_slot(module);
   if (root_scan.status != ScanStatus::found) {
     stop();
     return false;

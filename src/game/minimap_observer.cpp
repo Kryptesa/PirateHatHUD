@@ -2,7 +2,7 @@
 #include "game/minimap_memory.hpp"
 #include "game/memory_reader.hpp"
 #include <Windows.h>
-#include "pattern_scan.hpp"
+#include "game/ui_root_scan.hpp"
 
 namespace phi {
 struct MinimapObserver::Impl {
@@ -28,7 +28,7 @@ bool MinimapObserver::start() {
   impl_->module = reinterpret_cast<uintptr_t>(GetModuleHandleW(L"CrimsonDesert.exe"));
   impl_->logged_sample = false;
   auto module = reinterpret_cast<HMODULE>(impl_->module);
-  auto scan = find_hook_sites(module, false, true);
+  auto scan = find_ui_root_slot(module);
   impl_->running = scan.status == ScanStatus::found;
   if (impl_->running) {
     impl_->identities = detail::make_ui_identity_cache(reinterpret_cast<uintptr_t>(module));

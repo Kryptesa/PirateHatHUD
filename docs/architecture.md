@@ -12,7 +12,8 @@ only explicitly documented interfaces are intended for library consumers.
 | Module | Allowed project dependencies | External dependencies |
 | --- | --- | --- |
 | `core` | Its own headers | Standard library |
-| `game` / `game_observers` | Its own headers, `core`, scanner and patterns | Windows, SafetyHook |
+| `scanner` (`pattern_scan`) | Its own header | Windows, standard library |
+| `game` / `game_observers` | Its own headers, `core`, scanner | Windows, SafetyHook |
 | `features` / `treasure_indicator` | Its own headers, `game/observer_state.hpp`, `render/hud_state.hpp` | Standard library |
 | `render` | Its own headers, including `HudState`, `core` | Windows, DX12/DXGI, D3DCompiler, WIC, ImGui, SafetyHook for graphics hooks |
 | `overlay` facade | Its own header, `render`, `core` | Standard library |
@@ -42,6 +43,13 @@ checks; CMake configuration validates target links. CTest runs both the source c
 and its regression cases. Changes to boundaries must update documentation and checks
 in the same task, including any constraints passed to delegated agents.
 
+- `pattern_scan`: generic masked byte matching, optional candidate validation and
+  unique matching across executable PE sections. It has no game signatures, object
+  types, hook sites or field offsets; dependencies on `game` are forbidden.
+- `game/hook_scan`: treasure/menu signatures and menu displacement validation.
+  `game/ui_root_scan`: launcher signature, RIP operand extraction and UI slot checks.
+  `game/patterns.hpp` holds the treasure constants. These use the generic scanner
+  and expose explicit functions instead of boolean selectors.
 - `game_observers`: game-specific scanning, hooks and safe memory reads. Public entry
   points: `include/game/treasure_observer.hpp` `include/game/minimap_observer.hpp` and `include/game/menu_observer.hpp`. No HUD, configuration or DirectX dependency.
 - `core/signal.hpp`: reusable typed synchronous signals and move-only RAII subscriptions.
