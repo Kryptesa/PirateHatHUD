@@ -2,7 +2,7 @@
 
 Adds a small chest icon and a short sound when the Pirate King Hat detects nearby treasure. Useful if you play with helmets hidden and can't see the hat's usual cue.
 
-The Pirate King Hat must be equipped. You can adjust the icon's position and size, change the notification volume, or use your own icon and sound.
+The Pirate King Hat must be equipped. You can adjust the icon's position and size, change the notification volume, or use your own icon and sound. An optional setting also lets you change the hat's detection radius.
 
 Source code and bug reports: [url=https://github.com/Kryptesa/PirateHatHUD]GitHub repository[/url].
 
@@ -23,7 +23,7 @@ Source code and bug reports: [url=https://github.com/Kryptesa/PirateHatHUD]GitHu
 
 The default icon and sound are built in; no separate PNG or WAV is needed.
 
-To change settings, edit PirateHatHUD.ini beside the ASI. Most changes require a game restart. Changes to [sound] volume_percent apply after saving, within about one second, without restarting.
+To change settings, edit PirateHatHUD.ini beside the ASI. Most changes require a game restart. Saved notification volume changes apply within about one second. Saved detection radius changes apply within about two seconds if the range override was enabled when the game started.
 
 When updating, back up your INI and avoid installing a second copy of the ASI. For CDUMM or DMM, enable the existing mod before importing an update, with the game closed.
 
@@ -31,14 +31,73 @@ When updating, back up your INI and avoid installing a second copy of the ASI. F
 
 [list]
 [*][b]Treasure indicator:[/b] a chest icon while the Pirate King Hat detects treasure.
+[*][b]Optional detection radius:[/b] adjust the hat's native detection range from 1 to 1000 meters, including its feather effect. Disabled by default; works independently of the icon and sound toggle.
 [*][b]Sound notification:[/b] one short alert when detection becomes active.
 [*][b]HUD visibility:[/b] the icon hides with the minimap, in menus and when the game's minimap draw state hides it during dialogue or cutscenes. It returns after a configurable delay, one second by default.
 [*][b]Audio controls:[/b] notification volume is controlled by the game's overall volume, effects volume, and [sound] volume_percent in PirateHatHUD.ini. The config setting applies an additional multiplier from 0 to 100 percent: 100 keeps the volume set by the game sliders, 50 halves the sound amplitude, and 0 mutes it. Setting either game slider to zero also mutes notifications. Save config volume changes to apply them without restarting. Sound can also be disabled independently of the icon.
 [*][b]Quiet menu transitions:[/b] alerts are suppressed in menus, while the minimap is hidden, while the mod is disabled and while the game is unfocused.
 [*][b]Customization:[/b] adjustable icon position, size, return delay and sound cooldown. Optional PirateHatHUD_treasure.png and PirateHatHUD_treasure.wav files beside the ASI replace the built-in assets. Custom sounds must be mono or stereo PCM WAV, 8-bit or 16-bit, 8-192 kHz, up to 8 MiB. Install custom assets manually and restart after changing these files.
-[*][b]Hotkeys:[/b] F9 toggles the icon and sound; F10 stops the mod for the current session. Both keys can be reassigned in the INI.
+[*][b]Hotkeys:[/b] F9 toggles the icon and sound without changing the hat's detection radius. F10 stops the mod for the current session and restores its radius override if the value has not been changed by another mod. Both keys can be reassigned in the INI.
 [*][b]Display support:[/b] SDR, scRGB and HDR10 output.
 [/list]
+
+[size=4][b]Detection radius[/b][/size]
+
+To double the default 15-meter range, set these values in PirateHatHUD.ini and restart the game:
+
+[code]
+[treasure]
+enabled=1
+radius=30
+[/code]
+
+The radius accepts values from 1 to 1000 meters, including decimals. Once enabled at startup, you can change radius and save the INI during gameplay; the new value applies within about two seconds. Changing enabled requires a game restart. To return to the game's normal range, set enabled=0 and restart.
+
+This changes the hat's native detection, so the hat must still be equipped. It does not reveal treasure that the game has not made detectable. F9 affects only the icon and sound. The override changes memory during the current session and leaves game files and saves untouched.
+
+With enabled=0, the mod does not look up or modify the radius. If the game's detection data cannot be identified safely, the override is skipped. If another mod changes the same value, this mod leaves that value intact when stopping.
+
+[size=4][b]Settings reference[/b][/size]
+
+Edit the settings under the matching section in PirateHatHUD.ini. Defaults, accepted values and application timing are listed below. All settings require a restart unless marked Live.
+
+[b][indicator][/b]
+[list]
+[*][b]enabled[/b] — default 1; 0=off, 1=on. Initial icon/sound state; F9 can change it during play.
+[*][b]force_show[/b] — default 0; 0=off, 1=on. Test the icon without hat or treasure detection; it still hides in menus and with the minimap. Does not trigger sound.
+[*][b]x[/b] — default 350. Horizontal position in pixels from the left edge.
+[*][b]y[/b] — default -310. Vertical position in pixels; negative values count up from the bottom, zero or positive values count from the top.
+[*][b]scale_percent[/b] — default 100; range 25-400 percent. At 100, the icon is 56 x 56 pixels.
+[*][b]show_delay_ms[/b] — default 1000; range 0-60000 milliseconds. Delay before the icon returns after the minimap appears and menus close; 0 removes the delay.
+[/list]
+
+[b][sound][/b]
+[list]
+[*][b]enabled[/b] — default 1; 0=off, 1=on. Enable treasure notifications.
+[*][b]cooldown_ms[/b] — default 1000; range 0-60000 milliseconds. Minimum interval between notifications.
+[*][b]volume_percent[/b] — default 100; range 0-100 percent. Additional volume after the game's overall/effects volume; 0 mutes, 50 halves amplitude. [b]Live:[/b] saved edits apply within about one second.
+[/list]
+
+[b][treasure][/b]
+[list]
+[*][b]enabled[/b] — default 0; 0=off, 1=on. Enable the optional hat range override at the next game launch.
+[*][b]radius[/b] — default 15; range 1-1000 meters, decimals allowed. Hat detection radius. [b]Live:[/b] saved edits apply within about two seconds if enabled at startup.
+[/list]
+
+[b][hotkeys][/b]
+[list]
+[*][b]toggle[/b] — default F9; choices F8, F9, F10, F11. Toggle the icon and sound.
+[*][b]unload[/b] — default F10; choices F8, F9, F10, F11. Stop the mod until the next launch and restore its radius override if still owned by this mod. Choose a different key from toggle.
+[/list]
+
+[b][logging][/b]
+[list]
+[*][b]level[/b] — default info; choices trace, debug, info, warn, error, off. Detailed diagnostics require debug or trace.
+[*][b]max_file_size_mb[/b] — default 5; range 1-100 MB. Maximum size of one log file; logs also rotate at startup.
+[*][b]max_files[/b] — default 3; range 1-20. Total log files to keep, including the current file.
+[/list]
+
+The default icon position was chosen for 2560 x 1440. Adjust it for your HUD as needed. Missing or invalid values during live reload retain the last valid value.
 
 [size=4][b]Requirements[/b][/size]
 

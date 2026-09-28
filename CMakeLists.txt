@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(PirateHatHUD VERSION 1.0.3 LANGUAGES CXX RC)
+project(PirateHatHUD VERSION 1.1.0 LANGUAGES CXX RC)
 
 include(cmake/Architecture.cmake)
 add_custom_target(architecture-check ALL

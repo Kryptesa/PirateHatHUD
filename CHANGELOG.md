@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.0 - 2026-09-29
+
 - Added an optional Pirate King Hat detection radius setting, independent of the
   icon and sound toggle, disabled by default. Enable state is read at startup;
   enabled sessions apply saved radius edits during gameplay. Stopping the mod restores
