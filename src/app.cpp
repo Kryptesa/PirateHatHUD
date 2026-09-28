@@ -10,7 +10,9 @@
 #include "platform/hotkeys.hpp"
 #include "platform/logger.hpp"
 #include "platform/sound.hpp"
+#include <tlhelp32.h>
 #include <exception>
+#include <initializer_list>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -71,8 +73,8 @@ std::string module_name_utf8(HMODULE module) {
   return result;
 }
 
-std::string executable_version() {
-  const auto path = module_path(nullptr);
+std::string file_version(HMODULE module = nullptr) {
+  const auto path = module_path(module);
   const auto size = GetFileVersionInfoSizeW(path.c_str(), nullptr);
   if (!size) {
     return "<unavailable>";
@@ -98,6 +100,55 @@ std::string executable_version() {
     std::to_string(HIWORD(info->dwFileVersionLS)) +
     "." +
     std::to_string(LOWORD(info->dwFileVersionLS));
+}
+
+void log_graphics_modules(const char* stage) {
+  // Inspect already loaded modules; never load a DLL to obtain diagnostics.
+  log(LogLevel::debug, stage);
+  const auto snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, GetCurrentProcessId());
+  if (snapshot == INVALID_HANDLE_VALUE) {
+    log(LogLevel::debug, "Graphics module snapshot unavailable");
+    return;
+  }
+  struct CloseSnapshot {
+    HANDLE handle;
+    ~CloseSnapshot() {
+      CloseHandle(handle);
+    }
+  } close{snapshot};
+  MODULEENTRY32W entry{};
+  entry.dwSize = sizeof(entry);
+  bool found = false;
+  for (BOOL next = Module32FirstW(snapshot, &entry); next; next = Module32NextW(snapshot, &entry)) {
+    bool selected = false;
+    for (const auto* name : {
+           L"dxgi.dll",
+           L"d3d12.dll",
+           L"winmm.dll",
+           L"dinput8.dll",
+           L"version.dll",
+           L"ReShade64.dll",
+           L"renodx-crimsondesert.addon64",
+           L"sl.interposer.dll",
+           L"nvngx_dlss.dll",
+           L"nvngx_dlssd.dll",
+           L"nvngx_dlssg.dll",
+         }) {
+      selected |= _wcsicmp(entry.szModule, name) == 0;
+    }
+    if (selected) {
+      found = true;
+      const auto message = "Loaded graphics/loader module: " +
+        module_name_utf8(entry.hModule) +
+        "; file version=" +
+        file_version(entry.hModule);
+      log(LogLevel::debug, message.c_str());
+    }
+  }
+  if (!found) {
+    log(LogLevel::debug, "No listed graphics/loader modules observed");
+  }
+  log(LogLevel::debug, "Graphics module snapshot complete");
 }
 
 void log_environment() {
@@ -248,6 +299,9 @@ public:
     logger_configured_ = true;
     set_overlay_log(log);
     log(LogLevel::debug, "Startup: graphics hooks begin");
+    if (config.logging.level <= LogLevel::debug) {
+      log_graphics_modules("Graphics module snapshot before hook startup");
+    }
     const bool overlay_started = start_overlay();
     exit_.retain |= overlay_started;
     log(
@@ -256,6 +310,9 @@ public:
         ? "DX12 hooks installed; waiting for swapchain"
         : "DX12 hooks unavailable; overlay disabled"
     );
+    if (config.logging.level <= LogLevel::debug) {
+      log_graphics_modules("Graphics module snapshot after hook startup");
+    }
 
     log(LogLevel::debug, "Startup: treasure observer begin");
     const bool treasure_started = observer_.start();
@@ -424,7 +481,7 @@ AppExitDisposition run_app(HMODULE module) noexcept {
       log(LogLevel::info, PHI_VERSION);
       log_environment();
       log_settings(config);
-      log(LogLevel::info, ("Game EXE version: " + executable_version()).c_str());
+      log(LogLevel::info, ("Game EXE version: " + file_version()).c_str());
       log(LogLevel::info, ("Process EXE: " + module_name_utf8(nullptr)).c_str());
       log(LogLevel::info, ("Mod ASI: " + module_name_utf8(module)).c_str());
 

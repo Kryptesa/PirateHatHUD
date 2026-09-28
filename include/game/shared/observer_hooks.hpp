@@ -1,7 +1,9 @@
 #pragma once
 
 #include "game/observer_state.hpp"
+#include "core/log.hpp"
 
+#include <cstdio>
 #include <memory>
 
 namespace phi::detail {
@@ -33,7 +35,7 @@ public:
     return result_;
   }
 
-  bool enable() {
+  bool enable(LogCallback logger = nullptr, const char* owner = "Observer") {
     if (result_.module_must_remain_loaded) {
       return false;
     }
@@ -41,7 +43,24 @@ public:
     // Even a failed call can have partially activated instructions.
     result_.module_must_remain_loaded = true;
 
-    return static_cast<bool>(hooks_->enter.enable()) && static_cast<bool>(hooks_->leave.enable());
+    const auto enable_one = [&](Hook& hook, const char* name) {
+      const auto progress = [&](const char* stage) noexcept {
+        if (logger) {
+          try {
+            char message[160]{};
+            std::snprintf(message, sizeof(message), "%s %s hook activation %s", owner, name, stage);
+            logger(LogLevel::debug, message);
+          } catch (...) {
+            // Diagnostics must not change hook activation or retention.
+          }
+        }
+      };
+      progress("begin");
+      const bool enabled = static_cast<bool>(hook.enable());
+      progress(enabled ? "ready" : "failed");
+      return enabled;
+    };
+    return enable_one(hooks_->enter, "enter") && enable_one(hooks_->leave, "leave");
   }
 
   ObserverStopResult stop() noexcept {

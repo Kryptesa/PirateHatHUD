@@ -3,6 +3,7 @@
 #include <safetyhook.hpp>
 #include <atomic>
 #include <cstdio>
+#include <cstring>
 #include <mutex>
 #include <utility>
 
@@ -33,8 +34,7 @@ std::atomic<bool> stopping{false};
 std::mutex mutex;
 // Protected by mutex. Present must not reacquire resources during any resize callback.
 unsigned resizes_active{};
-bool first_present_logged{};
-bool first_present_return_logged{};
+std::atomic<bool> first_callbacks[9]{};
 
 struct SwapRecord {
   ComPtr<ID3D12CommandQueue> queue;
@@ -135,6 +135,51 @@ void overlay_log(LogLevel level, const char* message) {
   }
 }
 
+enum class CallbackStage { entered, original_begin, original_returned, completed };
+
+void callback_progress(
+  bool sampled,
+  const char* operation,
+  CallbackStage stage,
+  HRESULT result = S_OK
+) noexcept {
+  if (!sampled) {
+    return;
+  }
+  try {
+    char message[192]{};
+    const char* text = stage == CallbackStage::entered
+      ? "entered"
+      : stage == CallbackStage::original_begin
+        ? "original call begin"
+        : stage == CallbackStage::original_returned
+          ? "original call returned"
+          : "completed";
+    if (stage == CallbackStage::original_returned) {
+      std::snprintf(
+        message,
+        sizeof(message),
+        "DX12 first %s callback: %s; HRESULT=0x%08lX",
+        operation,
+        text,
+        static_cast<unsigned long>(result)
+      );
+    } else {
+      std::snprintf(message, sizeof(message), "DX12 first %s callback: %s", operation, text);
+    }
+    overlay_log(LogLevel::debug, message);
+  } catch (...) {
+    // Diagnostic failures must not disable rendering or escape a graphics callback.
+  }
+}
+
+bool sample_callback(unsigned index, bool eligible = true) noexcept {
+  return eligible &&
+    !stopping.load(std::memory_order_relaxed) &&
+    !first_callbacks[index].load(std::memory_order_relaxed) &&
+    !first_callbacks[index].exchange(true, std::memory_order_relaxed);
+}
+
 bool hook_result(HRESULT result, const char* operation) {
   if (SUCCEEDED(result)) {
     return true;
@@ -183,13 +228,18 @@ HRESULT WINAPI on_create(
   IDXGISwapChain** out
 ) {
   CallbackGuard callback;
+  const bool diagnostic = sample_callback(0);
+  callback_progress(diagnostic, "CreateSwapChain", CallbackStage::entered);
+  callback_progress(diagnostic, "CreateSwapChain", CallbackStage::original_begin);
   const auto hr = create_hook.call<HRESULT>(factory, device, desc, out);
+  callback_progress(diagnostic, "CreateSwapChain", CallbackStage::original_returned, hr);
   own_work([&] {
     if (!stopping && SUCCEEDED(hr) && out) {
       remember_swap(*out, device);
     }
   });
 
+  callback_progress(diagnostic, "CreateSwapChain", CallbackStage::completed);
   return hr;
 }
 
@@ -203,14 +253,19 @@ HRESULT WINAPI on_create_hwnd(
   IDXGISwapChain1** out
 ) {
   CallbackGuard callback;
+  const bool diagnostic = sample_callback(1);
+  callback_progress(diagnostic, "CreateSwapChainForHwnd", CallbackStage::entered);
+  callback_progress(diagnostic, "CreateSwapChainForHwnd", CallbackStage::original_begin);
   const auto hr =
     create_hwnd_hook.call<HRESULT>(factory, device, hwnd, desc, fullscreen, output, out);
+  callback_progress(diagnostic, "CreateSwapChainForHwnd", CallbackStage::original_returned, hr);
   own_work([&] {
     if (!stopping && SUCCEEDED(hr) && out) {
       remember_swap(*out, device);
     }
   });
 
+  callback_progress(diagnostic, "CreateSwapChainForHwnd", CallbackStage::completed);
   return hr;
 }
 
@@ -223,13 +278,23 @@ HRESULT WINAPI on_create_core(
   IDXGISwapChain1** out
 ) {
   CallbackGuard callback;
+  const bool diagnostic = sample_callback(2);
+  callback_progress(diagnostic, "CreateSwapChainForCoreWindow", CallbackStage::entered);
+  callback_progress(diagnostic, "CreateSwapChainForCoreWindow", CallbackStage::original_begin);
   const auto hr = create_core_hook.call<HRESULT>(factory, device, window, desc, output, out);
+  callback_progress(
+    diagnostic,
+    "CreateSwapChainForCoreWindow",
+    CallbackStage::original_returned,
+    hr
+  );
   own_work([&] {
     if (!stopping && SUCCEEDED(hr) && out) {
       remember_swap(*out, device);
     }
   });
 
+  callback_progress(diagnostic, "CreateSwapChainForCoreWindow", CallbackStage::completed);
   return hr;
 }
 
@@ -241,18 +306,32 @@ HRESULT WINAPI on_create_composition(
   IDXGISwapChain1** out
 ) {
   CallbackGuard callback;
+  const bool diagnostic = sample_callback(3);
+  callback_progress(diagnostic, "CreateSwapChainForComposition", CallbackStage::entered);
+  callback_progress(diagnostic, "CreateSwapChainForComposition", CallbackStage::original_begin);
   const auto hr = create_composition_hook.call<HRESULT>(factory, device, desc, output, out);
+  callback_progress(
+    diagnostic,
+    "CreateSwapChainForComposition",
+    CallbackStage::original_returned,
+    hr
+  );
   own_work([&] {
     if (!stopping && SUCCEEDED(hr) && out) {
       remember_swap(*out, device);
     }
   });
 
+  callback_progress(diagnostic, "CreateSwapChainForComposition", CallbackStage::completed);
   return hr;
 }
 
 void WINAPI on_execute(ID3D12CommandQueue* queue, UINT count, ID3D12CommandList* const* lists) {
   CallbackGuard callback;
+  const bool diagnostic = sample_callback(4, !overlay_submit);
+  if (diagnostic) {
+    callback_progress(diagnostic, "ExecuteCommandLists", CallbackStage::entered);
+  }
   own_work([&] {
     if (
       !stopping &&
@@ -272,12 +351,23 @@ void WINAPI on_execute(ID3D12CommandQueue* queue, UINT count, ID3D12CommandList*
     }
   });
 
+  if (diagnostic) {
+    callback_progress(diagnostic, "ExecuteCommandLists", CallbackStage::original_begin);
+  }
   execute_hook.call<void>(queue, count, lists);
+  if (diagnostic) {
+    // ExecuteCommandLists has no HRESULT; report completion without inventing one.
+    callback_progress(diagnostic, "ExecuteCommandLists", CallbackStage::completed);
+  }
 }
 
 HRESULT WINAPI on_color(IDXGISwapChain3* swap, DXGI_COLOR_SPACE_TYPE space) {
   CallbackGuard callback;
+  const bool diagnostic = sample_callback(5);
+  callback_progress(diagnostic, "SetColorSpace1", CallbackStage::entered);
+  callback_progress(diagnostic, "SetColorSpace1", CallbackStage::original_begin);
   const auto hr = color_hook.call<HRESULT>(swap, space);
+  callback_progress(diagnostic, "SetColorSpace1", CallbackStage::original_returned, hr);
   own_work([&] {
     if (!stopping) {
       std::lock_guard lock(mutex);
@@ -308,11 +398,16 @@ HRESULT WINAPI on_color(IDXGISwapChain3* swap, DXGI_COLOR_SPACE_TYPE space) {
     }
   });
 
+  callback_progress(diagnostic, "SetColorSpace1", CallbackStage::completed);
   return hr;
 }
 
 HRESULT WINAPI on_present(IDXGISwapChain* swap, UINT interval, UINT flags) {
   CallbackGuard callback;
+  const bool diagnostic = sample_callback(6, !(flags & DXGI_PRESENT_TEST));
+  if (diagnostic) {
+    callback_progress(diagnostic, "non-test Present", CallbackStage::entered);
+  }
   own_work([&] {
     if (!stopping && !(flags & DXGI_PRESENT_TEST)) {
       SubmitGuard submit;
@@ -320,10 +415,6 @@ HRESULT WINAPI on_present(IDXGISwapChain* swap, UINT interval, UINT flags) {
       std::lock_guard lock(mutex);
       if (stopping || resizes_active) {
         return;
-      }
-      if (!first_present_logged) {
-        overlay_log(LogLevel::debug, "DX12 first non-test Present hook entered");
-        first_present_logged = true;
       }
       DXGI_SWAP_CHAIN_DESC desc{};
       DWORD process{};
@@ -434,27 +525,25 @@ HRESULT WINAPI on_present(IDXGISwapChain* swap, UINT interval, UINT flags) {
     }
   });
 
+  if (diagnostic) {
+    callback_progress(diagnostic, "non-test Present", CallbackStage::original_begin);
+  }
   const auto result = present_hook.call<HRESULT>(swap, interval, flags);
+  if (diagnostic) {
+    callback_progress(diagnostic, "non-test Present", CallbackStage::original_returned, result);
+  }
 
   own_work([&] {
     std::lock_guard lock(mutex);
-    if (!stopping && !(flags & DXGI_PRESENT_TEST) && !first_present_return_logged) {
-      char message[128]{};
-      std::snprintf(
-        message,
-        sizeof(message),
-        "DX12 first non-test Present returned; HRESULT=0x%08lX",
-        static_cast<unsigned long>(result)
-      );
-      overlay_log(FAILED(result) ? LogLevel::error : LogLevel::debug, message);
-      first_present_return_logged = true;
-    }
     if (!stopping && !resizes_active && renderer) {
       SubmitGuard submit;
       renderer->after_present(swap, result, flags);
     }
   });
 
+  if (diagnostic) {
+    callback_progress(diagnostic, "non-test Present", CallbackStage::completed);
+  }
   return result;
 }
 
@@ -491,6 +580,9 @@ HRESULT resize_swap(
       resize_active = false;
     }
   } guard;
+  const unsigned diagnostic_index = std::strcmp(request.operation, "ResizeBuffers1") == 0 ? 8 : 7;
+  const bool diagnostic = sample_callback(diagnostic_index);
+  callback_progress(diagnostic, request.operation, CallbackStage::entered);
   bool prepared = false;
   bool admitted = false;
   const auto count = request.count;
@@ -521,7 +613,9 @@ HRESULT resize_swap(
     }
   });
 
+  callback_progress(diagnostic, request.operation, CallbackStage::original_begin);
   const auto hr = original();
+  callback_progress(diagnostic, request.operation, CallbackStage::original_returned, hr);
   own_work([&] {
     std::lock_guard lock(mutex);
     if (admitted) {
@@ -573,6 +667,7 @@ HRESULT resize_swap(
     }
   });
 
+  callback_progress(diagnostic, request.operation, CallbackStage::completed);
   return hr;
 }
 

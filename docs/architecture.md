@@ -325,6 +325,18 @@ logger and wires the callback. Hook capture remains free of observer event loggi
 The logger serializes writes and rotation, bounds records, and disables writing on I/O
 failure without throwing. UTC timestamp files rotate on startup and size; retention
 matches only the logger's exact filename pattern and includes the current file.
+Every record includes the numeric writing thread ID. Game hook callbacks still only
+capture state: owner-thread startup emits scan, hook creation and per-hook activation
+markers. Diagnostic callback failures during activation cannot change hook retention
+or skip activation. Graphics first-call markers use an atomic claim per callback type;
+all stages come from one invocation and are written outside the graphics mutex. The
+markers do not repeat each frame and exclude overlay-owned queue submissions and
+test Present calls. They identify boundaries, not a stack trace or definitive cause.
+At debug level, application composition snapshots selected already-loaded graphics
+and loader modules before and after graphics-hook startup, logging only basenames and
+file versions. It never loads a DLL for diagnostics; missing version resources and
+snapshot failures are reported as unavailable. ReShade/RenoDX settings remain external
+and are not collected by the mod.
 Startup logs include the mod version, the executable's Windows file version,
 and EXE/ASI basenames without installation paths. The executable file version may
 differ from the game's public patch number. Successful hotkey registration is logged

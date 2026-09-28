@@ -168,7 +168,8 @@ void log(LogLevel level, const char* message) {
     line << '[' << std::setfill('0') << std::setw(4) << utc.wYear << '-' << std::setw(2)
          << utc.wMonth << '-' << std::setw(2) << utc.wDay << ' ' << std::setw(2) << utc.wHour << ':'
          << std::setw(2) << utc.wMinute << ':' << std::setw(2) << utc.wSecond << '.' << std::setw(3)
-         << utc.wMilliseconds << " UTC] [" << kLevels[static_cast<int>(level)] << "] ";
+         << utc.wMilliseconds << " UTC] [TID=" << std::dec << GetCurrentThreadId() << "] ["
+         << kLevels[static_cast<int>(level)] << "] ";
     // Bound individual records as well as files; never allocate from unbounded diagnostics.
     const auto limit = (std::min)(std::size_t{4096}, g_config.max_file_size - 80);
     std::size_t length = 0;

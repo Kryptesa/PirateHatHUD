@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added thread IDs, detailed game-hook startup markers and bounded first-call graphics
+  progress diagnostics to locate startup failures. Debug logs also record selected
+  loaded graphics/loader module names and file versions without installation paths.
 - Added local diagnostics for the active GPU model, vendor/device IDs, dedicated
   video memory, driver UMD version, Windows build and build identity.
 - Added debug-level startup and first-frame progress markers, mod settings, resize

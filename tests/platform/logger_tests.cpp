@@ -65,6 +65,12 @@ int main() {
   log(LogLevel::debug, "hidden");
   log(LogLevel::info, "startup");
   log(LogLevel::error, "failure");
+  DWORD worker_id = 0;
+  std::thread worker([&] {
+    worker_id = GetCurrentThreadId();
+    log(LogLevel::info, "worker record");
+  });
+  worker.join();
   close_log();
   auto files = logs(folder);
   CHECK(files.size() == 1);
@@ -74,6 +80,11 @@ int main() {
   CHECK(text.find("[INFO] startup") != std::string::npos);
   CHECK(text.find("[ERROR] failure") != std::string::npos);
   CHECK(text.find(" UTC]") != std::string::npos);
+  CHECK(text.find("[TID=" + std::to_string(GetCurrentThreadId()) + "]") != std::string::npos);
+  CHECK(worker_id != GetCurrentThreadId());
+  CHECK(
+    text.find("[TID=" + std::to_string(worker_id) + "] [INFO] worker record") != std::string::npos
+  );
   CHECK(
     files.back().filename().wstring().size() ==
     std::wstring_view(L"PirateHatHUD_2026-09-27_18-42-03-123.log").size()

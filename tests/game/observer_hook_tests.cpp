@@ -58,6 +58,10 @@ struct FakeHook {
 
 using Hooks = phi::detail::ObserverHooks<FakeHook>;
 
+void throwing_log(phi::LogLevel, const char*) {
+  throw std::runtime_error("diagnostic failure");
+}
+
 void prepare(Hooks& hooks, Counts& counts) {
   hooks.hooks().enter.counts = &counts;
   hooks.hooks().leave.counts = &counts;
@@ -110,10 +114,11 @@ int main() {
   {
     Hooks hooks;
     prepare(hooks, unwound);
-    CHECK(hooks.enable());
+    CHECK(hooks.enable(throwing_log, "Fixture"));
   }
 
   CHECK(unwound.disable == 2);
+  CHECK(unwound.enable == 2);
   CHECK(unwound.release == 0);
 
   // Failure enabling the second hook retires both allocations, including the first.

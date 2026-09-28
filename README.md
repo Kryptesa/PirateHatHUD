@@ -134,6 +134,14 @@ and device removal reason when a game device is available.
 Set `[logging] level=debug` for startup and first-frame progress, effective mod
 settings, swapchain settings, resize requests and color-space transitions, alongside
 treasure, minimap and menu diagnostics. These details are not logged every frame.
+Each log record includes the writing thread's numeric ID. Debug startup diagnostics
+separate instruction scanning, hook creation and activation. The first call of each
+graphics callback type records entry, the original call and completion, with all stages
+belonging to the same sampled invocation. Later calls do not repeat these markers.
+Debug logs also list selected loaded graphics/loader DLL basenames and file versions
+before and after graphics-hook startup. This list is not a complete module inventory;
+an available file version does not prove that an add-on is active. GPU details require
+renderer initialization and may be absent when startup stops earlier.
 These diagnostics stay in local files; the mod does not upload them. GPU serial
 numbers, adapter LUIDs, usernames and installation paths are not included. Review
 logs before sharing them publicly. The default
@@ -141,8 +149,13 @@ keeps three log files of up to 5 MB each. You can change the size to 1–100 MB 
 the file count to 1–20, or use `level=off` to disable logging.
 
 If you're reporting a problem, include the log, your game version, and graphics
-settings—especially HDR, upscaler and frame generation. The mod does not automatically
-identify the active upscaler. A game update may change the
+settings—especially HDR, upscaler and frame generation.
+If ReShade/RenoDX is involved, also include `ReShade.log` from the same launch,
+`ReShade.ini` and the active preset named by its `PresetPath` setting, if applicable.
+ReShade's log reports runtime/add-on versions and initialization but does not replace
+the configuration files. The mod does not collect or copy these files automatically.
+
+The mod does not automatically identify the active upscaler. A game update may change the
 memory layout the mod relies on. The UI offsets were checked on **2.03.02**.
 
 SDR, scRGB and HDR10 output are supported. If the icon looks wrong in HDR10, try

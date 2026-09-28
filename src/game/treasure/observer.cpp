@@ -9,6 +9,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <cstdio>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -127,7 +128,18 @@ bool TreasureObserver::start() {
 
   impl.claimed = true;
   const auto module = GetModuleHandleW(L"CrimsonDesert.exe");
+  impl.log(LogLevel::debug, "State instruction scan begin");
+  const auto scan_started = GetTickCount64();
   const auto scan = find_treasure_hook_sites(module);
+  char scan_message[128]{};
+  std::snprintf(
+    scan_message,
+    sizeof(scan_message),
+    "State instruction scan returned; elapsed=%llu ms; result=%s",
+    static_cast<unsigned long long>(GetTickCount64() - scan_started),
+    scan.status == ScanStatus::found ? "found" : "unavailable"
+  );
+  impl.log(LogLevel::debug, scan_message);
 
   if (scan.status != ScanStatus::found) {
     const char* reason = scan.status == ScanStatus::ambiguous
@@ -148,6 +160,7 @@ bool TreasureObserver::start() {
   impl.log(LogLevel::debug, found.str().c_str());
 
   // Prepare both hooks before allowing either to execute callbacks.
+  impl.log(LogLevel::debug, "State enter hook creation begin");
   auto enter = safetyhook::MidHook::create(
     reinterpret_cast<void*>(scan.sites.enter),
     capture_state,
@@ -162,6 +175,8 @@ bool TreasureObserver::start() {
   }
 
   impl.hooks.hooks().enter = std::move(*enter);
+  impl.log(LogLevel::debug, "State enter hook creation ready");
+  impl.log(LogLevel::debug, "State leave hook creation begin");
   auto leave = safetyhook::MidHook::create(
     reinterpret_cast<void*>(scan.sites.leave),
     capture_state,
@@ -176,6 +191,7 @@ bool TreasureObserver::start() {
   }
 
   impl.hooks.hooks().leave = std::move(*leave);
+  impl.log(LogLevel::debug, "State leave hook creation ready");
   g_state_base.store(0);
   g_hook_events.store(0);
   g_pre_state.store(UINT32_MAX);
@@ -184,7 +200,7 @@ bool TreasureObserver::start() {
   impl.last_base_log = 0;
   g_capturing.store(true, std::memory_order_release);
 
-  if (!impl.hooks.enable()) {
+  if (!impl.hooks.enable(impl.logger, "State")) {
     impl.log(LogLevel::error, "State mid-hook activation failed");
     stop();
 

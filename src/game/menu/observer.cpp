@@ -67,6 +67,12 @@ struct MenuObserver::Impl {
       changes.publish({previous, value});
     }
   }
+
+  void log_debug(const char* message) const {
+    if (logger) {
+      logger(LogLevel::debug, message);
+    }
+  }
 };
 
 MenuObserver::MenuObserver(LogCallback logger)
@@ -97,7 +103,9 @@ bool MenuObserver::start() {
 
   impl.claimed = true;
   auto module = GetModuleHandleW(L"CrimsonDesert.exe");
+  impl.log_debug("Menu instruction scan begin");
   auto scan = find_menu_hook_sites(module);
+  impl.log_debug("Menu instruction scan returned");
 
   if (scan.status != ScanStatus::found) {
     if (impl.logger) {
@@ -113,7 +121,9 @@ bool MenuObserver::start() {
   }
 
   impl.module = reinterpret_cast<uintptr_t>(module);
+  impl.log_debug("Menu UI slot scan begin");
   auto root_scan = find_ui_root_slot(module);
+  impl.log_debug("Menu UI slot scan returned");
 
   if (root_scan.status != ScanStatus::found) {
     stop();
@@ -124,9 +134,12 @@ bool MenuObserver::start() {
   impl.identities = detail::make_ui_identity_cache(reinterpret_cast<uintptr_t>(module));
   impl.identities.root_slot = root_scan.root_slot;
   impl.state_offset = scan.state_offset;
+  impl.log_debug("Menu initial state sample begin");
   auto root = detail::find_menu_root(impl.module, detail::read_memory, &impl.identities);
   g_root.store(root, std::memory_order_release);
   impl.current = detail::sample_menu(root, impl.state_offset, detail::read_memory);
+  impl.log_debug("Menu initial state sample ready");
+  impl.log_debug("Menu enter hook creation begin");
   auto clear = safetyhook::MidHook::create(
     reinterpret_cast<void*>(scan.sites.enter),
     capture_close,
@@ -134,12 +147,15 @@ bool MenuObserver::start() {
   );
 
   if (!clear) {
+    impl.log_debug("Menu enter hook creation failed");
     stop();
 
     return false;
   }
 
   impl.hooks.hooks().enter = std::move(*clear);
+  impl.log_debug("Menu enter hook creation ready");
+  impl.log_debug("Menu leave hook creation begin");
   auto set = safetyhook::MidHook::create(
     reinterpret_cast<void*>(scan.sites.leave),
     capture_open,
@@ -147,16 +163,18 @@ bool MenuObserver::start() {
   );
 
   if (!set) {
+    impl.log_debug("Menu leave hook creation failed");
     stop();
 
     return false;
   }
 
   impl.hooks.hooks().leave = std::move(*set);
+  impl.log_debug("Menu leave hook creation ready");
   g_events.reset();
   g_capturing.store(true, std::memory_order_release);
 
-  if (!impl.hooks.enable()) {
+  if (!impl.hooks.enable(impl.logger, "Menu")) {
     stop();
 
     return false;
