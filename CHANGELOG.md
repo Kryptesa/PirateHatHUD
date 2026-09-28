@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Keep the DX12 probe device alive until the game renderer is ready, preventing
+  premature ReShade add-on unloading during startup (observed with Clear Vision).
+
 ## 1.0.2 ? 2026-09-28
 
 - Added thread IDs, detailed game-hook startup markers and bounded first-call graphics

@@ -32,6 +32,11 @@ HooksStopResult stop_result{true, true, true, false};
 std::atomic<unsigned> callbacks{0};
 std::atomic<bool> stopping{false};
 std::mutex mutex;
+// ReShade loads add-ons with the first device and unloads them with the last.
+// Bridge the gap between our probe and a working game renderer. If startup never
+// reaches that renderer, retain the device through process exit: an add-on may
+// still have a worker executing its code. Do not run its destructor from DllMain.
+ComPtr<ID3D12Device>& probe_device = *new ComPtr<ID3D12Device>;
 // Protected by mutex. Present must not reacquire resources during any resize callback.
 unsigned resizes_active{};
 std::atomic<bool> first_callbacks[9]{};
@@ -533,13 +538,28 @@ HRESULT WINAPI on_present(IDXGISwapChain* swap, UINT interval, UINT flags) {
     callback_progress(diagnostic, "non-test Present", CallbackStage::original_returned, result);
   }
 
+  ComPtr<ID3D12Device> retired_probe;
   own_work([&] {
     std::lock_guard lock(mutex);
     if (!stopping && !resizes_active && renderer) {
       SubmitGuard submit;
       renderer->after_present(swap, result, flags);
+      if (
+        result == S_OK &&
+        !(flags & DXGI_PRESENT_TEST) &&
+        renderer->ready() &&
+        renderer->handles(swap)
+      ) {
+        retired_probe = std::move(probe_device);
+      }
     }
   });
+
+  if (retired_probe) {
+    // Release outside our mutex: device destruction can invoke third-party callbacks.
+    retired_probe.Reset();
+    overlay_log(LogLevel::debug, "DX12 probe device released after game renderer became ready");
+  }
 
   if (diagnostic) {
     callback_progress(diagnostic, "non-test Present", CallbackStage::completed);
@@ -762,6 +782,11 @@ bool start_hooks(Dx12Renderer& target, HudSnapshot hud_snapshot, LogCallback log
       "probe D3D12CreateDevice"
     )
   ) {
+    {
+      std::lock_guard lock(mutex);
+      probe_device = device;
+    }
+    overlay_log(LogLevel::debug, "DX12 probe device retained until game renderer is ready");
     D3D12_COMMAND_QUEUE_DESC q{};
     q.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 
@@ -933,7 +958,7 @@ HooksStopResult stop_hooks() noexcept {
   }
 
   stop_result.hooks_disabled = disabled;
-  stop_result.module_must_remain_loaded = activation_attempted || !disabled;
+  stop_result.module_must_remain_loaded = activation_attempted || !disabled || probe_device;
   const auto deadline = GetTickCount64() + 1000;
 
   while (callbacks.load() && GetTickCount64() < deadline) {
@@ -951,6 +976,10 @@ HooksStopResult stop_hooks() noexcept {
   try {
     std::lock_guard lock(mutex);
     stop_result.gpu_resources_released = renderer->shutdown() == ReleaseResult::released;
+    if (probe_device) {
+      stop_result.gpu_resources_released = false;
+      overlay_log(LogLevel::debug, "DX12 probe device retained through process exit");
+    }
 
     // No further own work is admitted after stopping, including late hook entries.
     renderer->set_logger(nullptr);

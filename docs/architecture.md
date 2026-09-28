@@ -89,6 +89,11 @@ DX12 and hook headers describe internal renderer implementation rather than a pu
 library API:
 
 - `dxgi_hooks`: hook installation/removal, swapchain/queue selection and callback draining.
+  The startup probe device stays alive until a successful non-test Present on the
+  selected game chain with a ready renderer, bridging ReShade add-on lifetime until
+  the game owns a working device. It is released outside the graphics mutex. If
+  startup stops before this handoff, retain the probe until process exit and report
+  that graphics resources and the module must remain; no DLL destructor releases it.
 - `dx12_renderer`: owns GPU/ImGui state, initialization, rendering and resize lifecycle.
 - `dx12_frames`: frame buffers, fences and descriptor allocation for that renderer.
 - `dx12_texture`: icon GPU allocation and upload commands for that renderer.
