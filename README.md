@@ -29,7 +29,8 @@ behind when it is later uninstalled. If that happens, check `bin64` for `PirateH
 
 ## Settings and hotkeys
 
-Edit `PirateHatHUD.ini` next to the ASI, then restart the game to apply your changes.
+Edit `PirateHatHUD.ini` next to the ASI. Notification volume and treasure radius
+apply during gameplay; other settings require restarting the game.
 
 ```ini
 [indicator]
@@ -45,6 +46,10 @@ enabled=1
 cooldown_ms=1000
 volume_percent=100
 
+[treasure]
+enabled=0
+radius=15
+
 [hotkeys]
 toggle=F9
 unload=F10
@@ -55,25 +60,40 @@ max_file_size_mb=5
 max_files=3
 ```
 
-- **F9** toggles the icon and sound. Set `[indicator] enabled=0` to start with them off.
-- **F10** stops the mod for the rest of the session. Restart the game to use it again.
-- **Position:** `x` counts from the left. A negative `y` counts up from the bottom;
-  zero or a positive value counts down from the top. The defaults were chosen for
-  2560 × 1440, so you may want to adjust them for your HUD.
-- **Size:** `scale_percent=100` gives a 56 × 56 pixel icon. The allowed range is 25–400.
-- **Return delay:** `show_delay_ms` controls how long the icon waits after the minimap
-  is visible and the menu is closed. The default is one second; use `0` for no delay.
-  Values up to `60000` are accepted.
-- **Test mode:** `force_show=1` shows the icon without needing the hat or nearby
-  treasure. It still hides in menus and when the minimap is off.
-- **Sound:** `[sound] enabled=0` disables the notification. `cooldown_ms` sets the
-  minimum interval between sounds (0 to 60000 ms; default 1000).
-  `volume_percent` further scales notification volume (0 to 100; default 100).
-  For example, 50 halves its amplitude after applying the game sliders; 0 mutes it.
-  At startup, values outside this range fall back to 100. Saved changes to
-  `volume_percent` are checked once per second and affect the next notification;
-  zero stops current playback. Missing or invalid values during reload retain the
-  last working volume. Other settings still require restarting the game.
+The table uses `section.setting` to identify each INI entry. **Restart** means the
+next game launch. **Live** means saved edits apply without restarting.
+
+| Setting | Default | Purpose and accepted values | Applies |
+| --- | --- | --- | --- |
+| `indicator.enabled` | `1` | Initial icon/sound state: `0` off, `1` on. The toggle hotkey changes it during play. | Restart |
+| `indicator.force_show` | `0` | Test icon without hat/treasure detection: `0` off, `1` on. Still hidden in menus and when the minimap is hidden. | Restart |
+| `indicator.x` | `350` | Horizontal position in pixels from the left edge. | Restart |
+| `indicator.y` | `-310` | Vertical position in pixels: negative counts up from the bottom; zero or positive counts from the top. | Restart |
+| `indicator.scale_percent` | `100` | Icon size: 25-400 percent. At 100, the icon is 56 × 56 pixels. | Restart |
+| `indicator.show_delay_ms` | `1000` | Icon return delay after the minimap appears and menus close: 0-60000 ms. Zero removes the delay. | Restart |
+| `sound.enabled` | `1` | Treasure notifications: `0` off, `1` on. | Restart |
+| `sound.cooldown_ms` | `1000` | Minimum interval between notifications: 0-60000 ms. | Restart |
+| `sound.volume_percent` | `100` | Additional volume after game master/effects scaling: 0-100 percent. Zero mutes; 50 halves amplitude. | Live, about 1 second |
+| `treasure.enabled` | `0` | Optional hat range override: `0` off, `1` on. When off at startup, no radius lookup, write or settings polling occurs. | Restart |
+| `treasure.radius` | `15` | Hat detection radius: 1-1000 meters; decimals allowed. For example, 30 doubles the stock range. | Live, about 2 seconds, if enabled at startup |
+| `hotkeys.toggle` | `F9` | Toggle the icon and sound. Choices: F8, F9, F10, F11. Does not change hat range. | Restart |
+| `hotkeys.unload` | `F10` | Stop the mod until the next launch and restore its radius override. Choices: F8, F9, F10, F11; choose a different key from toggle. | Restart |
+| `logging.level` | `info` | Log detail: trace, debug, info, warn, error, off. State transitions and detailed diagnostics require debug or trace. | Restart |
+| `logging.max_file_size_mb` | `5` | Maximum size of one log file: 1-100 MB. Logs also rotate at startup. | Restart |
+| `logging.max_files` | `3` | Total log files to keep, including the current file: 1-20. | Restart |
+
+The default icon position was chosen for 2560 × 1440. Adjust it for your HUD as needed.
+Missing or invalid values during live reload retain the last valid value. Setting
+notification volume to zero also stops current playback; other volume changes apply
+to the next notification.
+
+The range override changes the hat's native detection, including its feather effect,
+and still requires wearing the hat. It works independently of the icon and sound.
+The mod changes memory only and leaves game files and saves untouched. The unload hotkey restores
+the captured original radius if the mod still owns the same descriptor and value.
+If the finder cannot be identified uniquely, no radius is changed. If another mod
+changes an owned value, this override stops writing until the radius setting changes
+and leaves that other value intact during shutdown.
 
 The sound plays once when observed treasure detection changes from inactive to active.
 On startup, an already active perk also notifies once when gameplay first becomes
@@ -88,8 +108,7 @@ cannot be read safely, sound is suppressed and a diagnostic is logged; the icon 
 works. Restoring volume does not replay missed notifications. Nonzero changes apply
 to the next sound, using linear scaling of both sliders.
 
-Hotkeys can be set to F8, F9, F10 or F11.
-They are registered with Windows while the game is focused and released when it
+Hotkeys are registered with Windows while the game is focused and released when it
 loses focus or the mod stops. A binding that cannot be registered uses key-state
 polling instead; the log reports this fallback.
 

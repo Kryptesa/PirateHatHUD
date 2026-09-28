@@ -63,6 +63,7 @@ target_compile_definitions(imgui_static PRIVATE IMGUI_DISABLE_OBSOLETE_FUNCTIONS
 add_library(game_observers STATIC src/game/treasure/observer.cpp src/game/treasure/memory.cpp src/game/minimap/observer.cpp
   src/game/menu/observer.cpp src/game/shared/ui_memory.cpp src/game/minimap/memory.cpp src/game/menu/memory.cpp
   src/game/audio/observer.cpp src/game/audio/memory.cpp src/game/audio/scan.cpp
+  src/game/range/modifier.cpp src/game/range/memory.cpp src/game/range/scan.cpp
   src/game/shared/memory_reader.cpp src/game/shared/address.cpp src/game/treasure/scan.cpp src/game/menu/scan.cpp src/game/shared/ui_root_scan.cpp src/pattern_scan.cpp)
 target_include_directories(game_observers PUBLIC include)
 target_compile_definitions(game_observers PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)

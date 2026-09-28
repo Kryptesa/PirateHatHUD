@@ -3,10 +3,51 @@
 #include <cwchar>
 #include <cerrno>
 #include <utility>
+#include <cmath>
+#include <optional>
 
 namespace phi {
 
 namespace {
+std::optional<float> read_treasure_radius(const std::wstring& path) {
+  wchar_t value[64]{};
+  const auto length =
+    GetPrivateProfileStringW(L"treasure", L"radius", L"", value, 64, path.c_str());
+  wchar_t* end = nullptr;
+  errno = 0;
+  const auto parsed = std::wcstof(value, &end);
+  if (
+    length == 0 ||
+    length >= 63 ||
+    end == value ||
+    *end ||
+    errno == ERANGE ||
+    !std::isfinite(parsed) ||
+    parsed < 1 ||
+    parsed > 1000
+  ) {
+    return {};
+  }
+  return parsed;
+}
+
+std::optional<TreasureRangeSettings>
+read_treasure_range(const std::wstring& path, TreasureRangeSettings previous) {
+  wchar_t enabled[8]{};
+  const auto length =
+    GetPrivateProfileStringW(L"treasure", L"enabled", L"", enabled, 8, path.c_str());
+  if (length != 1 || (enabled[0] != L'0' && enabled[0] != L'1')) {
+    return {};
+  }
+  const bool active = enabled[0] == L'1';
+  const auto radius = read_treasure_radius(path);
+  if (active && !radius) {
+    return {};
+  }
+  // Startup-disabled sessions do not need a valid override radius.
+  return TreasureRangeSettings{active, radius.value_or(previous.radius)};
+}
+
 int key_from_name(const wchar_t* value, int fallback) {
   if (_wcsicmp(value, L"F8") == 0) {
     return VK_F8;
@@ -31,6 +72,8 @@ int key_from_name(const wchar_t* value, int fallback) {
 Config read_config(const std::wstring& path) {
   const Config defaults;
   Config config = defaults;
+  config.treasure_range =
+    read_treasure_range(path, defaults.treasure_range).value_or(defaults.treasure_range);
   config.x = GetPrivateProfileIntW(L"indicator", L"x", config.x, path.c_str());
   config.y = GetPrivateProfileIntW(L"indicator", L"y", config.y, path.c_str());
   config.scale = GetPrivateProfileIntW(
@@ -147,5 +190,34 @@ int SoundVolumeConfig::poll(std::chrono::steady_clock::time_point now) {
   size_ = size;
   observed_ = true;
   return volume_;
+}
+
+TreasureRadiusConfig::TreasureRadiusConfig(std::wstring path, float initial_radius)
+  : path_(std::move(path)),
+    radius_(initial_radius) {}
+
+float TreasureRadiusConfig::poll(std::chrono::steady_clock::time_point now) {
+  if (now < next_check_) {
+    return radius_;
+  }
+  next_check_ = now + std::chrono::seconds(1);
+  std::error_code error;
+  const auto modified = std::filesystem::last_write_time(path_, error);
+  if (error) {
+    return radius_;
+  }
+  const auto size = std::filesystem::file_size(path_, error);
+  if (error || (observed_ && modified == modified_ && size == size_)) {
+    return radius_;
+  }
+  const auto parsed = read_treasure_radius(path_);
+  if (!parsed) {
+    return radius_; // Keep the last valid radius during incomplete saves or invalid edits.
+  }
+  radius_ = *parsed;
+  modified_ = modified;
+  size_ = size;
+  observed_ = true;
+  return radius_;
 }
 } // namespace phi

@@ -45,6 +45,11 @@ add_executable(treasure_memory_tests game/treasure_memory_tests.cpp)
 target_link_libraries(treasure_memory_tests PRIVATE game_observers)
 add_test(NAME treasure_memory_tests COMMAND treasure_memory_tests)
 
+add_executable(treasure_range_tests game/treasure_range_tests.cpp)
+target_link_libraries(treasure_range_tests PRIVATE game_observers)
+target_compile_definitions(treasure_range_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+add_test(NAME treasure_range_tests COMMAND treasure_range_tests)
+
 add_executable(audio_volume_tests game/audio_volume_tests.cpp)
 target_link_libraries(audio_volume_tests PRIVATE game_observers)
 add_test(NAME audio_volume_tests COMMAND audio_volume_tests)
@@ -75,6 +80,7 @@ set_tests_properties(
   scanner_tests
   game_address_tests
   treasure_memory_tests
+  treasure_range_tests
   audio_volume_tests
   observer_tests
   menu_tests

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Added an optional Pirate King Hat detection radius setting, independent of the
+  icon and sound toggle, disabled by default. Enable state is read at startup;
+  enabled sessions apply saved radius edits during gameplay. Stopping the mod restores
+  the captured native value when it is still owned by the mod. The configurable range
+  is 1 to 1000 meters.
+- Validated the finder pool and descriptor before modifying the radius; unknown or
+  ambiguous layouts and conflicting value changes are left untouched.
+
 ## 1.0.3 - 2026-09-28
 
 - Fixed a startup crash with Clear Vision caused by premature ReShade add-on

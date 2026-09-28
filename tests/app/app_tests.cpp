@@ -3,6 +3,7 @@
 #include "game/minimap_observer.hpp"
 #include "game/menu_observer.hpp"
 #include "game/audio_volume_observer.hpp"
+#include "game/treasure_range.hpp"
 #include "overlay.hpp"
 #include "platform/config.hpp"
 #include "platform/hotkeys.hpp"
@@ -39,6 +40,11 @@ struct Scenario {
   bool enabled = true;
   bool sound_enabled = true;
   int sound_volume_percent = 100;
+  phi::TreasureRangeSettings treasure_range;
+  std::vector<float> live_radii;
+  unsigned range_config_constructions = 0;
+  unsigned range_config_polls = 0;
+  std::vector<float> applied_radii;
   std::vector<int> live_volumes;
   bool foreground = true;
   bool sound_valid = true;
@@ -106,6 +112,17 @@ phi::AppExitDisposition run() {
 } // namespace
 
 namespace phi {
+struct TreasureRange::Impl {};
+TreasureRange::TreasureRange(LogCallback)
+  : impl_(std::make_unique<Impl>()) {}
+TreasureRange::~TreasureRange() = default;
+void TreasureRange::poll(float radius) {
+  scenario.applied_radii.push_back(radius);
+}
+void TreasureRange::stop() noexcept {
+  scenario.calls.emplace_back("range_stop");
+}
+
 struct AudioVolumeObserver::Impl {};
 AudioVolumeObserver::AudioVolumeObserver(LogCallback)
   : impl_(std::make_unique<Impl>()) {}
@@ -314,9 +331,23 @@ Config read_config(const std::wstring& path) {
   config.enabled = scenario.enabled;
   config.sound_enabled = scenario.sound_enabled;
   config.sound_volume_percent = scenario.sound_volume_percent;
+  config.treasure_range = scenario.treasure_range;
   config.show_delay_ms = 0;
 
   return config;
+}
+
+TreasureRadiusConfig::TreasureRadiusConfig(std::wstring path, float initial_radius)
+  : path_(std::move(path)),
+    radius_(initial_radius) {
+  ++scenario.range_config_constructions;
+}
+float TreasureRadiusConfig::poll(std::chrono::steady_clock::time_point) {
+  ++scenario.range_config_polls;
+  if (!scenario.live_radii.empty()) {
+    radius_ = scenario.live_radii[std::min<size_t>(scenario.polls, scenario.live_radii.size() - 1)];
+  }
+  return radius_;
 }
 
 HotkeyActions poll_hotkeys(int, int) {
@@ -490,6 +521,7 @@ int main() {
   CHECK(before("minimap_poll", "hotkeys"));
   CHECK(before("menu_poll", "hotkeys"));
   CHECK(before("hotkeys_stop", "observer_stop"));
+  CHECK(before("range_stop", "observer_stop"));
   CHECK(before("menu_stop", "overlay_stop"));
   CHECK(before("minimap_stop", "overlay_stop"));
   CHECK(before("observer_stop", "overlay_stop"));
@@ -500,6 +532,31 @@ int main() {
   CHECK(std::count(scenario.calls.begin(), scenario.calls.end(), "hotkeys_stop") == 1);
   CHECK(!has("sound_play")); // Immediate unload suppresses audio.
   CHECK(before("sound_stop", "overlay_stop"));
+
+  scenario = {};
+  scenario.enabled = false;
+  scenario.sound_enabled = false;
+  scenario.live_radii = {30, 40, 50};
+  scenario.treasure_states =
+    {phi::TreasureState::inactive, phi::TreasureState::inactive, phi::TreasureState::inactive};
+  CHECK(run() == AppExitDisposition::unload_allowed);
+  CHECK(scenario.applied_radii.empty());
+  CHECK(scenario.range_config_constructions == 0 && scenario.range_config_polls == 0);
+  CHECK(!scenario.hud_visible && !has("sound_play"));
+  CHECK(before("range_stop", "observer_stop"));
+
+  scenario = {};
+  scenario.enabled = false;
+  scenario.sound_enabled = false;
+  scenario.treasure_range = {true, 30};
+  scenario.live_radii = {30, 40, 50};
+  scenario.treasure_states =
+    {phi::TreasureState::inactive, phi::TreasureState::inactive, phi::TreasureState::inactive};
+  CHECK(run() == AppExitDisposition::unload_allowed);
+  CHECK(scenario.applied_radii == std::vector<float>({30, 40, 50}));
+  CHECK(scenario.range_config_constructions == 1 && scenario.range_config_polls == 3);
+  CHECK(!scenario.hud_visible && !has("sound_play"));
+  CHECK(before("range_stop", "observer_stop"));
 
   scenario = {};
   scenario.treasure_states =

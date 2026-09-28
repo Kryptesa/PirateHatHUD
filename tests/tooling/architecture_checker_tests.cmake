@@ -56,6 +56,13 @@ check_case(render_to_minimap include/render/bad.hpp "#include \"game/minimap_obs
 
 message(STATUS "Architecture checker regression tests passed")
 
+check_case(observer_to_modifier src/game/treasure/observer.cpp
+  "#include \"game/treasure_range.hpp\"\n" "observers cannot depend on game modifiers")
+check_case(modifier_to_observer src/game/range/modifier.cpp
+  "#include \"game/treasure_observer.hpp\"\n" "modifiers cannot depend on observers or hooks")
+check_case(modifier_to_hooks src/game/range/modifier.cpp
+  "#include <safetyhook.hpp>\n" "modifiers cannot depend on observers or hooks")
+
 foreach(module render overlay platform)
   set(case "${module}_to_log_contract")
   file(WRITE "${TEST_ROOT}/${case}/include/core/log.hpp" "#pragma once\n")

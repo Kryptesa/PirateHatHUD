@@ -67,12 +67,30 @@ in the same task, including any constraints passed to delegated agents.
   introduce new dependency boundaries. The architecture checker already classifies
   nested paths and continues to reject game dependencies on configuration or graphics.
 - `core/signal.hpp`: reusable typed synchronous signals and move-only RAII subscriptions.
+- `game/range`: the optional `TreasureRange` modifier is compiled into the existing
+  `game_observers` library but has a separate responsibility and lifecycle. It installs
+  no hooks and has no dependency on observers, HUD, sound or configuration. App passes
+  a radius value on the owner thread. A unique loader signature resolves the chart
+  pool and descriptor vtable; bounded traversal validates MSVC RTTI, equip condition,
+  treasure kinds and event hashes before changing only the radius float. Two coherent
+  samples and a guarded compare/exchange reject changed identities and values. It
+  captures the native value and restores it on zero or stop only while it still owns
+  the same descriptor/value. Other mod changes are left intact. Observer hooks remain
+  capture-only; observers cannot include the modifier's headers, and the modifier
+  cannot include observer headers or SafetyHook. The checker enforces these includes.
 - `treasure_indicator`: presentation policy for this mod, producing a `HudState`.
 - `features/treasure_sound`: notification policy using observer state values and a
   steady-clock cooldown, independent of HUD visibility and return delay.
 - `overlay`: DX12 resources and drawing from a coherent `HudState` snapshot.
 - `platform`: INI configuration, Windows hotkeys, file logging and asynchronous WAV
   playback through `platform/sound`.
+  The radius enable state is read at startup only. App constructs `TreasureRadiusConfig`
+  and polls the modifier only for startup-enabled sessions. The watcher reloads only
+  the radius once per second and retains its last valid value during missing, partial
+  or invalid saves. Disabled sessions never scan for or write a radius and never watch
+  its configuration. Zero remains an internal restoration sentinel, not an INI radius.
+  F9 controls presentation; it does not change the perk radius. F10
+  and exception cleanup ask the modifier to restore before observer/graphics shutdown.
   Hotkeys register owner-thread WM_HOTKEY delivery with MOD_NOREPEAT while the game
   is foreground, falling back per unavailable binding to key-state edge detection.
   Registrations and atom IDs are released on focus loss and during application

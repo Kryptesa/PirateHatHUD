@@ -179,6 +179,29 @@ int main() {
   CHECK(defaults.sound_enabled);
   CHECK(defaults.sound_cooldown_ms == 1000);
   CHECK(defaults.sound_volume_percent == 100);
+  CHECK(!defaults.treasure_range.enabled && defaults.treasure_range.radius == 15);
+  for (const auto* text : {"0", "1", "30.5", "1000", "-1", "0.5", "1001", "nan", "inf", "30junk"}) {
+    std::ofstream(ini) << "[treasure]\nenabled=1\nradius=" << text << "\n";
+    const auto settings = read_config(ini.wstring()).treasure_range;
+    const auto actual = settings.radius;
+    if (std::string(text) == "1") {
+      CHECK(settings.enabled && actual == 1);
+    } else if (std::string(text) == "30.5") {
+      CHECK(settings.enabled && actual == 30.5f);
+    } else if (std::string(text) == "1000") {
+      CHECK(settings.enabled && actual == 1000);
+    } else {
+      CHECK(!settings.enabled && actual == 15);
+    }
+  }
+  for (const auto* disabled :
+    {"[treasure]\nradius=30\n",
+      "[treasure]\nenabled=nope\nradius=30\n",
+      "[treasure]\nenabled=2\nradius=30\n",
+      "[treasure]\nenabled=0\nradius=30\n"}) {
+    std::ofstream(ini) << disabled;
+    CHECK(!read_config(ini.wstring()).treasure_range.enabled);
+  }
   for (int volume : {0, 25, 100, -1, 101}) {
     std::ofstream(ini) << "[sound]\nvolume_percent=" << volume << "\n";
     CHECK(
@@ -236,4 +259,27 @@ int main() {
   CHECK(live.poll(now + std::chrono::seconds(second++)) == 0);
   save_volume("[sound]\nvolume_percent=100\n");
   CHECK(live.poll(now + std::chrono::seconds(second++)) == 100);
+
+  TreasureRadiusConfig live_radius(ini.wstring(), 15);
+  save_volume("[treasure]\nenabled=1\nradius=30.5\n");
+  CHECK(live_radius.poll(now) == 30.5f);
+  // Enabled is a startup setting: the watcher ignores changes to it.
+  save_volume("[treasure]\nenabled=0\nradius=40.5\n");
+  CHECK(live_radius.poll(now + std::chrono::milliseconds(500)) == 30.5f);
+  CHECK(live_radius.poll(now + std::chrono::seconds(1)) == 40.5f);
+  unsigned radius_second = 2;
+  for (const auto* invalid :
+    {"",
+      "[treasure]\n",
+      "[treasure]\nradius=0\n",
+      "[treasure]\nradius=nan\n",
+      "[treasure]\nradius=1001\n",
+      "[treasure]\nradius=30junk\n"}) {
+    save_volume(invalid);
+    CHECK(live_radius.poll(now + std::chrono::seconds(radius_second++)) == 40.5f);
+  }
+  std::filesystem::remove(ini);
+  CHECK(live_radius.poll(now + std::chrono::seconds(radius_second++)) == 40.5f);
+  save_volume("[treasure]\nradius=50.5\n");
+  CHECK(live_radius.poll(now + std::chrono::seconds(radius_second++)) == 50.5f);
 }

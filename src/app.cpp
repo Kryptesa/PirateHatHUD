@@ -5,6 +5,7 @@
 #include "game/minimap_observer.hpp"
 #include "game/menu_observer.hpp"
 #include "game/audio_volume_observer.hpp"
+#include "game/treasure_range.hpp"
 #include "overlay.hpp"
 #include "platform/config.hpp"
 #include "platform/hotkeys.hpp"
@@ -16,6 +17,7 @@
 #include <cstdio>
 #include <string>
 #include <vector>
+#include <optional>
 
 namespace phi {
 
@@ -255,7 +257,8 @@ public:
       observer_(log),
       minimap_(log),
       menu_(log),
-      audio_volume_(log) {}
+      audio_volume_(log),
+      treasure_range_(log) {}
 
   ~AppSession() noexcept {
     finish();
@@ -263,6 +266,10 @@ public:
 
   void run(const Config& config, const std::wstring& folder, const std::wstring& config_path) {
     SoundVolumeConfig sound_volume(config_path, config.sound_volume_percent);
+    std::optional<TreasureRadiusConfig> treasure_radius;
+    if (config.treasure_range.enabled) {
+      treasure_radius.emplace(config_path, config.treasure_range.radius);
+    }
     const auto sound_path = folder + L"PirateHatHUD_treasure.wav";
     const bool custom_sound = GetFileAttributesW(sound_path.c_str()) != INVALID_FILE_ATTRIBUTES;
 
@@ -350,6 +357,9 @@ public:
     log(LogLevel::debug, "Startup: polling loop begin");
 
     for (;;) {
+      if (treasure_radius) {
+        treasure_range_.poll(treasure_radius->poll());
+      }
       observer_.poll();
       minimap_.poll();
       menu_.poll();
@@ -407,6 +417,7 @@ private:
 
     finished_ = true;
     stop_hotkeys();
+    treasure_range_.stop();
     const auto observer_stop = observer_.stop();
     exit_.retain |= observer_stop.module_must_remain_loaded || !observer_stop.hooks_disabled;
 
@@ -448,6 +459,7 @@ private:
   MinimapObserver minimap_;
   MenuObserver menu_;
   AudioVolumeObserver audio_volume_;
+  TreasureRange treasure_range_;
   Subscription menu_subscription_;
   Subscription subscription_;
   Subscription minimap_subscription_;
