@@ -64,6 +64,9 @@ public:
     IUnknown* const* queues = nullptr
   );
 
+  // Reacquire backbuffers only after presentation confirms the resized chain is usable.
+  void after_present(IDXGISwapChain* swap, HRESULT result, UINT flags);
+
   ReleaseResult shutdown() noexcept;
 
   RendererState state() const {

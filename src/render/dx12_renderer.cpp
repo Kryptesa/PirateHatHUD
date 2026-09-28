@@ -391,7 +391,26 @@ void Dx12Renderer::after_resize(
     queue = replacement;
   }
 
-  if (!create_buffers(candidate) || !initialize_backend(desc)) {
+  // The hooked implementation can be inside an upscaler/frame-generation wrapper.
+  // Returning from its resize is not proof that the outer transition has finished.
+  log(LogLevel::debug, "DX12 resize completed; waiting for successful Present");
+}
+
+void Dx12Renderer::after_present(IDXGISwapChain* candidate, HRESULT result, UINT flags) {
+  if (
+    !handles(candidate) ||
+    state_ != RendererState::resizing ||
+    result != S_OK ||
+    (flags & DXGI_PRESENT_TEST)
+  ) {
+    return;
+  }
+
+  DXGI_SWAP_CHAIN_DESC desc{};
+
+  if (
+    FAILED(candidate->GetDesc(&desc)) || !create_buffers(candidate) || !initialize_backend(desc)
+  ) {
     fault();
     log(LogLevel::error, "DX12 resize recreation failed; overlay disabled");
     return;

@@ -131,6 +131,18 @@ set_tests_properties(
   PROPERTIES LABELS platform)
 
 # Render
+add_executable(resize_tests render/resize_tests.cpp
+  "${PROJECT_SOURCE_DIR}/src/render/dx12_renderer.cpp"
+  "${PROJECT_SOURCE_DIR}/src/render/dx12_frames.cpp"
+  "${PROJECT_SOURCE_DIR}/src/render/dx12_texture.cpp"
+  "${PROJECT_SOURCE_DIR}/src/render/dx12_hdr.cpp"
+  "${PROJECT_SOURCE_DIR}/src/render/hdr_bytecode.cpp"
+  "${PROJECT_SOURCE_DIR}/src/render/hud_draw.cpp")
+target_include_directories(resize_tests PRIVATE "${PROJECT_SOURCE_DIR}/include")
+target_compile_definitions(resize_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_link_libraries(resize_tests PRIVATE imgui_static d3d12 dxgi d3dcompiler)
+add_test(NAME resize_tests COMMAND resize_tests)
+
 add_executable(render_wait_tests render/render_wait_tests.cpp)
 target_include_directories(render_wait_tests PRIVATE "${PROJECT_SOURCE_DIR}/include")
 add_test(NAME render_wait_tests COMMAND render_wait_tests)
@@ -159,6 +171,7 @@ target_link_libraries(image_tests PRIVATE ole32 windowscodecs)
 add_test(NAME image_tests COMMAND image_tests "${PROJECT_SOURCE_DIR}/assets/icon.png")
 
 set_tests_properties(
+  resize_tests
   render_wait_tests
   swapchain_tests
   render_icon_tests

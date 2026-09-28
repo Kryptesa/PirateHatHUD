@@ -30,6 +30,8 @@ HooksStopResult stop_result{true, true, true, false};
 std::atomic<unsigned> callbacks{0};
 std::atomic<bool> stopping{false};
 std::mutex mutex;
+// Protected by mutex. Present must not reacquire resources during any resize callback.
+unsigned resizes_active{};
 
 struct SwapRecord {
   ComPtr<ID3D12CommandQueue> queue;
@@ -278,6 +280,9 @@ HRESULT WINAPI on_present(IDXGISwapChain* swap, UINT interval, UINT flags) {
       SubmitGuard submit;
 
       std::lock_guard lock(mutex);
+      if (stopping || resizes_active) {
+        return;
+      }
       DXGI_SWAP_CHAIN_DESC desc{};
       DWORD process{};
       const bool described = SUCCEEDED(swap->GetDesc(&desc));
@@ -378,6 +383,14 @@ HRESULT WINAPI on_present(IDXGISwapChain* swap, UINT interval, UINT flags) {
 
   const auto result = present_hook.call<HRESULT>(swap, interval, flags);
 
+  own_work([&] {
+    std::lock_guard lock(mutex);
+    if (!stopping && !resizes_active && renderer) {
+      SubmitGuard submit;
+      renderer->after_present(swap, result, flags);
+    }
+  });
+
   return result;
 }
 
@@ -408,9 +421,12 @@ HRESULT resize_swap(
     }
   } guard;
   bool prepared = false;
+  bool admitted = false;
   own_work([&] {
+    std::lock_guard lock(mutex);
     if (!stopping) {
-      std::lock_guard lock(mutex);
+      ++resizes_active;
+      admitted = true;
 
       if (renderer) {
         prepared = renderer->before_resize(swap);
@@ -420,9 +436,12 @@ HRESULT resize_swap(
 
   const auto hr = original();
   own_work([&] {
-    if (!stopping) {
-      std::lock_guard lock(mutex);
+    std::lock_guard lock(mutex);
+    if (admitted) {
+      --resizes_active;
+    }
 
+    if (!stopping) {
       if (SUCCEEDED(hr) && count && queues) {
         ComPtr<ID3D12CommandQueue> queue;
         bool coherent = true;

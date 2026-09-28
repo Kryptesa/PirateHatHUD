@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fixed crashes when switching upscalers or frame generation by deferring overlay
+  backbuffer recreation until a successful presentation after resize.
+
 ## 1.0.0 — 2026-09-28
 
 - Fixed F9/F10 input with Windows hotkey messages while the game is focused.

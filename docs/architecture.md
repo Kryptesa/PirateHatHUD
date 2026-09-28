@@ -127,9 +127,14 @@ The facade retains the renderer allocation if callbacks or GPU work cannot safel
 These process-lifetime allocations must not acquire automatic destructors that free them
 during DLL detach.
 
-The renderer tracks waiting, ready, resizing, faulted and stopped states. Normal drawing
-checks only the current backbuffer's allocator/command list and the next ImGui vertex/index
-buffer slot, tracked by a separate submission ring. It skips drawing only if one of those
+The renderer tracks waiting, ready, resizing, faulted and stopped states. It does not
+reacquire backbuffers inside ResizeBuffers/ResizeBuffers1: a successful resize
+keeps the renderer in resizing state until a non-test Present returns S_OK. Graphics
+wrappers can continue rebuilding after the hooked implementation returns. A graphics-mutex
+protected count of in-flight resize callbacks suppresses Present-side renderer work across
+threads during those calls. Failed or occluded presentations do not resume rendering.
+Normal drawing checks only the current backbuffer's allocator/command list and the next
+ImGui vertex/index buffer slot, tracked by a separate submission ring. It skips drawing only if one of those
 resources is unfinished, rather than blocking Present or waiting for unrelated submissions.
 Each backbuffer owns its command list. Backend recreation resets the submission ring;
 minimized frames do not advance it. Shutdown and resize use a shared
