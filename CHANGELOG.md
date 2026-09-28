@@ -2,8 +2,14 @@
 
 ## Unreleased
 
-- Keep the DX12 probe device alive until the game renderer is ready, preventing
-  premature ReShade add-on unloading during startup (observed with Clear Vision).
+## 1.0.3 - 2026-09-28
+
+- Fixed a startup crash with Clear Vision caused by premature ReShade add-on
+  unloading. The DX12 probe device now stays alive until the game renderer is ready.
+- Separated DXGI probe creation, swapchain tracking and diagnostics from hook
+  callbacks, with explicit shared-state ownership and probe lifetime handling.
+- Added regression coverage for real graphics-hook startup and stopping before
+  the first game frame, plus concurrent diagnostic callback sampling.
 
 ## 1.0.2 ? 2026-09-28
 

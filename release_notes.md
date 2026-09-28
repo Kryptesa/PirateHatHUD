@@ -1,25 +1,17 @@
-# Pirate Hat HUD 1.0.2
+# Pirate Hat HUD 1.0.3
 
 A chest icon and short sound announce nearby treasure detected by the Pirate King
 Hat, including when helmets are hidden. The hat must be equipped.
 
-## Changes since 1.0.1
+## Changes since 1.0.2
 
-- Added local diagnostics for the active GPU, video memory, UMD driver version,
-  Windows build and mod build identity.
-- Added thread IDs and detailed debug markers for instruction scans, creation and
-  activation of game hooks, and the first invocation of graphics callbacks.
-- Added debug snapshots of selected loaded graphics/loader module names and file
-  versions, plus swapchain settings, resize and color-space diagnostics.
-- Graphics failures record HRESULT and device removal reason where available.
-  Repeated identical presentation failures are suppressed.
-
-These diagnostics help investigate startup failures; this release does not claim
-to fix the reported ReShade/RenoDX startup issue.
+- Fixed a startup crash with Clear Vision caused by premature ReShade add-on
+  unloading during graphics-hook initialization.
+- Reorganized DXGI hook internals and added graphics startup/shutdown regression tests.
 
 ## Installation and updating
 
-Close the game and back up PirateHatHUD.ini. Drag PirateHatHUD-1.0.2.zip into
+Close the game and back up PirateHatHUD.ini. Drag PirateHatHUD-1.0.3.zip into
 CDUMM or DMM, enable Pirate Hat HUD on the ASI page, and make sure the ASI loader
 is enabled. When updating, enable the existing mod before importing the archive.
 Restart the game. Keep only one installed copy of the ASI.
@@ -53,19 +45,22 @@ Windows x64 and DirectX 12. Observation layout was previously checked on Crimson
 Desert 2.03.02; the Windows executable file version can differ from the public
 patch number.
 
-The Release build, architecture-check, formatting, all 28 CTest tests and all 25
+The Release build, architecture-check, formatting, all 29 CTest tests and all 25
 research-tool tests passed.
 
-The diagnostic Release candidate launched on executable version 1.0.0.2976 with
-an RTX 5080, ReShade 6.8.0.2155 and RenoDX 0.2026.918.611. Logs confirmed game-hook
-activation, graphics callback progress and successful overlay initialization.
-A ResizeBuffers call returned E_INVALIDARG during startup, followed by successful
-presentation and overlay initialization. The separately reported startup failure
-was not reproduced and remains undiagnosed.
+The candidate containing the fix and refactor was tested on executable version
+1.0.0.2976 with an RTX 5080, ReShade 6.8.0.2155 and Clear Vision 1.0.3 at
+2560 x 1440 with HDR. The game launched, treasure detection worked, and F9/F10
+were verified. Logs confirmed successful overlay initialization and release of
+the probe device after the game renderer became ready, with no premature
+Clear Vision unloading.
 
-The final versioned 1.0.2 package has not had a separate in-game test. Treasure
-notification behavior, F9/F10 and graphics setting changes remain to be rechecked
-with that package; other GPUs and systems have not been verified for this release.
+A startup ResizeBuffers call still returned E_INVALIDARG, followed by successful
+presentation and overlay initialization. This error did not prevent that run.
+
+The final versioned 1.0.3 package has not had a separate in-game test. Upscaler/frame
+generation switching and force_show were not separately rechecked after the refactor;
+other GPUs and systems have not been verified for this release.
 
 ## Credits
 
