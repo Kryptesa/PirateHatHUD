@@ -23,6 +23,9 @@ ReleaseResult Dx12Renderer::shutdown() noexcept {
   if (fence) {
     const auto result = wait_all();
 
+    if (result != WaitResult::completed) {
+      log_wait_failure(result, "shutdown");
+    }
     if (!can_release(result)) {
       return ReleaseResult::retained;
     }
@@ -73,24 +76,36 @@ bool Dx12Renderer::initialize(IDXGISwapChain* target_swap, ID3D12CommandQueue* t
     return false;
   }
 
-  if (
-    FAILED(target_swap->GetDevice(IID_PPV_ARGS(&device))) ||
-    !same_device(target_queue, device.Get())
-  ) {
+  log(LogLevel::debug, "DX12 renderer initialization begin");
+  if (!check_result(target_swap->GetDevice(IID_PPV_ARGS(&device)), "swapchain GetDevice")) {
+    return false;
+  }
+  if (!same_device(target_queue, device.Get())) {
+    log(LogLevel::error, "DX12 renderer queue/device mismatch");
     return false;
   }
 
   this->queue = target_queue;
+  log_adapter();
   DXGI_SWAP_CHAIN_DESC desc{};
 
-  if (FAILED(target_swap->GetDesc(&desc)) || !desc.OutputWindow) {
+  if (!check_result(target_swap->GetDesc(&desc), "swapchain GetDesc") || !desc.OutputWindow) {
     return false;
   }
+
+  log_swapchain(desc);
 
   window = desc.OutputWindow;
   fence_event = CreateEventW(nullptr, FALSE, FALSE, nullptr);
 
-  if (!fence_event || FAILED(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence)))) {
+  if (!fence_event) {
+    check_result(HRESULT_FROM_WIN32(GetLastError()), "CreateEvent");
+    return false;
+  }
+  if (!check_result(
+        device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence)),
+        "CreateFence"
+      )) {
     return false;
   }
 
@@ -100,11 +115,15 @@ bool Dx12Renderer::initialize(IDXGISwapChain* target_swap, ID3D12CommandQueue* t
   heap.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
   if (
-    FAILED(device->CreateDescriptorHeap(&heap, IID_PPV_ARGS(&srv_heap))) ||
+    !check_result(
+      device->CreateDescriptorHeap(&heap, IID_PPV_ARGS(&srv_heap)),
+      "CreateDescriptorHeap(SRV)"
+    ) ||
     !create_buffers(target_swap)
   ) {
     return false;
   }
+  log(LogLevel::debug, "DX12 frame resources ready");
 
   descriptors[0] = true; // Reserve the first SRV for icon.png.
   IMGUI_CHECKVERSION();
@@ -112,6 +131,7 @@ bool Dx12Renderer::initialize(IDXGISwapChain* target_swap, ID3D12CommandQueue* t
   context = true;
 
   if (!ImGui_ImplWin32_Init(window)) {
+    log(LogLevel::error, "DX12 ImGui Win32 initialization failed");
     return false;
   }
 
@@ -120,13 +140,20 @@ bool Dx12Renderer::initialize(IDXGISwapChain* target_swap, ID3D12CommandQueue* t
   if (!initialize_backend(desc)) {
     return false;
   }
+  log(LogLevel::debug, "DX12 graphics backend ready");
 
   if (!load_icon()) {
     return false;
   }
+  log(LogLevel::debug, "DX12 icon resources ready");
 
   this->swap = target_swap;
   state_ = RendererState::ready;
+  first_frame_pending = true;
+  first_frame_started = false;
+  selection_error_logged = false;
+  last_present_error = S_OK;
+  has_color_space = false;
   log(LogLevel::info, "DX12 overlay initialized");
 
   return true;
@@ -187,13 +214,22 @@ void Dx12Renderer::render(
 
   ComPtr<IDXGISwapChain3> swap3;
 
-  if (FAILED(target_swap->QueryInterface(IID_PPV_ARGS(&swap3)))) {
+  const auto queried = target_swap->QueryInterface(IID_PPV_ARGS(&swap3));
+  if (FAILED(queried)) {
+    if (!selection_error_logged) {
+      check_result(queried, "QueryInterface(SwapChain3)");
+      selection_error_logged = true;
+    }
     return;
   }
 
   const UINT index = swap3->GetCurrentBackBufferIndex();
 
   if (index >= frames.size()) {
+    if (!selection_error_logged) {
+      log(LogLevel::error, "DX12 current backbuffer index out of range; frame skipped");
+      selection_error_logged = true;
+    }
     return;
   }
 
@@ -209,15 +245,36 @@ void Dx12Renderer::render(
   }
 
   if (waited != WaitResult::completed) {
+    log_wait_failure(waited, "render");
     fault();
     return;
   }
 
   auto& list = frame.list;
 
-  if (FAILED(frame.allocator->Reset()) || FAILED(list->Reset(frame.allocator.Get(), nullptr))) {
+  if (
+    !check_result(frame.allocator->Reset(), "CommandAllocator Reset") ||
+    !check_result(list->Reset(frame.allocator.Get(), nullptr), "CommandList Reset")
+  ) {
     fault();
     return;
+  }
+
+  if (!has_color_space || last_color_space != color_space) {
+    char message[96]{};
+    std::snprintf(
+      message,
+      sizeof(message),
+      "DX12 render color space=%u",
+      static_cast<unsigned>(color_space)
+    );
+    log(LogLevel::debug, message);
+    last_color_space = color_space;
+    has_color_space = true;
+  }
+  if (!first_frame_started) {
+    log(LogLevel::debug, "DX12 first overlay frame begin");
+    first_frame_started = true;
   }
 
   const bool upload_icon = record_icon_upload(list.Get());
@@ -236,7 +293,7 @@ void Dx12Renderer::render(
 
   // The backend returns before consuming a ring slot for a minimized window.
   if (draw_data->DisplaySize.x <= 0.0f || draw_data->DisplaySize.y <= 0.0f) {
-    if (FAILED(list->Close())) {
+    if (!check_result(list->Close(), "CommandList Close(minimized)")) {
       fault();
     }
 
@@ -246,6 +303,7 @@ void Dx12Renderer::render(
   // This HUD only draws the externally owned icon. Reject new font/texture users
   // before bypassing the backend's synchronous (unbounded) texture upload path.
   if (!icon_only(*draw_data, static_cast<ImTextureID>(icon_gpu.ptr))) {
+    log(LogLevel::error, "DX12 unsupported HUD draw commands; rendering disabled");
     fault();
     return;
   }
@@ -278,13 +336,16 @@ void Dx12Renderer::render(
   std::swap(barrier.Transition.StateBefore, barrier.Transition.StateAfter);
   list->ResourceBarrier(1, &barrier);
 
-  if (FAILED(list->Close())) {
+  if (!check_result(list->Close(), "CommandList Close")) {
     fault(); // The backend consumed a slot; never continue with a divergent ring.
     return;
   }
 
   ID3D12CommandList* lists[] = {list.Get()};
   untracked_submission = true;
+  if (first_frame_pending) {
+    log(LogLevel::debug, "DX12 first overlay submission begin");
+  }
   queue->ExecuteCommandLists(1, lists);
 
   if (upload_icon) {
@@ -293,10 +354,17 @@ void Dx12Renderer::render(
 
   const UINT64 value = fence_next++;
 
-  if (SUCCEEDED(queue->Signal(fence.Get(), value))) {
+  if (check_result(queue->Signal(fence.Get(), value), "CommandQueue Signal")) {
     frame.fence_value = value;
     backend_frames.submitted(value);
     untracked_submission = false;
+    if (first_frame_pending) {
+      log(
+        LogLevel::debug,
+        "DX12 first overlay submission completed on CPU; GPU completion pending"
+      );
+      first_frame_pending = false;
+    }
   } else {
     untracked_submission = true;
     fault();
@@ -315,7 +383,12 @@ bool Dx12Renderer::before_resize(IDXGISwapChain* candidate) {
 
   const auto result = wait_all();
 
+  if (result == WaitResult::device_lost) {
+    log_wait_failure(result, "resize");
+  }
+
   if (result != WaitResult::completed && result != WaitResult::device_lost) {
+    log_wait_failure(result, "resize");
     fault();
     log(LogLevel::error, "DX12 resize wait failed; overlay resources retained");
 
@@ -348,16 +421,12 @@ void Dx12Renderer::after_resize(
 
   DXGI_SWAP_CHAIN_DESC desc{};
 
-  if (FAILED(result) || FAILED(candidate->GetDesc(&desc))) {
+  if (
+    !check_result(result, "ResizeBuffers") ||
+    !check_result(candidate->GetDesc(&desc), "GetDesc after resize")
+  ) {
     fault();
-    char message[128]{};
-    std::snprintf(
-      message,
-      sizeof(message),
-      "DX12 swapchain resize failed (HRESULT 0x%08lX); overlay disabled",
-      static_cast<unsigned long>(result)
-    );
-    log(LogLevel::error, message);
+    log(LogLevel::error, "DX12 swapchain resize failed; overlay disabled");
     return;
   }
 
@@ -397,6 +466,12 @@ void Dx12Renderer::after_resize(
 }
 
 void Dx12Renderer::after_present(IDXGISwapChain* candidate, HRESULT result, UINT flags) {
+  if (handles(candidate) && !(flags & DXGI_PRESENT_TEST)) {
+    if (FAILED(result) && result != last_present_error) {
+      check_result(result, "Present");
+    }
+    last_present_error = FAILED(result) ? result : S_OK;
+  }
   if (
     !handles(candidate) ||
     state_ != RendererState::resizing ||
@@ -409,7 +484,9 @@ void Dx12Renderer::after_present(IDXGISwapChain* candidate, HRESULT result, UINT
   DXGI_SWAP_CHAIN_DESC desc{};
 
   if (
-    FAILED(candidate->GetDesc(&desc)) || !create_buffers(candidate) || !initialize_backend(desc)
+    !check_result(candidate->GetDesc(&desc), "GetDesc before resize recovery") ||
+    !create_buffers(candidate) ||
+    !initialize_backend(desc)
   ) {
     fault();
     log(LogLevel::error, "DX12 resize recreation failed; overlay disabled");
@@ -417,7 +494,162 @@ void Dx12Renderer::after_present(IDXGISwapChain* candidate, HRESULT result, UINT
   }
 
   state_ = RendererState::ready;
+  first_frame_pending = true;
+  first_frame_started = false;
+  log_swapchain(desc);
   log(LogLevel::info, "DX12 overlay recreated after resize");
+}
+
+void Dx12Renderer::log_adapter() const {
+  if (!logger_ || !device) {
+    return;
+  }
+
+  ComPtr<IDXGIFactory4> factory;
+  ComPtr<IDXGIAdapter1> adapter;
+  DXGI_ADAPTER_DESC1 desc{};
+
+  // Match the game's actual device, not the default adapter or the hook probe.
+  if (
+    FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&factory))) ||
+    FAILED(factory->EnumAdapterByLuid(device->GetAdapterLuid(), IID_PPV_ARGS(&adapter))) ||
+    FAILED(adapter->GetDesc1(&desc))
+  ) {
+    log(LogLevel::debug, "DX12 GPU description unavailable");
+    return;
+  }
+
+  desc.Description[127] = L'\0';
+  char name[512]{};
+  if (!WideCharToMultiByte(
+        CP_UTF8,
+        0,
+        desc.Description,
+        -1,
+        name,
+        sizeof(name),
+        nullptr,
+        nullptr
+      )) {
+    log(LogLevel::debug, "DX12 GPU description conversion failed");
+    return;
+  }
+
+  for (auto& character : name) {
+    if (character && (static_cast<unsigned char>(character) < 32 || character == 127)) {
+      character = '?';
+    }
+  }
+
+  char message[768]{};
+  std::snprintf(
+    message,
+    sizeof(message),
+    "DX12 GPU: %s; vendor=0x%04X; device=0x%04X; dedicated VRAM=%llu MiB; software=%s",
+    name,
+    desc.VendorId,
+    desc.DeviceId,
+    static_cast<unsigned long long>(desc.DedicatedVideoMemory / (1024 * 1024)),
+    (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) ? "yes" : "no"
+  );
+  log(LogLevel::info, message);
+
+  LARGE_INTEGER driver_version{};
+  const auto driver_result = adapter->CheckInterfaceSupport(__uuidof(IDXGIDevice), &driver_version);
+  if (SUCCEEDED(driver_result)) {
+    const auto value = static_cast<unsigned long long>(driver_version.QuadPart);
+    std::snprintf(
+      message,
+      sizeof(message),
+      "DX12 GPU driver UMD version: %llu.%llu.%llu.%llu",
+      (value >> 48) & 0xFFFF,
+      (value >> 32) & 0xFFFF,
+      (value >> 16) & 0xFFFF,
+      value & 0xFFFF
+    );
+  } else {
+    std::snprintf(
+      message,
+      sizeof(message),
+      "DX12 GPU driver UMD version unavailable; HRESULT=0x%08lX",
+      static_cast<unsigned long>(driver_result)
+    );
+  }
+  log(LogLevel::info, message);
+}
+
+bool Dx12Renderer::check_result(HRESULT result, const char* operation) const {
+  if (SUCCEEDED(result)) {
+    return true;
+  }
+  if (logger_) {
+    char message[256]{};
+    const auto removed = device ? device->GetDeviceRemovedReason() : S_OK;
+    std::snprintf(
+      message,
+      sizeof(message),
+      "DX12 %s failed; HRESULT=0x%08lX; device removed reason=0x%08lX; device=%s",
+      operation,
+      static_cast<unsigned long>(result),
+      static_cast<unsigned long>(removed),
+      device ? "available" : "unavailable"
+    );
+    log(LogLevel::error, message);
+  }
+  return false;
+}
+
+void Dx12Renderer::log_wait_failure(WaitResult result, const char* operation) const {
+  if (!logger_) {
+    return;
+  }
+  char message[192]{};
+  const char* status = "unknown";
+  switch (result) {
+  case WaitResult::completed:
+    status = "completed";
+    break;
+  case WaitResult::device_lost:
+    status = "device lost";
+    break;
+  case WaitResult::timeout:
+    status = "timeout";
+    break;
+  case WaitResult::failed:
+    status = "failed";
+    break;
+  }
+  std::snprintf(
+    message,
+    sizeof(message),
+    "DX12 %s fence wait failed; result=%s; device removed reason=0x%08lX; untracked submission=%s",
+    operation,
+    status,
+    static_cast<unsigned long>(device ? device->GetDeviceRemovedReason() : S_OK),
+    untracked_submission ? "yes" : "no"
+  );
+  log(LogLevel::error, message);
+}
+
+void Dx12Renderer::log_swapchain(const DXGI_SWAP_CHAIN_DESC& desc) const {
+  if (!logger_) {
+    return;
+  }
+
+  char message[256]{};
+  std::snprintf(
+    message,
+    sizeof(message),
+    "DX12 swapchain: %ux%u; format=%u; buffers=%u; swap effect=%u; flags=0x%X; windowed=%s",
+    desc.BufferDesc.Width,
+    desc.BufferDesc.Height,
+    static_cast<unsigned>(desc.BufferDesc.Format),
+    desc.BufferCount,
+    static_cast<unsigned>(desc.SwapEffect),
+    desc.Flags,
+    desc.Windowed ? "yes" : "no"
+  );
+  log(LogLevel::debug, message);
 }
 
 void Dx12Renderer::set_image(Image image) {

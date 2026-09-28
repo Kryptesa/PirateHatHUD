@@ -11,6 +11,7 @@
 #include "platform/logger.hpp"
 #include "platform/sound.hpp"
 #include <exception>
+#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -97,6 +98,60 @@ std::string executable_version() {
     std::to_string(HIWORD(info->dwFileVersionLS)) +
     "." +
     std::to_string(LOWORD(info->dwFileVersionLS));
+}
+
+void log_environment() {
+  char message[192]{};
+  std::snprintf(
+    message,
+    sizeof(message),
+    "Build: source=%s; configuration=%s; MSVC=%d; x64",
+    PHI_BUILD_ID,
+    PHI_BUILD_CONFIG,
+    _MSC_FULL_VER
+  );
+  log(LogLevel::info, message);
+
+  using GetVersion = LONG(WINAPI*)(OSVERSIONINFOW*);
+  const auto get_version =
+    reinterpret_cast<GetVersion>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "RtlGetVersion"));
+  OSVERSIONINFOW version{};
+  version.dwOSVersionInfoSize = sizeof(version);
+  if (get_version && get_version(&version) >= 0) {
+    std::snprintf(
+      message,
+      sizeof(message),
+      "Windows version: %lu.%lu; build=%lu",
+      version.dwMajorVersion,
+      version.dwMinorVersion,
+      version.dwBuildNumber
+    );
+    log(LogLevel::info, message);
+  } else {
+    log(LogLevel::debug, "Windows version unavailable");
+  }
+}
+
+void log_settings(const Config& config) {
+  char message[320]{};
+  std::snprintf(
+    message,
+    sizeof(message),
+    "Mod settings: enabled=%s; force show=%s; position=%d,%d; scale=%.3f; show delay=%d ms; "
+    "sound=%s; sound cooldown=%d ms; sound volume=%d%%; toggle key=0x%X; unload key=0x%X",
+    config.enabled ? "yes" : "no",
+    config.force_show ? "yes" : "no",
+    config.x,
+    config.y,
+    static_cast<double>(config.scale),
+    config.show_delay_ms,
+    config.sound_enabled ? "yes" : "no",
+    config.sound_cooldown_ms,
+    config.sound_volume_percent,
+    static_cast<unsigned>(config.toggle_key),
+    static_cast<unsigned>(config.unload_key)
+  );
+  log(LogLevel::debug, message);
 }
 
 void report_exception(const char* message) noexcept {
@@ -192,6 +247,7 @@ public:
 
     logger_configured_ = true;
     set_overlay_log(log);
+    log(LogLevel::debug, "Startup: graphics hooks begin");
     const bool overlay_started = start_overlay();
     exit_.retain |= overlay_started;
     log(
@@ -201,12 +257,40 @@ public:
         : "DX12 hooks unavailable; overlay disabled"
     );
 
-    exit_.retain |= observer_.start();
-    minimap_.start();
-    exit_.retain |= menu_.start();
+    log(LogLevel::debug, "Startup: treasure observer begin");
+    const bool treasure_started = observer_.start();
+    exit_.retain |= treasure_started;
+    log(
+      LogLevel::debug,
+      treasure_started
+        ? "Startup: treasure observer ready"
+        : "Startup: treasure observer unavailable"
+    );
+    log(LogLevel::debug, "Startup: minimap observer begin");
+    const bool minimap_started = minimap_.start();
+    log(
+      LogLevel::debug,
+      minimap_started ? "Startup: minimap observer ready" : "Startup: minimap observer unavailable"
+    );
+    log(LogLevel::debug, "Startup: menu observer begin");
+    const bool menu_started = menu_.start();
+    exit_.retain |= menu_started;
+    log(
+      LogLevel::debug,
+      menu_started ? "Startup: menu observer ready" : "Startup: menu observer unavailable"
+    );
     if (config.sound_enabled) {
-      audio_volume_.start();
+      log(LogLevel::debug, "Startup: audio volume observer begin");
+      const bool audio_started = audio_volume_.start();
+      log(
+        LogLevel::debug,
+        audio_started
+          ? "Startup: audio volume observer ready"
+          : "Startup: audio volume observer unavailable"
+      );
     }
+
+    log(LogLevel::debug, "Startup: polling loop begin");
 
     for (;;) {
       observer_.poll();
@@ -338,6 +422,8 @@ AppExitDisposition run_app(HMODULE module) noexcept {
       const auto config = read_config(legacy_config ? legacy_config_path : config_path);
       logging.open(folder, config.logging);
       log(LogLevel::info, PHI_VERSION);
+      log_environment();
+      log_settings(config);
       log(LogLevel::info, ("Game EXE version: " + executable_version()).c_str());
       log(LogLevel::info, ("Process EXE: " + module_name_utf8(nullptr)).c_str());
       log(LogLevel::info, ("Mod ASI: " + module_name_utf8(module)).c_str());
@@ -352,9 +438,11 @@ AppExitDisposition run_app(HMODULE module) noexcept {
       const auto icon_path = folder + L"PirateHatHUD_treasure.png";
       const bool custom_icon = GetFileAttributesW(icon_path.c_str()) != INVALID_FILE_ATTRIBUTES;
 
+      log(LogLevel::debug, "Startup: icon preparation begin");
       if (!prepare_overlay_icon(custom_icon ? icon_path.c_str() : nullptr)) {
         log(LogLevel::error, "Embedded icon or PirateHatHUD_treasure.png invalid; mod not started");
       } else {
+        log(LogLevel::debug, "Startup: icon preparation ready");
         AppSession session(config, exit);
         session.run(config, folder, legacy_config ? legacy_config_path : config_path);
       }

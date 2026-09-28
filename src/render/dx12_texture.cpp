@@ -22,17 +22,19 @@ bool Dx12Renderer::load_icon() {
   texture.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
   texture.SampleDesc.Count = 1;
 
-  if (
-    FAILED(device->CreateCommittedResource(
-      &default_heap,
-      D3D12_HEAP_FLAG_NONE,
-      &texture,
-      D3D12_RESOURCE_STATE_COPY_DEST,
-      nullptr,
-      IID_PPV_ARGS(&icon_texture)
-    ))
-  )
+  if (!check_result(
+        device->CreateCommittedResource(
+          &default_heap,
+          D3D12_HEAP_FLAG_NONE,
+          &texture,
+          D3D12_RESOURCE_STATE_COPY_DEST,
+          nullptr,
+          IID_PPV_ARGS(&icon_texture)
+        ),
+        "CreateCommittedResource(icon)"
+      )) {
     return false;
+  }
 
   UINT rows = 0;
   UINT64 row_bytes = 0, upload_size = 0;
@@ -49,21 +51,24 @@ bool Dx12Renderer::load_icon() {
   upload.SampleDesc.Count = 1;
   upload.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 
-  if (
-    FAILED(device->CreateCommittedResource(
-      &upload_heap,
-      D3D12_HEAP_FLAG_NONE,
-      &upload,
-      D3D12_RESOURCE_STATE_GENERIC_READ,
-      nullptr,
-      IID_PPV_ARGS(&icon_upload)
-    ))
-  )
+  if (!check_result(
+        device->CreateCommittedResource(
+          &upload_heap,
+          D3D12_HEAP_FLAG_NONE,
+          &upload,
+          D3D12_RESOURCE_STATE_GENERIC_READ,
+          nullptr,
+          IID_PPV_ARGS(&icon_upload)
+        ),
+        "CreateCommittedResource(icon upload)"
+      )) {
     return false;
+  }
   void* mapped = nullptr;
 
-  if (FAILED(icon_upload->Map(0, nullptr, &mapped)))
+  if (!check_result(icon_upload->Map(0, nullptr, &mapped), "Map(icon upload)")) {
     return false;
+  }
   auto* destination = static_cast<std::uint8_t*>(mapped);
 
   for (UINT row = 0; row < rows; ++row)

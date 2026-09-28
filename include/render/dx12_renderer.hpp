@@ -124,6 +124,14 @@ private:
 
   void log(LogLevel level, const char* message) const;
 
+  void log_adapter() const;
+
+  void log_swapchain(const DXGI_SWAP_CHAIN_DESC& desc) const;
+
+  bool check_result(HRESULT result, const char* operation) const;
+
+  void log_wait_failure(WaitResult result, const char* operation) const;
+
   RendererState state_{RendererState::waiting};
   Image image_;
   HdrBytecode hdr_bytecode_;
@@ -148,6 +156,12 @@ private:
   bool context{};
   bool win32{};
   bool untracked_submission{};
+  bool first_frame_pending{true};
+  bool first_frame_started{};
+  bool selection_error_logged{};
+  HRESULT last_present_error{S_OK};
+  DXGI_COLOR_SPACE_TYPE last_color_space{};
+  bool has_color_space{};
   std::array<bool, 64> descriptors{};
 };
 } // namespace phi::render

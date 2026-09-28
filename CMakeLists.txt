@@ -23,6 +23,21 @@ endif()
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+# Identify production source content without exposing checkout paths or user data.
+file(GLOB_RECURSE PHI_BUILD_INPUTS CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h" "${CMAKE_CURRENT_SOURCE_DIR}/assets/*"
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/*.cmake")
+list(APPEND PHI_BUILD_INPUTS "${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt")
+list(SORT PHI_BUILD_INPUTS)
+set(PHI_BUILD_HASHES "")
+foreach(input IN LISTS PHI_BUILD_INPUTS)
+  file(SHA256 "${input}" input_hash)
+  string(APPEND PHI_BUILD_HASHES "${input_hash}")
+endforeach()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${PHI_BUILD_INPUTS})
+string(SHA256 PHI_BUILD_ID "${PHI_BUILD_HASHES}")
+string(SUBSTRING "${PHI_BUILD_ID}" 0 16 PHI_BUILD_ID)
 set(PHI_ICON_RESOURCE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.png")
 set(PHI_SOUND_RESOURCE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/assets/treasure.wav")
 configure_file(assets/icon.rc.in "${CMAKE_CURRENT_BINARY_DIR}/generated/icon.rc" @ONLY)
@@ -108,6 +123,13 @@ include(CTest)
 if(BUILD_TESTING)
   add_subdirectory(tests)
 endif()
+
+foreach(target IN ITEMS PirateHatHUD app_tests)
+  if(TARGET ${target})
+    target_compile_definitions(${target} PRIVATE
+      PHI_BUILD_ID="${PHI_BUILD_ID}" PHI_BUILD_CONFIG="$<CONFIG>")
+  endif()
+endforeach()
 
 phi_check_target(game_observers safetyhook)
 phi_check_target(treasure_indicator)

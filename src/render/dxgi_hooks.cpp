@@ -2,6 +2,7 @@
 #include "render/swapchain_selection.hpp"
 #include <safetyhook.hpp>
 #include <atomic>
+#include <cstdio>
 #include <mutex>
 #include <utility>
 
@@ -32,11 +33,14 @@ std::atomic<bool> stopping{false};
 std::mutex mutex;
 // Protected by mutex. Present must not reacquire resources during any resize callback.
 unsigned resizes_active{};
+bool first_present_logged{};
+bool first_present_return_logged{};
 
 struct SwapRecord {
   ComPtr<ID3D12CommandQueue> queue;
   DXGI_COLOR_SPACE_TYPE space{};
   bool has_space{};
+  HRESULT color_error{S_OK};
 };
 
 SwapchainRecords<SwapRecord> swapchains;
@@ -129,6 +133,22 @@ void overlay_log(LogLevel level, const char* message) {
   if (logger) {
     logger(level, message);
   }
+}
+
+bool hook_result(HRESULT result, const char* operation) {
+  if (SUCCEEDED(result)) {
+    return true;
+  }
+  char message[160]{};
+  std::snprintf(
+    message,
+    sizeof(message),
+    "DX12 %s failed; HRESULT=0x%08lX",
+    operation,
+    static_cast<unsigned long>(result)
+  );
+  overlay_log(LogLevel::error, message);
+  return false;
 }
 
 Dx12Renderer* renderer{};
@@ -259,13 +279,31 @@ HRESULT WINAPI on_color(IDXGISwapChain3* swap, DXGI_COLOR_SPACE_TYPE space) {
   CallbackGuard callback;
   const auto hr = color_hook.call<HRESULT>(swap, space);
   own_work([&] {
-    if (!stopping && SUCCEEDED(hr)) {
+    if (!stopping) {
       std::lock_guard lock(mutex);
 
       if (const auto identity = identity_of(swap); identity.generation) {
         auto& record = record_for(identity.generation);
-        record.space = space;
-        record.has_space = true;
+        if (
+          (SUCCEEDED(hr) && (!record.has_space || record.space != space)) ||
+          (FAILED(hr) && record.color_error != hr)
+        ) {
+          char message[160]{};
+          std::snprintf(
+            message,
+            sizeof(message),
+            "DX12 SetColorSpace1: generation=%llu; color space=%u; HRESULT=0x%08lX",
+            static_cast<unsigned long long>(identity.generation),
+            static_cast<unsigned>(space),
+            static_cast<unsigned long>(hr)
+          );
+          overlay_log(SUCCEEDED(hr) ? LogLevel::debug : LogLevel::error, message);
+        }
+        record.color_error = FAILED(hr) ? hr : S_OK;
+        if (SUCCEEDED(hr)) {
+          record.space = space;
+          record.has_space = true;
+        }
       }
     }
   });
@@ -282,6 +320,10 @@ HRESULT WINAPI on_present(IDXGISwapChain* swap, UINT interval, UINT flags) {
       std::lock_guard lock(mutex);
       if (stopping || resizes_active) {
         return;
+      }
+      if (!first_present_logged) {
+        overlay_log(LogLevel::debug, "DX12 first non-test Present hook entered");
+        first_present_logged = true;
       }
       DXGI_SWAP_CHAIN_DESC desc{};
       DWORD process{};
@@ -339,6 +381,7 @@ HRESULT WINAPI on_present(IDXGISwapChain* swap, UINT interval, UINT flags) {
       const bool selectable =
         selection.window() || GetAncestor(GetForegroundWindow(), GA_ROOT) == desc.OutputWindow;
 
+      const auto previous_selection = selection.identity();
       if (!selection.present(
             identity,
             reinterpret_cast<uintptr_t>(desc.OutputWindow),
@@ -347,6 +390,16 @@ HRESULT WINAPI on_present(IDXGISwapChain* swap, UINT interval, UINT flags) {
             same_device(queue.Get(), device.Get())
           )) {
         return;
+      }
+      if (previous_selection != selection.identity()) {
+        char message[128]{};
+        std::snprintf(
+          message,
+          sizeof(message),
+          "DX12 HUD swapchain selected: generation=%llu",
+          static_cast<unsigned long long>(identity)
+        );
+        overlay_log(LogLevel::debug, message);
       }
 
       // Keep an active identity record even for a pre-existing fallback chain;
@@ -385,6 +438,17 @@ HRESULT WINAPI on_present(IDXGISwapChain* swap, UINT interval, UINT flags) {
 
   own_work([&] {
     std::lock_guard lock(mutex);
+    if (!stopping && !(flags & DXGI_PRESENT_TEST) && !first_present_return_logged) {
+      char message[128]{};
+      std::snprintf(
+        message,
+        sizeof(message),
+        "DX12 first non-test Present returned; HRESULT=0x%08lX",
+        static_cast<unsigned long>(result)
+      );
+      overlay_log(FAILED(result) ? LogLevel::error : LogLevel::debug, message);
+      first_present_return_logged = true;
+    }
     if (!stopping && !resizes_active && renderer) {
       SubmitGuard submit;
       renderer->after_present(swap, result, flags);
@@ -396,11 +460,18 @@ HRESULT WINAPI on_present(IDXGISwapChain* swap, UINT interval, UINT flags) {
 
 thread_local bool resize_active = false;
 
+struct ResizeRequest {
+  const char* operation;
+  UINT count, width, height;
+  DXGI_FORMAT format;
+  UINT flags;
+};
+
 template <class Function>
 HRESULT resize_swap(
   IDXGISwapChain* swap,
   Function&& original,
-  UINT count = 0,
+  const ResizeRequest& request,
   IUnknown* const* queues = nullptr
 ) {
   CallbackGuard callback;
@@ -422,11 +493,27 @@ HRESULT resize_swap(
   } guard;
   bool prepared = false;
   bool admitted = false;
+  const auto count = request.count;
   own_work([&] {
     std::lock_guard lock(mutex);
     if (!stopping) {
       ++resizes_active;
       admitted = true;
+
+      char message[256]{};
+      std::snprintf(
+        message,
+        sizeof(message),
+        "DX12 %s begin: requested=%ux%u; format=%u; buffers=%u; flags=0x%X; explicit queues=%s",
+        request.operation,
+        request.width,
+        request.height,
+        static_cast<unsigned>(request.format),
+        count,
+        request.flags,
+        queues ? "yes" : "no"
+      );
+      overlay_log(LogLevel::debug, message);
 
       if (renderer) {
         prepared = renderer->before_resize(swap);
@@ -442,6 +529,15 @@ HRESULT resize_swap(
     }
 
     if (!stopping) {
+      char message[128]{};
+      std::snprintf(
+        message,
+        sizeof(message),
+        "DX12 %s returned; HRESULT=0x%08lX",
+        request.operation,
+        static_cast<unsigned long>(hr)
+      );
+      overlay_log(FAILED(hr) ? LogLevel::error : LogLevel::debug, message);
       if (SUCCEEDED(hr) && count && queues) {
         ComPtr<ID3D12CommandQueue> queue;
         bool coherent = true;
@@ -488,9 +584,11 @@ HRESULT WINAPI on_resize(
   DXGI_FORMAT format,
   UINT flags
 ) {
-  return resize_swap(swap, [&] {
-    return resize_hook.call<HRESULT>(swap, count, width, height, format, flags);
-  });
+  return resize_swap(
+    swap,
+    [&] { return resize_hook.call<HRESULT>(swap, count, width, height, format, flags); },
+    {"ResizeBuffers", count, width, height, format, flags}
+  );
 }
 
 HRESULT WINAPI on_resize1(
@@ -509,7 +607,7 @@ HRESULT WINAPI on_resize1(
       return resize1_hook
         .call<HRESULT>(swap, count, width, height, format, flags, node_masks, queues);
     },
-    count,
+    {"ResizeBuffers1", count, width, height, format, flags},
     queues
   );
 }
@@ -532,8 +630,10 @@ bool start_hooks(Dx12Renderer& target, HudSnapshot hud_snapshot, LogCallback log
   cls.lpfnWndProc = DefWindowProcW;
   cls.hInstance = GetModuleHandleW(nullptr);
   cls.lpszClassName = L"PirateHatHUDDx12Probe";
+  overlay_log(LogLevel::debug, "DX12 hook probe initialization begin");
 
   if (!RegisterClassW(&cls)) {
+    hook_result(HRESULT_FROM_WIN32(GetLastError()), "probe RegisterClass");
     return false;
   }
 
@@ -550,6 +650,9 @@ bool start_hooks(Dx12Renderer& target, HudSnapshot hud_snapshot, LogCallback log
     cls.hInstance,
     nullptr
   );
+  if (!window) {
+    hook_result(HRESULT_FROM_WIN32(GetLastError()), "probe CreateWindow");
+  }
   ComPtr<ID3D12Device> device;
   ComPtr<ID3D12CommandQueue> queue;
   ComPtr<IDXGIFactory2> factory;
@@ -558,14 +661,21 @@ bool start_hooks(Dx12Renderer& target, HudSnapshot hud_snapshot, LogCallback log
   bool ok = false;
 
   if (
-    window && SUCCEEDED(D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device)))
+    window &&
+    hook_result(
+      D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device)),
+      "probe D3D12CreateDevice"
+    )
   ) {
     D3D12_COMMAND_QUEUE_DESC q{};
     q.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 
     if (
-      SUCCEEDED(device->CreateCommandQueue(&q, IID_PPV_ARGS(&queue))) &&
-      SUCCEEDED(CreateDXGIFactory2(0, IID_PPV_ARGS(&factory)))
+      hook_result(
+        device->CreateCommandQueue(&q, IID_PPV_ARGS(&queue)),
+        "probe CreateCommandQueue"
+      ) &&
+      hook_result(CreateDXGIFactory2(0, IID_PPV_ARGS(&factory)), "probe CreateDXGIFactory2")
     ) {
       DXGI_SWAP_CHAIN_DESC1 desc{};
       desc.BufferCount = 2;
@@ -577,11 +687,13 @@ bool start_hooks(Dx12Renderer& target, HudSnapshot hud_snapshot, LogCallback log
       desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 
       if (
-        SUCCEEDED(
-          factory->CreateSwapChainForHwnd(queue.Get(), window, &desc, nullptr, nullptr, &swap)
+        hook_result(
+          factory->CreateSwapChainForHwnd(queue.Get(), window, &desc, nullptr, nullptr, &swap),
+          "probe CreateSwapChainForHwnd"
         ) &&
-        SUCCEEDED(swap.As(&swap3))
+        hook_result(swap.As(&swap3), "probe QueryInterface(SwapChain3)")
       ) {
+        overlay_log(LogLevel::debug, "DX12 hook probe ready; hook installation begin");
         using Flags = safetyhook::InlineHook::Flags;
         auto p =
           safetyhook::InlineHook::create(method(swap.Get(), 8), on_present, Flags::StartDisabled);
@@ -636,6 +748,7 @@ bool start_hooks(Dx12Renderer& target, HudSnapshot hud_snapshot, LogCallback log
             color_hook.enable() &&
             present_hook.enable();
         } else {
+          overlay_log(LogLevel::error, "DX12 inline hook creation failed");
           if (p) {
             p->reset();
           }
@@ -688,6 +801,7 @@ bool start_hooks(Dx12Renderer& target, HudSnapshot hud_snapshot, LogCallback log
   UnregisterClassW(cls.lpszClassName, cls.hInstance);
 
   if (!ok) {
+    overlay_log(LogLevel::error, "DX12 graphics hook startup failed");
     stop_hooks();
   }
 

@@ -32,8 +32,14 @@ bool start_overlay() {
     return false;
   }
 
+  if (g_logger) {
+    g_logger(LogLevel::debug, "Startup: HDR shader preparation begin");
+  }
   if (!g_renderer->prepare_shaders()) {
     return false;
+  }
+  if (g_logger) {
+    g_logger(LogLevel::debug, "Startup: HDR shader preparation ready");
   }
 
   g_start_attempted = true;

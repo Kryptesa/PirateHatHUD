@@ -1,6 +1,7 @@
 #include "render/hdr_bytecode.hpp"
 #include "render/hdr_shader.hpp"
 #include <cstring>
+#include <cstdio>
 #include <utility>
 
 namespace phi::render {
@@ -28,7 +29,15 @@ bool HdrBytecode::prepare(LogCallback logger) {
     );
 
     if (FAILED(result) && logger) {
-      logger(LogLevel::error, "HDR icon shader compilation failed before hook activation");
+      char message[160]{};
+      std::snprintf(
+        message,
+        sizeof(message),
+        "HDR icon shader %s compilation failed before hook activation; HRESULT=0x%08lX",
+        entry,
+        static_cast<unsigned long>(result)
+      );
+      logger(LogLevel::error, message);
 
       if (errors) {
         logger(LogLevel::error, static_cast<const char*>(errors->GetBufferPointer()));

@@ -56,6 +56,7 @@ WaitResult Dx12Renderer::wait_fence(UINT64 value, ULONGLONG deadline) {
     ID3D12Device* device;
     ID3D12Fence* fence;
     HANDLE event;
+    const Dx12Renderer* renderer;
 
     std::uint64_t completed() {
       return fence->GetCompletedValue();
@@ -70,15 +71,21 @@ WaitResult Dx12Renderer::wait_fence(UINT64 value, ULONGLONG deadline) {
     }
 
     bool wait(std::uint64_t value, std::uint64_t remaining) {
-      if (FAILED(fence->SetEventOnCompletion(value, event))) {
+      if (!renderer->check_result(
+            fence->SetEventOnCompletion(value, event),
+            "Fence SetEventOnCompletion"
+          )) {
         return false;
       }
 
       const auto result = WaitForSingleObject(event, static_cast<DWORD>(remaining));
 
+      if (result == WAIT_FAILED) {
+        renderer->check_result(HRESULT_FROM_WIN32(GetLastError()), "WaitForSingleObject");
+      }
       return result == WAIT_OBJECT_0 || result == WAIT_TIMEOUT;
     }
-  } adapter{device.Get(), fence.Get(), fence_event};
+  } adapter{device.Get(), fence.Get(), fence_event, this};
 
   return wait_for_fence(adapter, value, deadline);
 }
@@ -118,7 +125,11 @@ void Dx12Renderer::release_buffers() {
 bool Dx12Renderer::create_buffers(IDXGISwapChain* target_swap) {
   DXGI_SWAP_CHAIN_DESC desc{};
 
-  if (FAILED(target_swap->GetDesc(&desc)) || !desc.BufferCount || desc.BufferCount > 16) {
+  if (!check_result(target_swap->GetDesc(&desc), "GetDesc for frame resources")) {
+    return false;
+  }
+  if (!desc.BufferCount || desc.BufferCount > 16) {
+    log(LogLevel::error, "DX12 unsupported backbuffer count");
     return false;
   }
 
@@ -126,7 +137,10 @@ bool Dx12Renderer::create_buffers(IDXGISwapChain* target_swap) {
   heap.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
   heap.NumDescriptors = desc.BufferCount;
 
-  if (FAILED(device->CreateDescriptorHeap(&heap, IID_PPV_ARGS(&rtv_heap)))) {
+  if (!check_result(
+        device->CreateDescriptorHeap(&heap, IID_PPV_ARGS(&rtv_heap)),
+        "CreateDescriptorHeap(RTV)"
+      )) {
     return false;
   }
 
@@ -138,9 +152,12 @@ bool Dx12Renderer::create_buffers(IDXGISwapChain* target_swap) {
     const UINT index = static_cast<UINT>(&frame - frames.data());
 
     if (
-      FAILED(target_swap->GetBuffer(index, IID_PPV_ARGS(&frame.buffer))) ||
-      FAILED(device
-          ->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&frame.allocator)))
+      !check_result(target_swap->GetBuffer(index, IID_PPV_ARGS(&frame.buffer)), "GetBuffer") ||
+      !check_result(
+        device
+          ->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&frame.allocator)),
+        "CreateCommandAllocator"
+      )
     ) {
       return false;
     }
@@ -150,14 +167,17 @@ bool Dx12Renderer::create_buffers(IDXGISwapChain* target_swap) {
     handle.ptr += step;
 
     if (
-      FAILED(device->CreateCommandList(
-        0,
-        D3D12_COMMAND_LIST_TYPE_DIRECT,
-        frame.allocator.Get(),
-        nullptr,
-        IID_PPV_ARGS(&frame.list)
-      )) ||
-      FAILED(frame.list->Close())
+      !check_result(
+        device->CreateCommandList(
+          0,
+          D3D12_COMMAND_LIST_TYPE_DIRECT,
+          frame.allocator.Get(),
+          nullptr,
+          IID_PPV_ARGS(&frame.list)
+        ),
+        "CreateCommandList"
+      ) ||
+      !check_result(frame.list->Close(), "CommandList Close(new)")
     ) {
       return false;
     }
@@ -182,7 +202,11 @@ bool Dx12Renderer::initialize_backend(const DXGI_SWAP_CHAIN_DESC& desc) {
     backend_frames.reset(frames.size());
   }
 
-  return imgui && initialize_hdr(desc.BufferDesc.Format);
+  if (!imgui) {
+    log(LogLevel::error, "DX12 ImGui backend initialization failed");
+    return false;
+  }
+  return initialize_hdr(desc.BufferDesc.Format);
 }
 
 } // namespace phi::render

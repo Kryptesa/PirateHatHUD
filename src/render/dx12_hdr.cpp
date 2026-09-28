@@ -32,15 +32,19 @@ bool Dx12Renderer::initialize_hdr(DXGI_FORMAT format) {
   ComPtr<ID3DBlob> serialized;
 
   if (
-    FAILED(
-      D3D12SerializeRootSignature(&root, D3D_ROOT_SIGNATURE_VERSION_1, &serialized, nullptr)
+    !check_result(
+      D3D12SerializeRootSignature(&root, D3D_ROOT_SIGNATURE_VERSION_1, &serialized, nullptr),
+      "SerializeRootSignature(HDR)"
     ) ||
-    FAILED(device->CreateRootSignature(
-      0,
-      serialized->GetBufferPointer(),
-      serialized->GetBufferSize(),
-      IID_PPV_ARGS(&hdr_root)
-    ))
+    !check_result(
+      device->CreateRootSignature(
+        0,
+        serialized->GetBufferPointer(),
+        serialized->GetBufferSize(),
+        IID_PPV_ARGS(&hdr_root)
+      ),
+      "CreateRootSignature(HDR)"
+    )
   ) {
     log(LogLevel::error, "HDR icon shader initialization failed");
 
@@ -69,7 +73,10 @@ bool Dx12Renderer::initialize_hdr(DXGI_FORMAT format) {
   pipeline.RTVFormats[0] = format;
   pipeline.SampleDesc.Count = 1;
 
-  return SUCCEEDED(device->CreateGraphicsPipelineState(&pipeline, IID_PPV_ARGS(&hdr_pipeline)));
+  return check_result(
+    device->CreateGraphicsPipelineState(&pipeline, IID_PPV_ARGS(&hdr_pipeline)),
+    "CreateGraphicsPipelineState(HDR)"
+  );
 }
 
 void Dx12Renderer::draw_hdr(

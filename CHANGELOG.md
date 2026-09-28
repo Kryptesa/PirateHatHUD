@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Added local diagnostics for the active GPU model, vendor/device IDs, dedicated
+  video memory, driver UMD version, Windows build and build identity.
+- Added debug-level startup and first-frame progress markers, mod settings, resize
+  and color-space details, plus error-level graphics codes with device removal reasons.
+  Repeated identical Present
+  errors are suppressed until presentation recovers or the error changes.
+
 ## 1.0.1 — 2026-09-28
 
 - Fixed crashes when switching upscalers or frame generation by deferring overlay

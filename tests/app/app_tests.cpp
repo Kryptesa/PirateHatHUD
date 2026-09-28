@@ -472,6 +472,11 @@ int main() {
   CHECK(run() == AppExitDisposition::unload_allowed);
   CHECK(scenario.cleanup_order_valid);
   CHECK(scenario.hud_visible);
+  for (const auto* prefix : {"Build: source=", "Windows version: ", "Mod settings: "}) {
+    CHECK(std::ranges::any_of(scenario.messages, [prefix](const auto& message) {
+      return message.starts_with(prefix);
+    }));
+  }
   CHECK(std::ranges::any_of(scenario.messages, [](const auto& message) {
     return message.starts_with("Game EXE version: ");
   }));

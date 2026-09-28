@@ -1,4 +1,7 @@
 #include "render/dx12_renderer.hpp"
+#include <algorithm>
+#include <string>
+#include <vector>
 
 #define CHECK(c)                                                                                   \
   do {                                                                                             \
@@ -8,6 +11,24 @@
   } while (false)
 
 namespace {
+std::vector<std::string> messages;
+
+void capture_log(phi::LogLevel, const char* message) {
+  messages.emplace_back(message);
+}
+
+auto log_count(const char* fragment) {
+  return std::count_if(messages.begin(), messages.end(), [fragment](const auto& message) {
+    return message.find(fragment) != std::string::npos;
+  });
+}
+
+bool logged(const char* fragment) {
+  return std::any_of(messages.begin(), messages.end(), [fragment](const auto& message) {
+    return message.find(fragment) != std::string::npos;
+  });
+}
+
 struct Session {
   phi::render::Dx12Renderer renderer;
   HWND window{};
@@ -68,9 +89,17 @@ int main() {
   ));
 
   auto& renderer = session.renderer;
+  renderer.set_logger(capture_log);
   renderer.set_image({1, 1, {255, 255, 255, 255}});
   CHECK(renderer.prepare_shaders());
   CHECK(renderer.initialize(swap.Get(), queue.Get()));
+  // The game device here is WARP: diagnostics must describe it even if the
+  // machine's default adapter is a physical GPU from a different vendor.
+  CHECK(logged("DX12 GPU:"));
+  CHECK(logged("vendor=0x1414;"));
+  CHECK(logged("software=yes"));
+  CHECK(logged("DX12 GPU driver UMD version"));
+  CHECK(logged("DX12 swapchain: 64x64; format=28; buffers=2;"));
   CHECK(renderer.ready());
   CHECK(renderer.before_resize(swap.Get()));
   auto result = swap->ResizeBuffers(3, 96, 96, DXGI_FORMAT_UNKNOWN, 0);
@@ -82,6 +111,9 @@ int main() {
   renderer.after_present(swap.Get(), S_OK, DXGI_PRESENT_TEST);
   renderer.after_present(swap.Get(), DXGI_STATUS_OCCLUDED, 0);
   renderer.after_present(swap.Get(), E_FAIL, 0);
+  renderer.after_present(swap.Get(), E_FAIL, 0);
+  CHECK(log_count("DX12 Present failed; HRESULT=0x80004005") == 1);
+  CHECK(logged("device removed reason=0x00000000; device=available"));
   CHECK(renderer.state() == RendererState::resizing);
 
   // Model an outer graphics wrapper performing another resize after the hooked
@@ -98,9 +130,14 @@ int main() {
   // presentation notification to exercise recovery without opening a visible window.
   renderer.after_present(swap.Get(), S_OK, 0);
   CHECK(renderer.ready());
+  CHECK(logged("DX12 swapchain: 128x128; format=28; buffers=2;"));
 
   // Exercise submission and another resize with the recovered backend/resources.
   renderer.render(swap.Get(), {}, DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709);
+  renderer.render(swap.Get(), {}, DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709);
+  CHECK(log_count("DX12 first overlay frame begin") == 1);
+  CHECK(log_count("DX12 first overlay submission begin") == 1);
+  CHECK(log_count("DX12 render color space=") == 1);
   CHECK(renderer.before_resize(swap.Get()));
   result = swap->ResizeBuffers(3, 64, 64, DXGI_FORMAT_UNKNOWN, 0);
   CHECK(SUCCEEDED(result));
@@ -109,10 +146,12 @@ int main() {
   CHECK(SUCCEEDED(result));
   renderer.after_present(swap.Get(), S_OK, 0);
   CHECK(renderer.ready());
+  CHECK(logged("DX12 swapchain: 64x64; format=28; buffers=3;"));
 
   // A failed resize must stay disabled even after a later successful Present.
   CHECK(renderer.before_resize(swap.Get()));
   renderer.after_resize(swap.Get(), E_INVALIDARG);
+  CHECK(logged("DX12 ResizeBuffers failed; HRESULT=0x80070057"));
   CHECK(renderer.state() == RendererState::faulted);
   renderer.after_present(swap.Get(), S_OK, 0);
   CHECK(renderer.state() == RendererState::faulted);

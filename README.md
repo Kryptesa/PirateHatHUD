@@ -126,12 +126,23 @@ Make sure the minimap is on, close any menus, wait a second, and try F9.
 If that works, set `force_show=0` and test again with the Pirate King Hat near treasure.
 
 Logs are saved next to the ASI as `PirateHatHUD_*.log`. Check the newest file first.
-Set `[logging] level=debug` for treasure, minimap and menu diagnostics. The default
+At the default `info` level, logs include mod/game versions, build identity, Windows
+build and the active GPU model, vendor/device IDs, dedicated video memory and driver
+UMD version when available. The UMD version may differ from the driver package version
+shown by AMD/NVIDIA software. Graphics errors include the failing operation, HRESULT
+and device removal reason when a game device is available.
+Set `[logging] level=debug` for startup and first-frame progress, effective mod
+settings, swapchain settings, resize requests and color-space transitions, alongside
+treasure, minimap and menu diagnostics. These details are not logged every frame.
+These diagnostics stay in local files; the mod does not upload them. GPU serial
+numbers, adapter LUIDs, usernames and installation paths are not included. Review
+logs before sharing them publicly. The default
 keeps three log files of up to 5 MB each. You can change the size to 1–100 MB and
 the file count to 1–20, or use `level=off` to disable logging.
 
 If you're reporting a problem, include the log, your game version, and graphics
-settings—especially HDR, DLSS and Frame Generation. A game update may change the
+settings—especially HDR, upscaler and frame generation. The mod does not automatically
+identify the active upscaler. A game update may change the
 memory layout the mod relies on. The UI offsets were checked on **2.03.02**.
 
 SDR, scRGB and HDR10 output are supported. If the icon looks wrong in HDR10, try
