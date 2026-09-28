@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.0.2 ? 2026-09-28
+
 - Added thread IDs, detailed game-hook startup markers and bounded first-call graphics
   progress diagnostics to locate startup failures. Debug logs also record selected
   loaded graphics/loader module names and file versions without installation paths.
