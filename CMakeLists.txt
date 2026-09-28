@@ -75,7 +75,8 @@ target_compile_options(treasure_indicator PRIVATE /W4 /EHsc)
 
 add_library(PirateHatHUD SHARED "${CMAKE_CURRENT_BINARY_DIR}/generated/icon.rc"
   src/main.cpp src/app.cpp src/overlay.cpp
-  src/render/dxgi_hooks.cpp src/render/dx12_renderer.cpp src/render/dx12_frames.cpp
+  src/render/dxgi_hooks.cpp src/render/dxgi_probe.cpp src/render/dxgi_swapchains.cpp
+  src/render/dxgi_diagnostics.cpp src/render/dx12_renderer.cpp src/render/dx12_frames.cpp
   src/render/dx12_texture.cpp src/render/dx12_hdr.cpp src/render/hdr_bytecode.cpp
   src/render/image.cpp src/render/hud_draw.cpp
   src/platform/config.cpp src/platform/hotkeys.cpp src/platform/logger.cpp src/platform/sound.cpp src/platform/wave_pcm.cpp)

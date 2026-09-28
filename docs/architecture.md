@@ -88,12 +88,26 @@ header/source layout. The application uses `include/overlay.hpp` and `HudState`;
 DX12 and hook headers describe internal renderer implementation rather than a public
 library API:
 
-- `dxgi_hooks`: hook installation/removal, swapchain/queue selection and callback draining.
+- `dxgi_hooks`: hook installation/removal, callbacks, renderer sequencing and callback draining.
+  One process-lifetime `HookContext` owns hook storage, the graphics mutex, callback/resize
+  counters, renderer/snapshot references, retained probe device, registry and diagnostics.
+  This allocation has no automatic destructor during DLL detach. Probe handoff and stop
+  inspect/move the retained reference under the same graphics mutex.
   The startup probe device stays alive until a successful non-test Present on the
   selected game chain with a ready renderer, bridging ReShade add-on lifetime until
   the game owns a working device. It is released outside the graphics mutex. If
   startup stops before this handoff, retain the probe until process exit and report
   that graphics resources and the module must remain; no DLL destructor releases it.
+- `dxgi_probe`: temporary hidden window, DX12/DXGI objects and vtable method discovery.
+  Its scoped cleanup releases only temporary references; the retained device reference
+  belongs to the hook context. Cleanup precedes startup-failure hook shutdown.
+- `dxgi_swapchains`: DXGI private identities, bounded queue/color-space registry,
+  per-device queue fallback and window/chain selection. All operations require the
+  hook context's graphics mutex; it adds no second lock and retains no swapchains.
+- `dxgi_diagnostics`: bounded first-callback sampling and graphics hook diagnostics.
+  Sampling and logger publication are atomic because callbacks run on multiple threads.
+  These remain internal parts of the existing `render` module; the architecture checker
+  already classifies their mirrored `include/render` and `src/render` paths.
 - `dx12_renderer`: owns GPU/ImGui state, initialization, rendering and resize lifecycle.
 - `dx12_frames`: frame buffers, fences and descriptor allocation for that renderer.
 - `dx12_texture`: icon GPU allocation and upload commands for that renderer.

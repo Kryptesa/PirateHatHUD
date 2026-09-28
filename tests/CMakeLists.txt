@@ -131,17 +131,29 @@ set_tests_properties(
   PROPERTIES LABELS platform)
 
 # Render
-add_executable(resize_tests render/resize_tests.cpp
+set(PHI_RENDER_TEST_SOURCES
   "${PROJECT_SOURCE_DIR}/src/render/dx12_renderer.cpp"
   "${PROJECT_SOURCE_DIR}/src/render/dx12_frames.cpp"
   "${PROJECT_SOURCE_DIR}/src/render/dx12_texture.cpp"
   "${PROJECT_SOURCE_DIR}/src/render/dx12_hdr.cpp"
   "${PROJECT_SOURCE_DIR}/src/render/hdr_bytecode.cpp"
   "${PROJECT_SOURCE_DIR}/src/render/hud_draw.cpp")
+add_executable(resize_tests render/resize_tests.cpp ${PHI_RENDER_TEST_SOURCES})
 target_include_directories(resize_tests PRIVATE "${PROJECT_SOURCE_DIR}/include")
 target_compile_definitions(resize_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
 target_link_libraries(resize_tests PRIVATE imgui_static d3d12 dxgi d3dcompiler)
 add_test(NAME resize_tests COMMAND resize_tests)
+
+add_executable(dxgi_lifecycle_tests render/dxgi_lifecycle_tests.cpp
+  ${PHI_RENDER_TEST_SOURCES}
+  "${PROJECT_SOURCE_DIR}/src/render/dxgi_hooks.cpp"
+  "${PROJECT_SOURCE_DIR}/src/render/dxgi_probe.cpp"
+  "${PROJECT_SOURCE_DIR}/src/render/dxgi_swapchains.cpp"
+  "${PROJECT_SOURCE_DIR}/src/render/dxgi_diagnostics.cpp")
+target_include_directories(dxgi_lifecycle_tests PRIVATE "${PROJECT_SOURCE_DIR}/include")
+target_compile_definitions(dxgi_lifecycle_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_link_libraries(dxgi_lifecycle_tests PRIVATE imgui_static safetyhook d3d12 dxgi d3dcompiler)
+add_test(NAME dxgi_lifecycle_tests COMMAND dxgi_lifecycle_tests)
 
 add_executable(render_wait_tests render/render_wait_tests.cpp)
 target_include_directories(render_wait_tests PRIVATE "${PROJECT_SOURCE_DIR}/include")
@@ -172,6 +184,7 @@ add_test(NAME image_tests COMMAND image_tests "${PROJECT_SOURCE_DIR}/assets/icon
 
 set_tests_properties(
   resize_tests
+  dxgi_lifecycle_tests
   render_wait_tests
   swapchain_tests
   render_icon_tests
