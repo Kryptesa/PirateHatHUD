@@ -958,7 +958,7 @@ HooksStopResult stop_hooks() noexcept {
   }
 
   stop_result.hooks_disabled = disabled;
-  stop_result.module_must_remain_loaded = activation_attempted || !disabled || probe_device;
+  stop_result.module_must_remain_loaded = activation_attempted || !disabled;
   const auto deadline = GetTickCount64() + 1000;
 
   while (callbacks.load() && GetTickCount64() < deadline) {
@@ -978,6 +978,7 @@ HooksStopResult stop_hooks() noexcept {
     stop_result.gpu_resources_released = renderer->shutdown() == ReleaseResult::released;
     if (probe_device) {
       stop_result.gpu_resources_released = false;
+      stop_result.module_must_remain_loaded = true;
       overlay_log(LogLevel::debug, "DX12 probe device retained through process exit");
     }
 
