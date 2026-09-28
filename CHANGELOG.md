@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.0.1 — 2026-09-28
+
 - Fixed crashes when switching upscalers or frame generation by deferring overlay
   backbuffer recreation until a successful presentation after resize.
 
