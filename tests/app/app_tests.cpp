@@ -37,6 +37,7 @@ struct Scenario {
   bool hud_visible = false;
   phi::MinimapState minimap_state = phi::MinimapState::visible;
   bool force_show = false;
+  bool show_icon = true;
   bool enabled = true;
   bool sound_enabled = true;
   int sound_volume_percent = 100;
@@ -50,6 +51,8 @@ struct Scenario {
   bool sound_valid = true;
   std::vector<phi::AudioVolumeState> volumes = {{true, 100, 100}};
   std::vector<float> sound_gains;
+  std::vector<unsigned> sound_play_polls;
+  std::vector<unsigned> toggle_polls;
   unsigned polls = 0;
   std::vector<phi::TreasureState> treasure_states = {phi::TreasureState::active};
   bool overlay_started = false;
@@ -328,6 +331,7 @@ Config read_config(const std::wstring& path) {
   step("config");
   Config config;
   config.force_show = scenario.force_show;
+  config.show_icon = scenario.show_icon;
   config.enabled = scenario.enabled;
   config.sound_enabled = scenario.sound_enabled;
   config.sound_volume_percent = scenario.sound_volume_percent;
@@ -353,7 +357,10 @@ float TreasureRadiusConfig::poll(std::chrono::steady_clock::time_point) {
 HotkeyActions poll_hotkeys(int, int) {
   step("hotkeys");
 
-  return {false, scenario.polls >= scenario.treasure_states.size()};
+  return {
+    std::ranges::find(scenario.toggle_polls, scenario.polls) != scenario.toggle_polls.end(),
+    scenario.polls >= scenario.treasure_states.size()
+  };
 }
 
 bool game_is_foreground() {
@@ -382,6 +389,7 @@ bool SoundPlayer::prepare_embedded() {
 
 bool SoundPlayer::play(float gain) noexcept {
   scenario.sound_gains.push_back(gain);
+  scenario.sound_play_polls.push_back(scenario.polls);
   scenario.calls.emplace_back("sound_play");
 
   return scenario.sound_valid;
@@ -563,6 +571,44 @@ int main() {
     {phi::TreasureState::active, phi::TreasureState::active, phi::TreasureState::active};
   CHECK(run() == AppExitDisposition::unload_allowed);
   CHECK(std::count(scenario.calls.begin(), scenario.calls.end(), "sound_play") == 1);
+
+  for (const auto* graphics_failure : {"icon", "overlay_start", "set_logger", "hud"}) {
+    scenario = {};
+    scenario.show_icon = false;
+    scenario.force_show = true;
+    scenario.icon_valid = false;
+    scenario.fail = graphics_failure;
+    scenario.treasure_states =
+      {phi::TreasureState::active, phi::TreasureState::active, phi::TreasureState::active};
+    CHECK(run() == AppExitDisposition::unload_allowed);
+    CHECK(!has("icon") && !has("overlay_start") && !has("set_logger") && !has("hud"));
+    CHECK(!has("clear_logger") && !scenario.hud_visible);
+    CHECK(has("observer_start") && has("minimap_start") && has("menu_start"));
+    CHECK(has("audio_volume_start") && scenario.sound_gains == std::vector<float>{1.0f});
+    CHECK(scenario.cleanup_order_valid);
+  }
+
+  scenario = {};
+  scenario.show_icon = false;
+  scenario.toggle_polls = {2, 3};
+  scenario.treasure_states = {
+    phi::TreasureState::inactive,
+    phi::TreasureState::active,
+    phi::TreasureState::inactive,
+    phi::TreasureState::active,
+    phi::TreasureState::active
+  };
+  CHECK(run() == AppExitDisposition::unload_allowed);
+  CHECK(scenario.sound_play_polls == std::vector<unsigned>{4});
+  CHECK(!scenario.hud_visible && !has("overlay_start"));
+  CHECK(has("hotkeys_stop") && scenario.cleanup_order_valid);
+
+  scenario = {};
+  scenario.show_icon = false;
+  scenario.enabled = false;
+  scenario.treasure_states = {phi::TreasureState::active, phi::TreasureState::active};
+  CHECK(run() == AppExitDisposition::unload_allowed);
+  CHECK(!has("sound_play") && !has("overlay_start"));
 
   scenario = {};
   scenario.volumes = {{true, 50, 25}};

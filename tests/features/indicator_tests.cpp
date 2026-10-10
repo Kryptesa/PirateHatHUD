@@ -76,6 +76,21 @@ int main() {
   disabled.toggle();
   CHECK((disabled.update(), disabled.hud_state().visible));
 
+  for (bool force_show : {false, true}) {
+    phi::TreasureIndicator hidden(true, force_show, 123, -45, 1.5f, 0, false);
+    hidden.set_treasure_state(phi::TreasureState::active);
+    hidden.set_minimap_state(phi::MinimapState::visible);
+    hidden.set_menu_state(phi::MenuState::closed);
+    hidden.update();
+    CHECK(!hidden.hud_state().visible);
+    hidden.toggle();
+    hidden.update();
+    CHECK(!hidden.hud_state().visible);
+    hidden.toggle();
+    hidden.update();
+    CHECK(!hidden.hud_state().visible); // F9 cannot override the icon preference.
+  }
+
   using Clock = phi::TreasureIndicator::Clock;
   using namespace std::chrono_literals;
   const auto t = Clock::time_point{};

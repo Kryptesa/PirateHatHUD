@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added `[indicator] show_icon` (default `1`) to hide the icon while keeping treasure
+  sounds. Setting it to `0` skips PNG loading and graphics hooks; `force_show` and
+  F9 cannot reveal the icon. F9 still toggles notifications in this mode.
+
 - Added `Present1` graphics interception with the same HUD rendering and resize
   recovery as `Present`, covering a previously unhandled presentation path.
   Nested calls for the same swapchain run HUD work once; partial updates are

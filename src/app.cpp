@@ -190,9 +190,11 @@ void log_settings(const Config& config) {
   std::snprintf(
     message,
     sizeof(message),
-    "Mod settings: enabled=%s; force show=%s; position=%d,%d; scale=%.3f; show delay=%d ms; "
+    "Mod settings: enabled=%s; show icon=%s; force show=%s; position=%d,%d; scale=%.3f; show "
+    "delay=%d ms; "
     "sound=%s; sound cooldown=%d ms; sound volume=%d%%; toggle key=0x%X; unload key=0x%X",
     config.enabled ? "yes" : "no",
+    config.show_icon ? "yes" : "no",
     config.force_show ? "yes" : "no",
     config.x,
     config.y,
@@ -250,7 +252,8 @@ public:
         config.x,
         config.y,
         config.scale,
-        config.show_delay_ms
+        config.show_delay_ms,
+        config.show_icon
       ),
       sound_policy_(config.sound_enabled, config.sound_cooldown_ms),
       enabled_(config.enabled),
@@ -301,24 +304,27 @@ public:
     indicator_.set_menu_state(menu_.state());
     indicator_.set_minimap_state(minimap_.state());
     indicator_.set_treasure_state(observer_.state());
-    set_overlay_hud(indicator_.hud_state());
-
-    logger_configured_ = true;
-    set_overlay_log(log);
-    log(LogLevel::debug, "Startup: graphics hooks begin");
-    if (config.logging.level <= LogLevel::debug) {
-      log_graphics_modules("Graphics module snapshot before hook startup");
-    }
-    const bool overlay_started = start_overlay();
-    exit_.retain |= overlay_started;
-    log(
-      overlay_started ? LogLevel::info : LogLevel::error,
-      overlay_started
-        ? "DX12 hooks installed; waiting for swapchain"
-        : "DX12 hooks unavailable; overlay disabled"
-    );
-    if (config.logging.level <= LogLevel::debug) {
-      log_graphics_modules("Graphics module snapshot after hook startup");
+    if (config.show_icon) {
+      set_overlay_hud(indicator_.hud_state());
+      logger_configured_ = true;
+      set_overlay_log(log);
+      log(LogLevel::debug, "Startup: graphics hooks begin");
+      if (config.logging.level <= LogLevel::debug) {
+        log_graphics_modules("Graphics module snapshot before hook startup");
+      }
+      const bool overlay_started = start_overlay();
+      exit_.retain |= overlay_started;
+      log(
+        overlay_started ? LogLevel::info : LogLevel::error,
+        overlay_started
+          ? "DX12 hooks installed; waiting for swapchain"
+          : "DX12 hooks unavailable; overlay disabled"
+      );
+      if (config.logging.level <= LogLevel::debug) {
+        log_graphics_modules("Graphics module snapshot after hook startup");
+      }
+    } else {
+      log(LogLevel::info, "Icon disabled by show_icon=0; graphics hooks skipped");
     }
 
     log(LogLevel::debug, "Startup: treasure observer begin");
@@ -376,7 +382,9 @@ public:
         log(LogLevel::info, enabled_ ? "Mod enabled by hotkey" : "Mod disabled by hotkey");
       }
 
-      set_overlay_hud(indicator_.hud_state());
+      if (config.show_icon) {
+        set_overlay_hud(indicator_.hud_state());
+      }
 
       if (actions.unload) {
         log(LogLevel::info, "Stop requested by hotkey");
@@ -504,14 +512,22 @@ AppExitDisposition run_app(HMODULE module) noexcept {
         );
       }
 
-      const auto icon_path = folder + L"PirateHatHUD_treasure.png";
-      const bool custom_icon = GetFileAttributesW(icon_path.c_str()) != INVALID_FILE_ATTRIBUTES;
-
-      log(LogLevel::debug, "Startup: icon preparation begin");
-      if (!prepare_overlay_icon(custom_icon ? icon_path.c_str() : nullptr)) {
-        log(LogLevel::error, "Embedded icon or PirateHatHUD_treasure.png invalid; mod not started");
-      } else {
-        log(LogLevel::debug, "Startup: icon preparation ready");
+      bool icon_ready = true;
+      if (config.show_icon) {
+        const auto icon_path = folder + L"PirateHatHUD_treasure.png";
+        const bool custom_icon = GetFileAttributesW(icon_path.c_str()) != INVALID_FILE_ATTRIBUTES;
+        log(LogLevel::debug, "Startup: icon preparation begin");
+        icon_ready = prepare_overlay_icon(custom_icon ? icon_path.c_str() : nullptr);
+        if (!icon_ready) {
+          log(
+            LogLevel::error,
+            "Embedded icon or PirateHatHUD_treasure.png invalid; mod not started"
+          );
+        } else {
+          log(LogLevel::debug, "Startup: icon preparation ready");
+        }
+      }
+      if (icon_ready) {
         AppSession session(config, exit);
         session.run(config, folder, legacy_config ? legacy_config_path : config_path);
       }

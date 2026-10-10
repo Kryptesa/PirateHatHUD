@@ -35,6 +35,7 @@ apply during gameplay; other settings require restarting the game.
 ```ini
 [indicator]
 enabled=1
+show_icon=1
 force_show=0
 x=350
 y=-310
@@ -66,6 +67,7 @@ next game launch. **Live** means saved edits apply without restarting.
 | Setting | Default | Purpose and accepted values | Applies |
 | --- | --- | --- | --- |
 | `indicator.enabled` | `1` | Initial icon/sound state: `0` off, `1` on. The toggle hotkey changes it during play. | Restart |
+| `indicator.show_icon` | `1` | Allow the icon: `0` hides it independently of sound and skips PNG loading and graphics hooks, `1` allows normal display. `force_show` and F9 do not override `0`. | Restart |
 | `indicator.force_show` | `0` | Test icon without hat/treasure detection: `0` off, `1` on. Still hidden in menus and when the minimap is hidden. | Restart |
 | `indicator.x` | `350` | Horizontal position in pixels from the left edge. | Restart |
 | `indicator.y` | `-310` | Vertical position in pixels: negative counts up from the bottom; zero or positive counts from the top. | Restart |
@@ -83,6 +85,11 @@ next game launch. **Live** means saved edits apply without restarting.
 | `logging.max_files` | `3` | Total log files to keep, including the current file: 1-20. | Restart |
 
 The default icon position was chosen for 2560 × 1440. Adjust it for your HUD as needed.
+To keep treasure sounds without an icon, set `[indicator] show_icon=0`, keep
+`[indicator] enabled=1` and `[sound] enabled=1`, then restart the game. F9 still
+toggles notifications; the icon stays hidden. Existing INIs without `show_icon`
+keep the icon enabled by default.
+
 Missing or invalid values during live reload retain the last valid value. Setting
 notification volume to zero also stops current playback; other volume changes apply
 to the next notification.
@@ -127,8 +134,8 @@ draws every icon as a square. Its on-screen size is 56 × 56 pixels at
 `scale_percent=100`, regardless of the source image size.
 
 Install and remove this custom file manually when using CDUMM or DMM.
-If the image can't be loaded, the mod won't start; remove it to go back to the
-built-in icon.
+With `show_icon=1`, if the image can't be loaded, the mod won't start; remove it
+to go back to the built-in icon. With `show_icon=0`, the image is not loaded.
 
 ### Custom sound
 
@@ -140,7 +147,8 @@ An invalid custom WAV disables sound only and writes a warning to the log.
 
 ## Troubleshooting
 
-If you don't see the icon, try `force_show=1`, restart the game, and load a save.
+If you don't see the icon, set `show_icon=1` and try `force_show=1`, restart the game,
+and load a save.
 Make sure the minimap is on, close any menus, wait a second, and try F9.
 If that works, set `force_show=0` and test again with the Pirate King Hat near treasure.
 

@@ -16,6 +16,7 @@ struct TreasureRangeSettings {
 struct Config {
   LogConfig logging;
   bool enabled = true;
+  bool show_icon = true;
   bool force_show = false;
   int show_delay_ms = 1000;
   bool sound_enabled = true;

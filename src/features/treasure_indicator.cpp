@@ -7,9 +7,11 @@ TreasureIndicator::TreasureIndicator(
   int x,
   int y,
   float scale,
-  int show_delay_ms
+  int show_delay_ms,
+  bool show_icon
 )
   : enabled_(enabled),
+    show_icon_(show_icon),
     force_show_(force_show),
     show_delay_(show_delay_ms < 0 ? 1000 : show_delay_ms),
     hud_{false, x, y, scale} {}
@@ -57,6 +59,7 @@ void TreasureIndicator::toggle() {
 HudState TreasureIndicator::hud_state() const {
   auto hud = hud_;
   hud.visible = enabled_ &&
+    show_icon_ &&
     (force_show_ || treasure_state_ == TreasureState::active) &&
     minimap_state_ == MinimapState::visible &&
     menu_state_ == MenuState::closed &&

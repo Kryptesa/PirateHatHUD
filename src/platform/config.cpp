@@ -90,6 +90,12 @@ Config read_config(const std::wstring& path) {
 
   config.enabled =
     GetPrivateProfileIntW(L"indicator", L"enabled", defaults.enabled, path.c_str()) != 0;
+  wchar_t show_icon[8]{};
+  const auto show_icon_length =
+    GetPrivateProfileStringW(L"indicator", L"show_icon", L"", show_icon, 8, path.c_str());
+  if (show_icon_length == 1 && (show_icon[0] == L'0' || show_icon[0] == L'1')) {
+    config.show_icon = show_icon[0] == L'1';
+  }
   config.force_show =
     GetPrivateProfileIntW(L"indicator", L"force_show", defaults.force_show, path.c_str()) != 0;
   config.show_delay_ms = static_cast<int>(

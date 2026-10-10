@@ -15,7 +15,8 @@ public:
     int x,
     int y,
     float scale,
-    int show_delay_ms = 1000
+    int show_delay_ms = 1000,
+    bool show_icon = true
   );
 
   void set_treasure_state(TreasureState state);
@@ -33,6 +34,7 @@ public:
 
 private:
   bool enabled_;
+  bool show_icon_;
   bool force_show_;
   TreasureState treasure_state_ = TreasureState::unknown;
   MinimapState minimap_state_ = MinimapState::unknown;

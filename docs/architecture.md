@@ -310,6 +310,12 @@ The policy keeps independent treasure, minimap and menu states. Hidden/unknown m
 or open/unknown menu immediately cancels return eligibility. When minimap is visible
 and menu closed, update() starts a steady_clock deadline; show_delay_ms defaults to
 1000. No sleeping implements the deadline. force_show bypasses treasure only.
+The startup `show_icon` preference gates HUD visibility independently of mod
+enablement and overrides force_show. Application composition skips icon preparation,
+graphics hook startup and HUD publication when this preference is false. Observation,
+notification sound, optional hat radius and hotkey handling keep their usual lifecycle;
+F9 changes mod enablement without changing the icon preference. Graphics cleanup remains
+safe to call after a skipped start. No game observer or renderer reads this setting.
 The application polls all sources and advances the policy before publishing one HUD
 snapshot. Immediate means the first owner-thread publication after a captured signal;
 the game's +25B transition itself is delayed relative to input.
@@ -326,7 +332,7 @@ including startup from unknown or waiting for loading/menu gating to clear. Late
 only an observed inactive-to-active transition can request playback; recovery from
 unknown remains silent. Disabled sound/mod, hidden or unknown minimap, open or unknown menu,
 an unfocused game and cooldown suppress the request without deferring it. The policy
-does not consume HUD visibility, show_delay_ms or force_show.
+does not consume HUD visibility, show_icon, show_delay_ms or force_show.
 
 The application owns the platform WAV player and connects policy requests to it.
 The application thread queues playback/stop commands to a dedicated audio worker;

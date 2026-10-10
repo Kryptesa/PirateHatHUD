@@ -176,10 +176,22 @@ int main() {
   CHECK(read_config((folder / "missing.ini").wstring()).logging.level == LogLevel::info);
 
   const auto defaults = read_config((folder / "missing.ini").wstring());
+  CHECK(defaults.show_icon);
   CHECK(defaults.sound_enabled);
   CHECK(defaults.sound_cooldown_ms == 1000);
   CHECK(defaults.sound_volume_percent == 100);
   CHECK(!defaults.treasure_range.enabled && defaults.treasure_range.radius == 15);
+  for (const auto* value : {"0", "1", "", "2", "-1", "nope", "0junk"}) {
+    std::ofstream(ini) << "[indicator]\nenabled=1\nshow_icon=" << value << "\n[sound]\nenabled=1\n";
+    const auto icon_settings = read_config(ini.wstring());
+    CHECK(icon_settings.show_icon == (std::string(value) != "0"));
+    CHECK(icon_settings.enabled && icon_settings.sound_enabled);
+  }
+  std::ofstream(ini) << "[indicator]\nenabled=0\n[sound]\nenabled=0\n";
+  const auto legacy_icon_settings = read_config(ini.wstring());
+  CHECK(legacy_icon_settings.show_icon); // Existing INIs without the setting still draw icons.
+  CHECK(!legacy_icon_settings.enabled && !legacy_icon_settings.sound_enabled);
+
   for (const auto* text : {"0", "1", "30.5", "1000", "-1", "0.5", "1001", "nan", "inf", "30junk"}) {
     std::ofstream(ini) << "[treasure]\nenabled=1\nradius=" << text << "\n";
     const auto settings = read_config(ini.wstring()).treasure_range;
