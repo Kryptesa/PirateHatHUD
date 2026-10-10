@@ -107,6 +107,12 @@ DX12 and hook headers describe internal renderer implementation rather than a pu
 library API:
 
 - `dxgi_hooks`: hook installation/removal, callbacks, renderer sequencing and callback draining.
+  Both `Present` and `Present1` use the same selection, rendering, resize recovery and
+  probe handoff path. A thread-local chain guard suppresses duplicate HUD work when
+  one method routes through the other for the same object; calls for a different
+  underlying chain still participate in selection. Test presentations never draw.
+  `Present1` parameters are forwarded unchanged. Partial/scroll updates skip HUD drawing
+  until dirty-rectangle composition is supported; successful calls still allow resize recovery.
   One process-lifetime `HookContext` owns hook storage, the graphics mutex, callback/resize
   counters, renderer/snapshot references, retained probe device, registry and diagnostics.
   This allocation has no automatic destructor during DLL detach. Probe handoff and stop
@@ -257,6 +263,10 @@ application cleanup under exceptions, bounded GPU wait policy, and WIC image dec
 WARP renderer tests hold the GPU queue behind a CPU-released fence, submit a full
 16-slot burst to the same backbuffer in SDR and scRGB, reject overflow without advancing
 the ring, and resume after completion. Resize and shutdown drain the submission ring.
+Native WARP presentation tests activate both graphics hooks on a hidden test window,
+verify test/full/partial calls and invalid intervals retain their original results and
+parameters, check first-call sampling and nested-call suppression, and drain/disable
+both hooks. They do not prove XeSS proxy behavior or visible in-game HUD output.
 Minimap tests cover the pointer traversal, read failures, null pointers, address
 overflow, canvas ownership, ancestor cycles/depth, draw flags, clipping, invalid
 opacity and startup without the game. Indicator and app

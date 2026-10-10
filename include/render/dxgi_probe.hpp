@@ -10,6 +10,7 @@
 namespace phi::render {
 struct DxgiMethods {
   void* present{};
+  void* present1{};
   void* resize{};
   void* resize1{};
   void* create{};

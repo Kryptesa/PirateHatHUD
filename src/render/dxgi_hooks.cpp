@@ -12,8 +12,8 @@
 namespace phi::render {
 namespace {
 struct HookStorage {
-  safetyhook::InlineHook present_hook, resize_hook, resize1_hook, create_hook, create_hwnd_hook,
-    create_core_hook, create_composition_hook, execute_hook, color_hook;
+  safetyhook::InlineHook present_hook, present1_hook, resize_hook, resize1_hook, create_hook,
+    create_hwnd_hook, create_core_hook, create_composition_hook, execute_hook, color_hook;
 };
 
 struct HookContext {
@@ -254,11 +254,41 @@ HRESULT WINAPI on_color(IDXGISwapChain3* swap, DXGI_COLOR_SPACE_TYPE space) {
   return hr;
 }
 
-HRESULT WINAPI on_present(IDXGISwapChain* swap, UINT interval, UINT flags) {
+thread_local IDXGISwapChain* presenting_swap = nullptr;
+
+template <class Function>
+HRESULT present_swap(
+  IDXGISwapChain* swap,
+  UINT flags,
+  const char* operation,
+  unsigned diagnostic_index,
+  bool full_update,
+  Function&& original
+) {
   CallbackGuard callback;
-  const bool diagnostic = sample_callback(6, !(flags & DXGI_PRESENT_TEST));
+  // Present1 may route through Present. Handle the same chain only once, while
+  // still allowing a graphics wrapper to present a different underlying chain.
+  if (presenting_swap == swap) {
+    return original();
+  }
+  struct PresentGuard {
+    IDXGISwapChain* previous{presenting_swap};
+
+    explicit PresentGuard(IDXGISwapChain* swap) {
+      presenting_swap = swap;
+    }
+
+    ~PresentGuard() {
+      presenting_swap = previous;
+    }
+  } guard(swap);
+  const bool diagnostic = sample_callback(diagnostic_index, !(flags & DXGI_PRESENT_TEST));
   if (diagnostic) {
-    context.diagnostics.progress(diagnostic, "non-test Present", CallbackStage::entered);
+    context.diagnostics.progress(diagnostic, operation, CallbackStage::entered);
+    if (!full_update) {
+      context.diagnostics
+        .progress(diagnostic, "partial Present1 (HUD draw skipped)", CallbackStage::entered);
+    }
   }
   own_work([&] {
     if (!context.stopping && !(flags & DXGI_PRESENT_TEST)) {
@@ -287,19 +317,18 @@ HRESULT WINAPI on_present(IDXGISwapChain* swap, UINT interval, UINT flags) {
         context.renderer->shutdown();
       }
 
-      if (context.renderer && context.renderer->ready() && context.renderer->handles(swap)) {
+      if (full_update && context.renderer->ready() && context.renderer->handles(swap)) {
         context.renderer->render(swap, context.snapshot(), target.space);
       }
     }
   });
 
   if (diagnostic) {
-    context.diagnostics.progress(diagnostic, "non-test Present", CallbackStage::original_begin);
+    context.diagnostics.progress(diagnostic, operation, CallbackStage::original_begin);
   }
-  const auto result = context.hooks.present_hook.call<HRESULT>(swap, interval, flags);
+  const auto result = original();
   if (diagnostic) {
-    context.diagnostics
-      .progress(diagnostic, "non-test Present", CallbackStage::original_returned, result);
+    context.diagnostics.progress(diagnostic, operation, CallbackStage::original_returned, result);
   }
 
   ComPtr<ID3D12Device> retired_probe;
@@ -329,9 +358,32 @@ HRESULT WINAPI on_present(IDXGISwapChain* swap, UINT interval, UINT flags) {
   }
 
   if (diagnostic) {
-    context.diagnostics.progress(diagnostic, "non-test Present", CallbackStage::completed);
+    context.diagnostics.progress(diagnostic, operation, CallbackStage::completed);
   }
   return result;
+}
+
+HRESULT WINAPI on_present(IDXGISwapChain* swap, UINT interval, UINT flags) {
+  return present_swap(swap, flags, "non-test Present", 6, true, [&] {
+    return context.hooks.present_hook.call<HRESULT>(swap, interval, flags);
+  });
+}
+
+HRESULT WINAPI on_present1(
+  IDXGISwapChain1* swap,
+  UINT interval,
+  UINT flags,
+  const DXGI_PRESENT_PARAMETERS* parameters
+) {
+  // Partial updates require preserving pixels and extending dirty rectangles.
+  // Until supported, leave those submissions intact and draw only full frames.
+  const bool full_update = parameters &&
+    !parameters->DirtyRectsCount &&
+    !parameters->pScrollRect &&
+    !parameters->pScrollOffset;
+  return present_swap(swap, flags, "non-test Present1", 9, full_update, [&] {
+    return context.hooks.present1_hook.call<HRESULT>(swap, interval, flags, parameters);
+  });
 }
 
 thread_local bool resize_active = false;
@@ -475,6 +527,7 @@ bool install_hooks(const DxgiMethods& methods) {
   context.diagnostics.log(LogLevel::debug, "DX12 hook probe ready; hook installation begin");
   using Flags = safetyhook::InlineHook::Flags;
   auto p = safetyhook::InlineHook::create(methods.present, on_present, Flags::StartDisabled);
+  auto p1 = safetyhook::InlineHook::create(methods.present1, on_present1, Flags::StartDisabled);
   auto r = safetyhook::InlineHook::create(methods.resize, on_resize, Flags::StartDisabled);
   auto r1 = safetyhook::InlineHook::create(methods.resize1, on_resize1, Flags::StartDisabled);
   auto c = safetyhook::InlineHook::create(methods.create, on_create, Flags::StartDisabled);
@@ -490,8 +543,9 @@ bool install_hooks(const DxgiMethods& methods) {
   auto e = safetyhook::InlineHook::create(methods.execute, on_execute, Flags::StartDisabled);
   auto color = safetyhook::InlineHook::create(methods.color, on_color, Flags::StartDisabled);
 
-  if (p && r && r1 && c && h && k && m && e && color) {
+  if (p && p1 && r && r1 && c && h && k && m && e && color) {
     context.hooks.present_hook = std::move(*p);
+    context.hooks.present1_hook = std::move(*p1);
     context.hooks.resize_hook = std::move(*r);
     context.hooks.resize1_hook = std::move(*r1);
     context.hooks.create_hook = std::move(*c);
@@ -510,10 +564,11 @@ bool install_hooks(const DxgiMethods& methods) {
       context.hooks.resize_hook.enable() &&
       context.hooks.resize1_hook.enable() &&
       context.hooks.color_hook.enable() &&
+      context.hooks.present1_hook.enable() &&
       context.hooks.present_hook.enable();
   } else {
     context.diagnostics.log(LogLevel::error, "DX12 inline hook creation failed");
-    for (auto* hook : {&p, &r, &r1, &c, &h, &k, &m, &e, &color}) {
+    for (auto* hook : {&p, &p1, &r, &r1, &c, &h, &k, &m, &e, &color}) {
       if (*hook) {
         (*hook)->reset();
       }
@@ -566,6 +621,7 @@ HooksStopResult stop_hooks() noexcept {
          &context.hooks.resize1_hook,
          &context.hooks.color_hook,
          &context.hooks.present_hook,
+         &context.hooks.present1_hook,
        }) {
     try {
       if (*hook && !hook->disable()) {
@@ -611,6 +667,7 @@ HooksStopResult stop_hooks() noexcept {
 
     if (!context.activation_attempted) {
       context.hooks.present_hook.reset();
+      context.hooks.present1_hook.reset();
       context.hooks.resize_hook.reset();
       context.hooks.resize1_hook.reset();
       context.hooks.create_hook.reset();

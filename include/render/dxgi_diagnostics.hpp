@@ -22,6 +22,6 @@ public:
 
 private:
   std::atomic<LogCallback> logger_{};
-  std::atomic<bool> first_callbacks_[9]{};
+  std::atomic<bool> first_callbacks_[10]{};
 };
 } // namespace phi::render

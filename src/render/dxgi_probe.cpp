@@ -94,6 +94,7 @@ bool DxgiProbe::initialize(
 DxgiMethods DxgiProbe::methods() const {
   return {
     .present = method(swap_.Get(), 8),
+    .present1 = method(swap_.Get(), 22),
     .resize = method(swap_.Get(), 13),
     .resize1 = method(swap3_.Get(), 39),
     .create = method(factory_.Get(), 10),

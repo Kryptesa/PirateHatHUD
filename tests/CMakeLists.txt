@@ -161,6 +161,17 @@ target_compile_definitions(dxgi_lifecycle_tests PRIVATE WIN32_LEAN_AND_MEAN NOMI
 target_link_libraries(dxgi_lifecycle_tests PRIVATE imgui_static safetyhook d3d12 dxgi d3dcompiler)
 add_test(NAME dxgi_lifecycle_tests COMMAND dxgi_lifecycle_tests)
 
+add_executable(present_tests render/present_tests.cpp
+  ${PHI_RENDER_TEST_SOURCES}
+  "${PROJECT_SOURCE_DIR}/src/render/dxgi_hooks.cpp"
+  "${PROJECT_SOURCE_DIR}/src/render/dxgi_probe.cpp"
+  "${PROJECT_SOURCE_DIR}/src/render/dxgi_swapchains.cpp"
+  "${PROJECT_SOURCE_DIR}/src/render/dxgi_diagnostics.cpp")
+target_include_directories(present_tests PRIVATE "${PROJECT_SOURCE_DIR}/include")
+target_compile_definitions(present_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_link_libraries(present_tests PRIVATE imgui_static safetyhook d3d12 dxgi d3dcompiler)
+add_test(NAME present_tests COMMAND present_tests)
+
 add_executable(render_wait_tests render/render_wait_tests.cpp)
 target_include_directories(render_wait_tests PRIVATE "${PROJECT_SOURCE_DIR}/include")
 add_test(NAME render_wait_tests COMMAND render_wait_tests)
@@ -191,6 +202,7 @@ add_test(NAME image_tests COMMAND image_tests "${PROJECT_SOURCE_DIR}/assets/icon
 set_tests_properties(
   resize_tests
   dxgi_lifecycle_tests
+  present_tests
   render_wait_tests
   swapchain_tests
   render_icon_tests

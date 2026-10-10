@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Added `Present1` graphics interception with the same HUD rendering and resize
+  recovery as `Present`, covering a previously unhandled presentation path.
+  Nested calls for the same swapchain run HUD work once; partial updates are
+  forwarded without drawing outside the application's dirty rectangles.
+  Icon visibility with XeSS frame generation was confirmed in a user test on
+  an RTX 5080; broader compatibility and hotkey scenarios remain unverified.
+
 - Decoupled HUD command resources from swapchain backbuffers and expanded the
   submission ring to 16 slots to reduce skipped icon draws during GPU backlog or
   repeated backbuffer indices. Added throttled debug diagnostics for a full ring.
