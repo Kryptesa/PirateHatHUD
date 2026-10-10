@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.2.0 - 2026-10-10
+
 - Added `[indicator] show_icon` (default `1`) to hide the icon while keeping treasure
   sounds. Setting it to `0` skips PNG loading and graphics hooks; `force_show` and
   F9 cannot reveal the icon. F9 still toggles notifications in this mode.
@@ -16,7 +18,8 @@
 - Decoupled HUD command resources from swapchain backbuffers and expanded the
   submission ring to 16 slots to reduce skipped icon draws during GPU backlog or
   repeated backbuffer indices. Added throttled debug diagnostics for a full ring.
-  Frame-generation compatibility still requires in-game verification.
+  The reported camera-motion flicker at 6x frame generation still requires
+  in-game verification.
 
 ## 1.1.0 - 2026-09-29
 
