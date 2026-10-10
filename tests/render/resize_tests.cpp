@@ -11,6 +11,9 @@
   } while (false)
 
 namespace {
+using phi::render::ComPtr;
+using phi::render::Dx12Renderer;
+
 std::vector<std::string> messages;
 
 void capture_log(phi::LogLevel, const char* message) {
@@ -41,6 +44,57 @@ struct Session {
     UnregisterClassW(L"PirateHatHUDResizeTest", GetModuleHandleW(nullptr));
   }
 };
+
+struct QueueGate {
+  ComPtr<ID3D12Fence> fence;
+  HANDLE event{CreateEventW(nullptr, FALSE, FALSE, nullptr)};
+
+  ~QueueGate() {
+    // Even a failed CHECK must unblock the GPU before Session releases resources.
+    if (fence) {
+      fence->Signal(1);
+    }
+    if (event) {
+      CloseHandle(event);
+    }
+  }
+};
+
+int check_submission_burst(
+  Dx12Renderer& renderer,
+  IDXGISwapChain* swap,
+  ID3D12Device* device,
+  ID3D12CommandQueue* queue,
+  DXGI_COLOR_SPACE_TYPE space
+) {
+  QueueGate gate;
+  CHECK(gate.event);
+  CHECK(SUCCEEDED(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&gate.fence))));
+  CHECK(SUCCEEDED(queue->Wait(gate.fence.Get(), 1)));
+  const phi::HudState hud{true, 0, 0, 1.0f};
+  const auto previous_skips = log_count("GPU ring busy");
+
+  // Deliberately reuse one backbuffer with no Present and no GPU completion.
+  // Every submission must have independent allocator/list and ImGui resources.
+  for (int i = 0; i < 16; ++i) {
+    CHECK(renderer.render(swap, hud, space));
+  }
+  CHECK(!renderer.render(swap, hud, space));
+  CHECK(!renderer.render(swap, hud, space));
+  CHECK(renderer.ready());
+  CHECK(log_count("GPU ring busy") == previous_skips + 1);
+  CHECK(logged("visible=yes"));
+
+  // CPU-release the gate, then fence all queued submissions before reusing slot 0.
+  CHECK(SUCCEEDED(gate.fence->Signal(1)));
+  ComPtr<ID3D12Fence> completed;
+  CHECK(SUCCEEDED(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&completed))));
+  CHECK(SUCCEEDED(queue->Signal(completed.Get(), 1)));
+  CHECK(SUCCEEDED(completed->SetEventOnCompletion(1, gate.event)));
+  CHECK(WaitForSingleObject(gate.event, 5000) == WAIT_OBJECT_0);
+  CHECK(renderer.render(swap, hud, space));
+  return 0;
+}
 } // namespace
 
 int main() {
@@ -133,20 +187,36 @@ int main() {
   CHECK(logged("DX12 swapchain: 128x128; format=28; buffers=2;"));
 
   // Exercise submission and another resize with the recovered backend/resources.
-  renderer.render(swap.Get(), {}, DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709);
-  renderer.render(swap.Get(), {}, DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709);
+  CHECK(
+    check_submission_burst(
+      renderer,
+      swap.Get(),
+      device.Get(),
+      queue.Get(),
+      DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709
+    ) == 0
+  );
   CHECK(log_count("DX12 first overlay frame begin") == 1);
   CHECK(log_count("DX12 first overlay submission begin") == 1);
   CHECK(log_count("DX12 render color space=") == 1);
   CHECK(renderer.before_resize(swap.Get()));
-  result = swap->ResizeBuffers(3, 64, 64, DXGI_FORMAT_UNKNOWN, 0);
+  result = swap->ResizeBuffers(3, 64, 64, DXGI_FORMAT_R16G16B16A16_FLOAT, 0);
   CHECK(SUCCEEDED(result));
   renderer.after_resize(swap.Get(), result);
   result = swap->Present(0, 0);
   CHECK(SUCCEEDED(result));
   renderer.after_present(swap.Get(), S_OK, 0);
   CHECK(renderer.ready());
-  CHECK(logged("DX12 swapchain: 64x64; format=28; buffers=3;"));
+  CHECK(logged("DX12 swapchain: 64x64; format=10; buffers=3;"));
+  CHECK(
+    check_submission_burst(
+      renderer,
+      swap.Get(),
+      device.Get(),
+      queue.Get(),
+      DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709
+    ) == 0
+  );
 
   // A failed resize must stay disabled even after a later successful Present.
   CHECK(renderer.before_resize(swap.Get()));

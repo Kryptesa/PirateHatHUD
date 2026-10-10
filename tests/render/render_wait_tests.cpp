@@ -83,35 +83,44 @@ int main() {
   ring.reset(3);
 
   // Three submissions can be in flight without waiting for unrelated slots.
-  CHECK(ring.required_fence(0) == 0);
+  CHECK(ring.required_fence() == 0);
+  CHECK(ring.next_index() == 0);
+  CHECK(ring.latest_fence() == 0);
 
   ring.submitted(1);
-  CHECK(ring.required_fence(0) == 0);
+  CHECK(ring.required_fence() == 0);
+  CHECK(ring.next_index() == 1);
 
   ring.submitted(2);
-  CHECK(ring.required_fence(0) == 0);
+  CHECK(ring.required_fence() == 0);
 
   ring.submitted(3);
 
-  // Present can skip or repeat swapchain indices: the backend ring stays separate.
-  CHECK(ring.required_fence(2) == 2);
-  CHECK(ring.required_fence(0) == 1);
+  // Swapchain indices have no role in command or backend slot reuse.
+  CHECK(ring.next_index() == 0);
+  CHECK(ring.required_fence() == 1);
+  CHECK(ring.latest_fence() == 3);
 
   Fence first_done;
   first_done.value = 1; // Submissions 2/3 are still busy, but slot 0 is reusable.
-  CHECK(wait_for_fence(first_done, ring.required_fence(0), 0) == WaitResult::completed);
+  CHECK(wait_for_fence(first_done, ring.required_fence(), 0) == WaitResult::completed);
 
   ring.submitted(4);
-  CHECK(ring.required_fence(0) == 2);
-  CHECK(wait_for_fence(first_done, ring.required_fence(0), 0) == WaitResult::timeout);
-  CHECK(ring.required_fence(0) == 2); // Skipping must not advance the backend ring.
-  CHECK(ring.required_fence(4) == 4); // Reusing an allocator can require a newer fence.
-  ring.reset(2);                      // Backend recreation starts at slot zero with no old fences.
-  CHECK(ring.required_fence(0) == 0);
+  CHECK(ring.required_fence() == 2);
+  CHECK(ring.latest_fence() == 4);
+  CHECK(wait_for_fence(first_done, ring.required_fence(), 0) == WaitResult::timeout);
+  CHECK(ring.required_fence() == 2); // Skipping must not advance the backend ring.
+  CHECK(ring.next_index() == 1);
+  ring.reset(2); // Backend recreation starts at slot zero with no old fences.
+  CHECK(ring.required_fence() == 0);
+  CHECK(ring.latest_fence() == 0);
 
   ring.submitted(5);
   ring.submitted(6);
-  CHECK(ring.required_fence(0) == 5);
+  CHECK(ring.required_fence() == 5);
+  CHECK(ring.latest_fence() == 6);
+  ring.reset(0);
+  CHECK(ring.latest_fence() == 0); // Shutdown can drain a partially initialized backend.
 
   return 0;
 }

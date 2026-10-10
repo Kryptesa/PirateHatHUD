@@ -99,17 +99,8 @@ WaitResult Dx12Renderer::wait_all() {
     return WaitResult::failed;
   }
 
-  const auto deadline = GetTickCount64() + 1000;
-
-  for (const auto& frame : frames) {
-    const auto result = wait_fence(frame.fence_value, deadline);
-
-    if (result != WaitResult::completed) {
-      return result;
-    }
-  }
-
-  return WaitResult::completed;
+  // Signals are ordered on one queue; completing the latest covers every slot.
+  return wait_fence(submission_ring.latest_fence(), GetTickCount64() + 1000);
 }
 
 void Dx12Renderer::release_buffers() {
@@ -119,7 +110,8 @@ void Dx12Renderer::release_buffers() {
 
   frames.clear();
   rtv_heap.Reset();
-  backend_frames.reset(0);
+  submissions = {};
+  submission_ring.reset(0);
 }
 
 bool Dx12Renderer::create_buffers(IDXGISwapChain* target_swap) {
@@ -151,33 +143,38 @@ bool Dx12Renderer::create_buffers(IDXGISwapChain* target_swap) {
   for (auto& frame : frames) {
     const UINT index = static_cast<UINT>(&frame - frames.data());
 
-    if (
-      !check_result(target_swap->GetBuffer(index, IID_PPV_ARGS(&frame.buffer)), "GetBuffer") ||
-      !check_result(
-        device
-          ->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&frame.allocator)),
-        "CreateCommandAllocator"
-      )
-    ) {
+    if (!check_result(target_swap->GetBuffer(index, IID_PPV_ARGS(&frame.buffer)), "GetBuffer")) {
       return false;
     }
 
     frame.rtv = handle;
     device->CreateRenderTargetView(frame.buffer.Get(), nullptr, handle);
     handle.ptr += step;
+  }
+
+  for (auto& submission : submissions) {
+    if (!check_result(
+          device->CreateCommandAllocator(
+            D3D12_COMMAND_LIST_TYPE_DIRECT,
+            IID_PPV_ARGS(&submission.allocator)
+          ),
+          "CreateCommandAllocator"
+        )) {
+      return false;
+    }
 
     if (
       !check_result(
         device->CreateCommandList(
           0,
           D3D12_COMMAND_LIST_TYPE_DIRECT,
-          frame.allocator.Get(),
+          submission.allocator.Get(),
           nullptr,
-          IID_PPV_ARGS(&frame.list)
+          IID_PPV_ARGS(&submission.list)
         ),
         "CreateCommandList"
       ) ||
-      !check_result(frame.list->Close(), "CommandList Close(new)")
+      !check_result(submission.list->Close(), "CommandList Close(new)")
     ) {
       return false;
     }
@@ -191,7 +188,7 @@ bool Dx12Renderer::initialize_backend(const DXGI_SWAP_CHAIN_DESC& desc) {
   init.UserData = this;
   init.Device = device.Get();
   init.CommandQueue = queue.Get();
-  init.NumFramesInFlight = static_cast<int>(frames.size());
+  init.NumFramesInFlight = static_cast<int>(submissions.size());
   init.RTVFormat = desc.BufferDesc.Format;
   init.SrvDescriptorHeap = srv_heap.Get();
   init.SrvDescriptorAllocFn = descriptor_alloc;
@@ -199,7 +196,9 @@ bool Dx12Renderer::initialize_backend(const DXGI_SWAP_CHAIN_DESC& desc) {
   imgui = ImGui_ImplDX12_Init(&init);
 
   if (imgui) {
-    backend_frames.reset(frames.size());
+    submission_ring.reset(submissions.size());
+    busy_skips = 0;
+    next_busy_log = 0;
   }
 
   if (!imgui) {

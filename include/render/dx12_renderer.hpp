@@ -53,7 +53,8 @@ public:
 
   bool replace_swapchain(IDXGISwapChain* swap, ID3D12CommandQueue* queue);
 
-  void render(IDXGISwapChain* swap, const HudState& hud, DXGI_COLOR_SPACE_TYPE color_space);
+  // Returns true only when HUD commands were submitted and fenced.
+  bool render(IDXGISwapChain* swap, const HudState& hud, DXGI_COLOR_SPACE_TYPE color_space);
 
   bool before_resize(IDXGISwapChain* swap);
 
@@ -80,10 +81,14 @@ public:
 private:
   struct Frame {
     ComPtr<ID3D12Resource> buffer;
+    D3D12_CPU_DESCRIPTOR_HANDLE rtv{};
+  };
+
+  // Commands and ImGui buffers follow submissions, not swapchain indices.
+  static constexpr std::size_t kSubmissionCount = 16;
+  struct Submission {
     ComPtr<ID3D12CommandAllocator> allocator;
     ComPtr<ID3D12GraphicsCommandList> list;
-    D3D12_CPU_DESCRIPTOR_HANDLE rtv{};
-    UINT64 fence_value{};
   };
 
   static void descriptor_alloc(
@@ -151,7 +156,10 @@ private:
   HANDLE fence_event{};
   UINT64 fence_next{1};
   std::vector<Frame> frames;
-  FrameRing backend_frames;
+  std::array<Submission, kSubmissionCount> submissions;
+  FrameRing submission_ring;
+  std::uint64_t busy_skips{};
+  ULONGLONG next_busy_log{};
   bool imgui{};
   bool context{};
   bool win32{};

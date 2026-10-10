@@ -170,13 +170,17 @@ keeps the renderer in resizing state until a non-test Present returns S_OK. Grap
 wrappers can continue rebuilding after the hooked implementation returns. A graphics-mutex
 protected count of in-flight resize callbacks suppresses Present-side renderer work across
 threads during those calls. Failed or occluded presentations do not resume rendering.
-Normal drawing checks only the current backbuffer's allocator/command list and the next
-ImGui vertex/index buffer slot, tracked by a separate submission ring. It skips drawing only if one of those
-resources is unfinished, rather than blocking Present or waiting for unrelated submissions.
-Each backbuffer owns its command list. Backend recreation resets the submission ring;
-minimized frames do not advance it. Shutdown and resize use a shared
-bounded fence-wait deadline; unresolved submissions retain their resources. Device loss
-stops drawing. Retaining backbuffer references can prevent ResizeBuffers from succeeding.
+Backbuffers own only render targets and RTVs. A separate 16-slot submission ring owns
+allocators/command lists and mirrors the ImGui vertex/index buffer slots. Normal drawing
+checks only the next submission slot's fence, so repeated or skipped swapchain indices
+cannot force reuse of unfinished CPU resources. Writes to a backbuffer remain ordered
+on the same captured queue. A full ring skips drawing without blocking Present and
+logs cumulative skips at debug level at most once every five seconds. This reduces
+resource-related omissions; it does not integrate the icon into a frame generator's UI buffers.
+Backend recreation resets the ring; minimized frames do not advance it. Shutdown and
+resize wait for the latest ordered submission with a bounded deadline; unresolved
+submissions retain their resources. Device loss stops drawing. Retaining backbuffer
+references can prevent ResizeBuffers from succeeding.
 
 The HUD supports only image commands for its prepared icon. Backend texture uploads are
 excluded from draw submission, avoiding the ImGui DX12 backend's unbounded texture-upload
@@ -250,6 +254,9 @@ Full in-game DLL unload safety is not established by these unit tests.
 CTest covers scanning, typed subscription lifetime/dispatch behavior, indicator policy,
 observer startup failure without the game, hook retention and partial activation,
 application cleanup under exceptions, bounded GPU wait policy, and WIC image decoding/retry.
+WARP renderer tests hold the GPU queue behind a CPU-released fence, submit a full
+16-slot burst to the same backbuffer in SDR and scRGB, reject overflow without advancing
+the ring, and resume after completion. Resize and shutdown drain the submission ring.
 Minimap tests cover the pointer traversal, read failures, null pointers, address
 overflow, canvas ownership, ancestor cycles/depth, draw flags, clipping, invalid
 opacity and startup without the game. Indicator and app

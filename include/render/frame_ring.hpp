@@ -13,13 +13,21 @@ public:
     next_ = 0;
   }
 
-  std::uint64_t required_fence(std::uint64_t backbuffer_fence) const {
-    return std::max(backbuffer_fence, fences_[next_ % fences_.size()]);
+  std::size_t next_index() const {
+    return next_ % fences_.size();
+  }
+
+  std::uint64_t required_fence() const {
+    return fences_[next_index()];
+  }
+
+  std::uint64_t latest_fence() const {
+    return fences_.empty() ? 0 : *std::max_element(fences_.begin(), fences_.end());
   }
 
   // Call only after RenderDrawData consumed a slot and its submission was fenced.
   void submitted(std::uint64_t fence) {
-    fences_[next_ % fences_.size()] = fence;
+    fences_[next_index()] = fence;
     ++next_;
   }
 

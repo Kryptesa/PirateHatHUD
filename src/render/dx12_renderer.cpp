@@ -203,13 +203,13 @@ bool Dx12Renderer::replace_swapchain(
   return true;
 }
 
-void Dx12Renderer::render(
+bool Dx12Renderer::render(
   IDXGISwapChain* target_swap,
   const HudState& hud,
   DXGI_COLOR_SPACE_TYPE color_space
 ) {
   if (!ready() || this->swap != target_swap || !queue || untracked_submission) {
-    return;
+    return false;
   }
 
   ComPtr<IDXGISwapChain3> swap3;
@@ -220,7 +220,7 @@ void Dx12Renderer::render(
       check_result(queried, "QueryInterface(SwapChain3)");
       selection_error_logged = true;
     }
-    return;
+    return false;
   }
 
   const UINT index = swap3->GetCurrentBackBufferIndex();
@@ -230,34 +230,53 @@ void Dx12Renderer::render(
       log(LogLevel::error, "DX12 current backbuffer index out of range; frame skipped");
       selection_error_logged = true;
     }
-    return;
+    return false;
   }
 
   auto& frame = frames[index];
 
-  // Only wait for resources reused by this submission: the selected backbuffer
-  // allocator/list and the backend's next vertex/index buffer slot.
-  const auto waited =
-    wait_fence(backend_frames.required_fence(frame.fence_value), GetTickCount64());
+  // The same backbuffer can appear again before the previous HUD work completes.
+  // Queue ordering protects the target; only CPU-reused command/ImGui resources
+  // need a completed fence. Keep both in the same, larger submission ring.
+  auto& submission = submissions[submission_ring.next_index()];
+  const auto now = GetTickCount64();
+  const auto required = submission_ring.required_fence();
+  const auto waited = wait_fence(required, now);
 
   if (waited == WaitResult::timeout) {
-    return;
+    ++busy_skips;
+    if (now >= next_busy_log) {
+      char message[192]{};
+      std::snprintf(
+        message,
+        sizeof(message),
+        "DX12 HUD submission skipped: GPU ring busy; skips=%llu; required=%llu; completed=%llu; "
+        "visible=%s",
+        static_cast<unsigned long long>(busy_skips),
+        static_cast<unsigned long long>(required),
+        static_cast<unsigned long long>(fence->GetCompletedValue()),
+        hud.visible ? "yes" : "no"
+      );
+      log(LogLevel::debug, message);
+      next_busy_log = now + 5000;
+    }
+    return false;
   }
 
   if (waited != WaitResult::completed) {
     log_wait_failure(waited, "render");
     fault();
-    return;
+    return false;
   }
 
-  auto& list = frame.list;
+  auto& list = submission.list;
 
   if (
-    !check_result(frame.allocator->Reset(), "CommandAllocator Reset") ||
-    !check_result(list->Reset(frame.allocator.Get(), nullptr), "CommandList Reset")
+    !check_result(submission.allocator->Reset(), "CommandAllocator Reset") ||
+    !check_result(list->Reset(submission.allocator.Get(), nullptr), "CommandList Reset")
   ) {
     fault();
-    return;
+    return false;
   }
 
   if (!has_color_space || last_color_space != color_space) {
@@ -297,7 +316,7 @@ void Dx12Renderer::render(
       fault();
     }
 
-    return;
+    return false;
   }
 
   // This HUD only draws the externally owned icon. Reject new font/texture users
@@ -305,7 +324,7 @@ void Dx12Renderer::render(
   if (!icon_only(*draw_data, static_cast<ImTextureID>(icon_gpu.ptr))) {
     log(LogLevel::error, "DX12 unsupported HUD draw commands; rendering disabled");
     fault();
-    return;
+    return false;
   }
 
   D3D12_RESOURCE_BARRIER barrier{};
@@ -338,7 +357,7 @@ void Dx12Renderer::render(
 
   if (!check_result(list->Close(), "CommandList Close")) {
     fault(); // The backend consumed a slot; never continue with a divergent ring.
-    return;
+    return false;
   }
 
   ID3D12CommandList* lists[] = {list.Get()};
@@ -355,8 +374,7 @@ void Dx12Renderer::render(
   const UINT64 value = fence_next++;
 
   if (check_result(queue->Signal(fence.Get(), value), "CommandQueue Signal")) {
-    frame.fence_value = value;
-    backend_frames.submitted(value);
+    submission_ring.submitted(value);
     untracked_submission = false;
     if (first_frame_pending) {
       log(
@@ -365,10 +383,12 @@ void Dx12Renderer::render(
       );
       first_frame_pending = false;
     }
+    return true;
   } else {
     untracked_submission = true;
     fault();
     log(LogLevel::error, "DX12 queue signal failed; rendering disabled");
+    return false;
   }
 }
 

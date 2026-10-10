@@ -169,6 +169,14 @@ the file count to 1–20, or use `level=off` to disable logging.
 
 If you're reporting a problem, include the log, your game version, and graphics
 settings—especially HDR, upscaler and frame generation.
+
+For a flickering icon, compare frame generation off/on and test `[indicator] force_show=1`
+while the minimap is visible and menus are closed. With `[logging] level=debug`,
+`DX12 HUD submission skipped: GPU ring busy` identifies resource-related draw skips;
+its cumulative count is logged at most once every five seconds. Flicker with no such
+messages and stable treasure/minimap/menu state may need frame-generation integration
+that this renderer does not provide.
+
 If ReShade/RenoDX is involved, also include `ReShade.log` from the same launch,
 `ReShade.ini` and the active preset named by its `PresetPath` setting, if applicable.
 ReShade's log reports runtime/add-on versions and initialization but does not replace

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Decoupled HUD command resources from swapchain backbuffers and expanded the
+  submission ring to 16 slots to reduce skipped icon draws during GPU backlog or
+  repeated backbuffer indices. Added throttled debug diagnostics for a full ring.
+  Frame-generation compatibility still requires in-game verification.
+
 ## 1.1.0 - 2026-09-29
 
 - Added an optional Pirate King Hat detection radius setting, independent of the
