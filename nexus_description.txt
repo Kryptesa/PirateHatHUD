@@ -106,7 +106,7 @@ The default icon position was chosen for 2560 x 1440. Adjust it for your HUD as 
 [*]The Pirate King Hat must be equipped for treasure notifications. For an icon-only setup check, set [indicator] force_show=1; this still requires a visible minimap and closed menus, and does not trigger sound.
 [/list]
 
-The UI layout was checked against game version 2.03.02. Game updates may require a mod update.
+The original UI layout was checked against game version 2.03.02. Version 1.2.1 adds the updated layout for game executable 1.0.0.3576; the treasure icon and notification sound are restored after the update. The executable file version may differ from the public patch number. Future game updates may require another mod update.
 
 [size=4][b]Bug reports and troubleshooting[/b][/size]
 

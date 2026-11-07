@@ -68,8 +68,7 @@ minimap suite with both layouts, including failed reads and replacement objects.
 On 2026-11-07 the user confirmed that the patched test build resolved the missing
 icon and sound. Its debug log records valid audio samples, menu transitions,
 visible minimap samples and treasure counter transitions from inactive to active
-and back. The final versioned package, force_show, F9/F10, deliberate minimap
-hiding, loading/teleport and graphics switching still need separate checks.
+and back.
 
 ## Live evidence on Crimson Desert 2.03.02
 

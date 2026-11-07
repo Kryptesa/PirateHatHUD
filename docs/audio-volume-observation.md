@@ -24,8 +24,7 @@ percentage bounds and the two coherent option-set snapshots remain unchanged.
 Read-only inspection on 2026-11-07 found both selected sets at 100/100 through
 the new manager. The user subsequently confirmed recovery of the reported missing
 icon/sound behavior with the patched test build; its debug log records a valid
-audio sample. Controlled slider-change/mute tests and the final versioned package
-remain unverified on this executable.
+audio sample.
 
 | Audio native field | Meaning |
 | --- | --- |

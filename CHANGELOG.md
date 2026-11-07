@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.2.1 - 2026-11-07
+
 - Restored minimap, menu and audio-volume observation on game EXE 1.0.0.3576 after
   the UI binding, minimap canvas and audio settings-manager fields moved. The layout is
   selected only for its verified executable fingerprint; the original layout and
