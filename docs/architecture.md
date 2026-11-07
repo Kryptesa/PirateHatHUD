@@ -60,6 +60,8 @@ in the same task, including any constraints passed to delegated agents.
   `shared/` contains guarded memory access, address arithmetic, UI identity resolution
   and hook retention used across observers. Feature-specific signatures and layout
   checks stay with their owner. Headers and implementations mirror these paths.
+  The shared image-build fingerprint identifies EXE 1.0.0.3576 by its PE timestamp
+  and image size; UI and audio code own the field offsets selected for that build.
   A shared `MemoryReader` callback allows simulated-memory tests to exercise
   the same compiled implementation as production. Observer files own lifecycle
   and event publication, while memory files own traversal and state interpretation.

@@ -8,6 +8,9 @@
 
 namespace phi::detail {
 enum class UiIdentity { other, matched, unknown };
+enum class UiLayout { original, expanded };
+
+UiLayout ui_layout_for_image(uint32_t timestamp, uint32_t image_size);
 
 struct UiImageRange {
   uintptr_t begin = 0;
@@ -22,6 +25,7 @@ struct UiCachedType {
 
 struct UiIdentityCache {
   uintptr_t root_slot = 0;
+  UiLayout layout = UiLayout::original;
   std::string expected_name;
   std::vector<UiImageRange> immutable_ranges;
   std::map<uintptr_t, UiCachedType> types;

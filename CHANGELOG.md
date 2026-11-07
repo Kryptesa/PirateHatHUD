@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Restored minimap, menu and audio-volume observation on game EXE 1.0.0.3576 after
+  the UI binding, minimap canvas and audio settings-manager fields moved. The layout is
+  selected only for its verified executable fingerprint; the original layout and
+  exact identity, ownership and visibility checks remain in place.
+
 ## 1.2.0 - 2026-10-10
 
 - Added `[indicator] show_icon` (default `1`) to hide the icon while keeping treasure

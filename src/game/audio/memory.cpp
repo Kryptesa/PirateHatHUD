@@ -53,7 +53,7 @@ bool snapshot(const AudioVolumeLocation& location, const MemoryReader& read, Sna
   if (
     !pointer(read, location.engine_slot, 0, result.engine) ||
     !module_vtable(location, read, result.engine) ||
-    !pointer(read, result.engine, 0x1070, result.manager) ||
+    !pointer(read, result.engine, location.settings_manager_offset, result.manager) ||
     !module_vtable(location, read, result.manager)
   ) {
     return false;

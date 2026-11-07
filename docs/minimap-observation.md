@@ -41,6 +41,36 @@ All heap links, names and properties are read afresh on each poll. The binding
 and field offsets depend on the game version. Transient changes between reads
 can yield unknown. The observer samples draw flags, clipping and opacity.
 
+## Updated layout: game EXE 1.0.0.3576
+
+The loaded PE timestamp `6AED2E85` and image size `13CC4000` select the expanded
+UI layout. Both must match; other images retain the original layout. The root
+slot still comes from the unique launcher signature, rather than a fixed RVA.
+Exact RTTI, array uniqueness, widget names, canvas ownership and all ancestor
+checks still apply; there is no fallback between layouts on a failed read.
+
+| Field | Original | Expanded |
+| --- | --- | --- |
+| Binding node to render root | +10 | +28 |
+| Script to native minimap canvas | +3F0 | +410 |
+| Definition name pointer | +F8 | +100 |
+| Definition canvas backlink | +D8 | +E0 |
+| Definition draw flags | +B0 | +B8 |
+| Definition computed properties | +C0 | +C8 |
+
+The definition parent (+38), clipping byte (+97), canvas definition (+8),
+computed opacity (+40), render-root script (+118) and view (+120) are unchanged.
+Read-only inspection on 2026-11-07 found exactly one minimap and one main-menu
+script among 147 entries. The expanded canvas backlink and all nine named
+ancestors were coherent. Native instructions still test clipping at +97 and
+the same visibility bits at the new +B8. Automated fixtures exercise the full
+minimap suite with both layouts, including failed reads and replacement objects.
+On 2026-11-07 the user confirmed that the patched test build resolved the missing
+icon and sound. Its debug log records valid audio samples, menu transitions,
+visible minimap samples and treasure counter transitions from inactive to active
+and back. The final versioned package, force_show, F9/F10, deliberate minimap
+hiding, loading/teleport and graphics switching still need separate checks.
+
 ## Live evidence on Crimson Desert 2.03.02
 
 Read-only research traced the native canvas virtual draw dispatch to the UI

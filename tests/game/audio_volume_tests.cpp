@@ -29,10 +29,11 @@ struct Fixture {
     std::memcpy(destination, it->second.data(), size);
     return true;
   }
-  Fixture() {
+  explicit Fixture(uintptr_t settings_manager_offset = 0x1070) {
+    location.settings_manager_offset = settings_manager_offset;
     put(location.engine_slot, uintptr_t{0x200000});
     put(0x200000, uintptr_t{0x101000});
-    put(0x201070, uintptr_t{0x300000});
+    put(0x200000 + settings_manager_offset, uintptr_t{0x300000});
     put(0x300000, uintptr_t{0x101000});
     for (size_t i = 0; i < 2; ++i) {
       const uintptr_t root = 0x400000 + i * 0x1000;
@@ -67,6 +68,15 @@ int main() {
   Fixture fixture;
   const phi::AudioVolumeState expected{true, 50, 25};
   CHECK(fixture.sample() == expected);
+  Fixture updated(0x1078);
+  CHECK(updated.sample() == expected);
+  for (const auto& [address, bytes] : updated.memory) {
+    auto missing = updated;
+    missing.memory.erase(address);
+    CHECK(!missing.sample().known);
+  }
+  updated.location.settings_manager_offset = 0x1070;
+  CHECK(!updated.sample().known); // No fallback to a different settings manager.
   for (const auto& [address, bytes] : fixture.memory) {
     auto broken = fixture;
     broken.memory.erase(address);
@@ -129,6 +139,31 @@ int main() {
     0xCE
   };
   CHECK(phi::scan_audio_volume_code(code, 0x1000).status == phi::ScanStatus::found);
+  std::vector<uint8_t> image(0x3000);
+  auto dos = reinterpret_cast<IMAGE_DOS_HEADER*>(image.data());
+  dos->e_magic = IMAGE_DOS_SIGNATURE;
+  dos->e_lfanew = 0x80;
+  auto nt = reinterpret_cast<IMAGE_NT_HEADERS64*>(image.data() + 0x80);
+  nt->Signature = IMAGE_NT_SIGNATURE;
+  nt->FileHeader.SizeOfOptionalHeader = sizeof(IMAGE_OPTIONAL_HEADER64);
+  nt->FileHeader.NumberOfSections = 1;
+  nt->FileHeader.TimeDateStamp = 0x6AED2E85;
+  nt->OptionalHeader.Magic = IMAGE_NT_OPTIONAL_HDR64_MAGIC;
+  nt->OptionalHeader.SizeOfImage = 0x13CC4000;
+  auto section = IMAGE_FIRST_SECTION(nt);
+  section->Characteristics = IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_EXECUTE;
+  section->VirtualAddress = 0x1000;
+  section->Misc.VirtualSize = static_cast<DWORD>(code.size());
+  std::memcpy(image.data() + 0x1000, code.data(), code.size());
+  const auto module = reinterpret_cast<HMODULE>(image.data());
+  auto location = phi::find_audio_volume_location(module);
+  CHECK(location.engine_slot == reinterpret_cast<uintptr_t>(image.data()) + 0x1100);
+  CHECK(location.settings_manager_offset == 0x1078);
+  nt->FileHeader.TimeDateStamp ^= 1;
+  CHECK(phi::find_audio_volume_location(module).settings_manager_offset == 0x1070);
+  nt->FileHeader.TimeDateStamp ^= 1;
+  nt->OptionalHeader.SizeOfImage -= 0x1000;
+  CHECK(phi::find_audio_volume_location(module).settings_manager_offset == 0x1070);
   CHECK(phi::scan_audio_volume_code(code, 0x1001).status == phi::ScanStatus::no_match);
   CHECK(phi::scan_audio_volume_code(code, UINTPTR_MAX).status == phi::ScanStatus::no_match);
   auto duplicate = code;

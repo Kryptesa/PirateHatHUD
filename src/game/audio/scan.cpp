@@ -1,5 +1,6 @@
 #include "game/audio/scan.hpp"
 #include "game/shared/address.hpp"
+#include "game/shared/image_build.hpp"
 
 namespace phi {
 namespace {
@@ -61,6 +62,20 @@ detail::AudioVolumeLocation find_audio_volume_location(HMODULE game) {
   if (slot < match.image_base || slot - match.image_base > match.image_size - sizeof(uintptr_t)) {
     return {};
   }
-  return {slot, match.image_base, match.image_size};
+  IMAGE_DOS_HEADER dos{};
+  IMAGE_NT_HEADERS64 nt{};
+  if (
+    !detail::read_memory(match.image_base, &dos, sizeof(dos)) ||
+    dos.e_lfanew <= 0 ||
+    dos.e_lfanew > 0x1000 ||
+    !detail::read_field(detail::read_memory, match.image_base, dos.e_lfanew, nt)
+  ) {
+    return {};
+  }
+  const auto manager_offset =
+    detail::is_exe_1_0_0_3576(nt.FileHeader.TimeDateStamp, nt.OptionalHeader.SizeOfImage)
+      ? 0x1078u
+      : 0x1070u;
+  return {slot, match.image_base, match.image_size, manager_offset};
 }
 } // namespace phi

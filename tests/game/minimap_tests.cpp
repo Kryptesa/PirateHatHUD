@@ -12,9 +12,13 @@
     }                                                                                              \
   } while (false)
 
-int main() {
+int test_layout(phi::detail::UiLayout layout) {
   using namespace phi;
   constexpr uintptr_t module = 0x140000000;
+  const bool expanded = layout == detail::UiLayout::expanded;
+  const uintptr_t root_offset = expanded ? 0x28 : 0x10;
+  const uintptr_t definition_shift = expanded ? 8 : 0;
+  const uintptr_t canvas_offset = expanded ? 0x410 : 0x3F0;
   std::map<uintptr_t, std::vector<uint8_t>> memory;
   auto put = [&](uintptr_t address, const auto& value) {
     const auto* bytes = reinterpret_cast<const uint8_t*>(&value);
@@ -39,6 +43,7 @@ int main() {
   };
   detail::UiIdentityCache location;
   location.root_slot = module + 0x6C8CC00;
+  location.layout = layout;
   uintptr_t owner = 0x100000;
   ptr(location.root_slot, owner);
   for (auto offset : {0x30u, 0x18u, 0x88u, 0x78u, 0u}) {
@@ -49,7 +54,7 @@ int main() {
   put(owner + 0x30EC0, uint32_t{1});
   ptr(0x200000, 0x300000);
   ptr(0x3000A0, 0x400000);
-  ptr(0x400010, 0x500000);
+  ptr(0x400000 + root_offset, 0x500000);
   ptr(0x500118, 0x600000);
   ptr(0x600000, 0x700000);
   ptr(0x6FFFF8, module + 0x1000);
@@ -62,27 +67,31 @@ int main() {
   constexpr uintptr_t body = first + 7 * 0x1000, view = first + 8 * 0x1000;
   ptr(0x500120, view);
   ptr(0x600008, body);
-  ptr(0x6003F0, canvas);
+  ptr(0x600000 + canvas_offset, canvas);
   ptr(canvas + 8, first);
-  ptr(first + 0xD8, canvas);
-  ptr(first + 0xF8, 0xD00000);
+  ptr(first + 0xD8 + definition_shift, canvas);
+  ptr(first + 0xF8 + definition_shift, 0xD00000);
   text(0xD00000, "MinimapCanvas");
-  ptr(body + 0xF8, 0xD01000);
+  ptr(body + 0xF8 + definition_shift, 0xD01000);
   text(0xD01000, "MinimapHudBody");
-  ptr(view + 0xF8, 0xD02000);
+  ptr(view + 0xF8 + definition_shift, 0xD02000);
   text(0xD02000, "MinimapView");
   for (size_t i = 0; i < 9; ++i) {
     const auto definition = first + i * 0x1000;
     const auto properties = 0xB00000 + i * 0x1000;
-    put(definition + 0xB0, uint8_t{0xD0});
+    put(definition + 0xB0 + definition_shift, uint8_t{0xD0});
     put(definition + 0x97, uint8_t{0x59});
-    ptr(definition + 0xC0, properties);
+    ptr(definition + 0xC0 + definition_shift, properties);
     put(properties + 0x40, 1.0f);
     if (i < 8) {
       ptr(definition + 0x38, definition + 0x1000);
     }
   }
   auto sample = [&] { return detail::sample_minimap(module, read, &location); };
+  CHECK(sample() == MinimapState::visible);
+  location.layout = expanded ? detail::UiLayout::original : detail::UiLayout::expanded;
+  CHECK(sample() == MinimapState::unknown);
+  location.layout = layout;
   CHECK(sample() == MinimapState::visible);
 
   // Every sampled link and field is required, even when a previous ancestor is hidden.
@@ -96,10 +105,10 @@ int main() {
     const auto properties = 0xB00000 + i * 0x1000;
     // Setting: cleared draw bit. Menu/cutscene: rejected display mode despite positive opacity.
     for (auto flags : {0x50u, 0x90u, 0xF0u, 0x40u}) {
-      put(definition + 0xB0, static_cast<uint8_t>(flags));
+      put(definition + 0xB0 + definition_shift, static_cast<uint8_t>(flags));
       CHECK(sample() == MinimapState::hidden);
     }
-    put(definition + 0xB0, uint8_t{0xD0});
+    put(definition + 0xB0 + definition_shift, uint8_t{0xD0});
     put(definition + 0x97, uint8_t{0x79});
     CHECK(sample() == MinimapState::hidden);
     put(definition + 0x97, uint8_t{0x59});
@@ -120,11 +129,11 @@ int main() {
     }
     put(properties + 0x40, 1.0f);
   }
-  put(first + 0xB0, uint8_t{0x50});
-  failed = view + 0xC0;
+  put(first + 0xB0 + definition_shift, uint8_t{0x50});
+  failed = view + 0xC0 + definition_shift;
   CHECK(sample() == MinimapState::unknown);
   failed = 0;
-  put(first + 0xB0, uint8_t{0xD0});
+  put(first + 0xB0 + definition_shift, uint8_t{0xD0});
 
   ptr(first + 0x38, first);
   CHECK(sample() == MinimapState::unknown);
@@ -133,15 +142,15 @@ int main() {
   ptr(first + 0x38, view); // An unrelated view cannot bypass the owning script body.
   CHECK(sample() == MinimapState::unknown);
   ptr(first + 0x38, first + 0x1000);
-  ptr(first + 0xD8, canvas + 0x100);
+  ptr(first + 0xD8 + definition_shift, canvas + 0x100);
   CHECK(sample() == MinimapState::unknown);
-  ptr(first + 0xD8, canvas);
+  ptr(first + 0xD8 + definition_shift, canvas);
   text(0xD00000, "MinimapCanvasExtra");
   CHECK(sample() == MinimapState::unknown);
   text(0xD00000, "MinimapCanvas");
-  ptr(first + 0xC0, 0);
+  ptr(first + 0xC0 + definition_shift, 0);
   CHECK(sample() == MinimapState::unknown);
-  ptr(first + 0xC0, 0xB00000);
+  ptr(first + 0xC0 + definition_shift, 0xB00000);
   ptr(canvas + 8, UINTPTR_MAX - 4);
   CHECK(sample() == MinimapState::unknown);
   ptr(canvas + 8, first);
@@ -159,33 +168,33 @@ int main() {
   put(module + 0x2010, wrong_type);
   CHECK(sample() == MinimapState::unknown);
   put(module + 0x2010, root_type);
-  ptr(0x400010, 0x520000);
+  ptr(0x400000 + root_offset, 0x520000);
   ptr(0x520118, 0x600000);
   ptr(0x520120, view);
   CHECK(sample() == MinimapState::visible);
 
   // A replacement canvas/definition/properties is read immediately without a heap cache.
-  ptr(0x6003F0, 0x810000);
+  ptr(0x600000 + canvas_offset, 0x810000);
   ptr(0x810008, 0xA00000);
-  ptr(0xA000D8, 0x810000);
-  ptr(0xA000F8, 0xD00000);
+  ptr(0xA000D8 + definition_shift, 0x810000);
+  ptr(0xA000F8 + definition_shift, 0xD00000);
   ptr(0xA00038, first + 0x1000);
-  ptr(0xA000C0, 0xC00000);
-  put(0xA000B0, uint8_t{0xD0});
+  ptr(0xA000C0 + definition_shift, 0xC00000);
+  put(0xA000B0 + definition_shift, uint8_t{0xD0});
   put(0xA00097, uint8_t{0x59});
   put(0xC00040, 0.0f);
   CHECK(sample() == MinimapState::hidden);
   put(0xC00040, 1.0f);
   CHECK(sample() == MinimapState::visible);
-  ptr(0x6003F0, canvas);
+  ptr(0x600000 + canvas_offset, canvas);
 
   // Long/cyclic parent structures have a strict read budget.
   ptr(first + 0x38, 0xE00000);
   for (size_t i = 0; i < 24; ++i) {
     const auto node = 0xE00000 + i * 0x1000;
     ptr(node + 0x38, node + 0x1000);
-    ptr(node + 0xC0, 0xB00000);
-    put(node + 0xB0, uint8_t{0xD0});
+    ptr(node + 0xC0 + definition_shift, 0xB00000);
+    put(node + 0xB0 + definition_shift, uint8_t{0xD0});
     put(node + 0x97, uint8_t{0x59});
   }
   reads = 0;
@@ -193,7 +202,7 @@ int main() {
   CHECK(reads < 200);
   ptr(first + 0x38, first + 0x1000);
   CHECK(sample() == MinimapState::visible);
-  ptr(0x6003F0, 0);
+  ptr(0x600000 + canvas_offset, 0);
   CHECK(sample() == MinimapState::unknown);
   CHECK(detail::sample_minimap(0, read, &location) == MinimapState::unknown);
   CHECK(detail::sample_minimap(module, read, nullptr) == MinimapState::unknown);
@@ -210,4 +219,14 @@ int main() {
   observer.stop();
   observer.poll();
   CHECK(!observer.start());
+  return 0;
+}
+
+int main() {
+  for (const auto layout : {phi::detail::UiLayout::original, phi::detail::UiLayout::expanded}) {
+    if (const auto result = test_layout(layout)) {
+      return result;
+    }
+  }
+  return 0;
 }

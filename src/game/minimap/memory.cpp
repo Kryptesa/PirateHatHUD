@@ -8,9 +8,12 @@ namespace phi::detail {
 MinimapState sample_minimap(uintptr_t module, const MemoryReader& read, UiIdentityCache* cache) {
   constexpr char root_type[] = ".?AVUIGamePlayControlRootMiniMap@uiCommonScript@pa@@";
   const auto root = find_ui_root(module, read, root_type, cache);
+  const auto expanded = cache && cache->layout == UiLayout::expanded;
+  const auto definition_shift = expanded ? 8u : 0u;
+  const auto canvas_offset = expanded ? 0x410u : 0x3F0u;
   auto named = [&](uintptr_t definition, const char* expected) {
     uintptr_t name = 0;
-    if (!read_field(read, definition, 0xF8, name) || !name) {
+    if (!read_field(read, definition, 0xF8 + definition_shift, name) || !name) {
       return false;
     }
     const auto length = std::strlen(expected);
@@ -30,10 +33,10 @@ MinimapState sample_minimap(uintptr_t module, const MemoryReader& read, UiIdenti
     !named(view, "MinimapView") ||
     !read_field(read, script, 8, body) ||
     !named(body, "MinimapHudBody") ||
-    !read_field(read, script, 0x3F0, canvas) ||
+    !read_field(read, script, canvas_offset, canvas) ||
     !read_field(read, canvas, 8, definition) ||
     !named(definition, "MinimapCanvas") ||
-    !read_field(read, definition, 0xD8, backlink) ||
+    !read_field(read, definition, 0xD8 + definition_shift, backlink) ||
     backlink != canvas
   ) {
     return MinimapState::unknown;
@@ -57,9 +60,9 @@ MinimapState sample_minimap(uintptr_t module, const MemoryReader& read, UiIdenti
     uintptr_t properties = 0;
     float opacity = 0;
     if (
-      !read_field(read, definition, 0xB0, flags) ||
+      !read_field(read, definition, 0xB0 + definition_shift, flags) ||
       !read_field(read, definition, 0x97, clip) ||
-      !read_field(read, definition, 0xC0, properties) ||
+      !read_field(read, definition, 0xC0 + definition_shift, properties) ||
       !read_field(read, properties, 0x40, opacity) ||
       !std::isfinite(opacity) ||
       opacity < 0 ||
