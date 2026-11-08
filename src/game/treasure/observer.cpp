@@ -25,6 +25,7 @@ std::atomic<bool> g_capturing{false};
 std::atomic<std::uintptr_t> g_state_base{0};
 std::atomic<std::uint64_t> g_hook_events{0};
 std::atomic<std::uint32_t> g_pre_state{UINT32_MAX};
+std::atomic<std::uintptr_t> g_descriptor_offset{0};
 
 std::uint32_t read_pre_state(std::uintptr_t base) {
   if (!base || base > UINTPTR_MAX - patterns::kStateOffset - sizeof(std::uint32_t)) {
@@ -39,7 +40,10 @@ std::uint32_t read_pre_state(std::uintptr_t base) {
 }
 
 void capture_state(safetyhook::Context& ctx) {
-  if (g_capturing.load(std::memory_order_acquire)) {
+  if (
+    g_capturing.load(std::memory_order_acquire) &&
+    detail::is_hat_treasure_source(ctx.rbp, g_descriptor_offset.load(std::memory_order_relaxed))
+  ) {
     g_pre_state.store(read_pre_state(ctx.rsi), std::memory_order_relaxed);
     g_state_base.store(ctx.rsi, std::memory_order_release);
     g_hook_events.fetch_add(1, std::memory_order_release);
@@ -158,6 +162,25 @@ bool TreasureObserver::start() {
         << (scan.sites.enter - reinterpret_cast<std::uintptr_t>(module)) << " and RVA 0x"
         << (scan.sites.leave - reinterpret_cast<std::uintptr_t>(module));
   impl.log(LogLevel::debug, found.str().c_str());
+
+  const auto image = reinterpret_cast<std::uintptr_t>(module);
+  IMAGE_DOS_HEADER dos{};
+  IMAGE_NT_HEADERS64 nt{};
+  if (
+    !detail::read_field(detail::read_memory, image, 0, dos) ||
+    dos.e_lfanew <= 0 ||
+    !detail::read_field(detail::read_memory, image, dos.e_lfanew, nt)
+  ) {
+    impl.log(LogLevel::warn, "State hooks disabled: descriptor layout unavailable");
+    stop();
+    return false;
+  }
+  g_descriptor_offset.store(
+    detail::treasure_descriptor_stack_offset(
+      nt.FileHeader.TimeDateStamp,
+      nt.OptionalHeader.SizeOfImage
+    )
+  );
 
   // Prepare both hooks before allowing either to execute callbacks.
   impl.log(LogLevel::debug, "State enter hook creation begin");

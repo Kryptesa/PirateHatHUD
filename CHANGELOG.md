@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Filter treasure observation by the hat effect's descriptor so unrelated object
+  finders cannot trigger the icon or notification sound through the shared hooks.
+
 ## 1.2.1 - 2026-11-07
 
 - Restored minimap, menu and audio-volume observation on game EXE 1.0.0.3576 after

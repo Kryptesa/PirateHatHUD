@@ -222,6 +222,21 @@ intermediate transitions between polls. Callback exceptions propagate to the cal
 Do not destroy an observer from its own callback or let subscriber exceptions escape
 the application's worker entry point.
 
+Treasure enter/leave instructions belong to the shared SearchNearLevelGimmick
+handler. Before capturing RSI, both callbacks read the saved descriptor under SEH and
+require the hat's condition hash, command/category, equip requirement, enter/exit
+events and drop condition. Other finders use the same instructions and event hashes;
+one also shares the equip condition, so event hashes or equip requirement alone
+cannot identify the hat. Rejected or unreadable descriptors leave the last hat
+capture intact. The equip requirement is descriptor identity, not an independent
+live equipment sample; equipment gating still relies on the game's hat handler.
+The saved argument is RBP+200 for the verified EXE 1.0.0.3576 fingerprint and
+RBP+1F0 for the original layout. The register holding the descriptor is unsuitable:
+event dispatch can overwrite it before the first enter instruction. Static
+inspection confirms the saved argument and fields in EXE 1.0.0.3576, and earlier
+runtime research distinguishes the hat from three other finder descriptors.
+Compiled checks with the hat on/off and after equipment changes remain required.
+
 Signals preserve subscription order. Unsubscription takes effect during the current
 dispatch; a new subscription participates starting with the next publish. Recursive
 publish takes a new snapshot and may include subscribers added by the outer dispatch.
