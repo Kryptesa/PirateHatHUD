@@ -2,8 +2,11 @@
 
 ## Unreleased
 
-- Filter treasure observation by the hat effect's descriptor so unrelated object
-  finders cannot trigger the icon or notification sound through the shared hooks.
+## 1.2.2 - 2026-11-08
+
+- Fixed false treasure notification sounds and icon activation from unrelated
+  object finders when the Pirate King Hat is not equipped. Shared detection hooks
+  now accept only the hat effect's descriptor.
 
 ## 1.2.1 - 2026-11-07
 
