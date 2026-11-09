@@ -2,10 +2,13 @@
 
 ## Unreleased
 
-- Store UI type-cache keys as image-relative offsets so whole-process object scanners
-  do not mistake the observer caches for additional native minimap or world-map objects.
-  A regression test reproduces the extra vtable matches; the reported WaypointRoute
-  interaction still requires in-game confirmation with this build.
+## 1.2.3 - 2026-11-09
+
+- Prevented UI cache entries from resembling extra native minimap and world-map
+  objects to whole-process scanners, addressing a potential source of incorrect
+  WaypointRoute coordinates and routes. A regression test reproduces and removes
+  the extra matches. Local checks passed with WaypointRoute 1.2.8 and CrimsonRoute
+  9.1.0 separately; confirmation on the originally failing setup remains pending.
 
 ## 1.2.2 - 2026-11-08
 

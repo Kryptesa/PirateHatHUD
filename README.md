@@ -5,13 +5,13 @@ a chest icon appears on screen and a short sound plays when detection becomes ac
 The icon hides while the minimap is off or a menu is open,
 and returns after a short delay when you get back to the game.
 
-**Current version: 1.2.2** · Windows x64 · DirectX 12
+**Current version: 1.2.3** · Windows x64 · DirectX 12
 
 ## Installation
 
 With [CDUMM](https://github.com/faisalkindi/CrimsonDesert-UltimateModsManager) or
 [Definitive Mod Manager (DMM)](https://www.nexusmods.com/crimsondesert/mods/633), drag
-`PirateHatHUD-1.2.2.zip` into the manager, enable the mod on the ASI page, and make
+`PirateHatHUD-1.2.3.zip` into the manager, enable the mod on the ASI page, and make
 sure the ASI loader is enabled. Restart the game.
 
 If you use another ASI loader, put `PirateHatHUD.asi` and `PirateHatHUD.ini` together
@@ -196,6 +196,10 @@ Version 1.2.1 adds the updated UI and audio settings layout for game executable
 **1.0.0.3576**, restoring the treasure icon and notification sound after the update.
 Version 1.2.2 filters unrelated detection effects that could trigger sound or the icon
 without the Pirate King Hat equipped.
+Version 1.2.3 prevents UI cache entries from being mistaken for native map objects
+by whole-process scanners, addressing a potential source of incorrect WaypointRoute
+coordinates and routes. Local checks passed with WaypointRoute 1.2.8 and CrimsonRoute
+9.1.0 separately; confirmation on the originally failing setup remains pending.
 The executable file version can differ from the public patch number.
 
 SDR, scRGB and HDR10 output are supported. If the icon looks wrong in HDR10, try
@@ -214,7 +218,7 @@ SDK, the C++ CMake tools, and Git. From PowerShell:
 ```
 
 This builds Release, runs the architecture checks and tests, and creates
-`dist/PirateHatHUD-1.2.2.zip`. The unpacked mod is in
+`dist/PirateHatHUD-1.2.3.zip`. The unpacked mod is in
 `build/ninja/Release/PirateHatHUD/`. For Debug, add `-Configuration Debug`.
 Dependencies are downloaded on the first build; existing sources in `build/_deps/`
 are reused when available.
