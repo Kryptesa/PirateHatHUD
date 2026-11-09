@@ -192,7 +192,8 @@ void log_settings(const Config& config) {
     sizeof(message),
     "Mod settings: enabled=%s; show icon=%s; force show=%s; position=%d,%d; scale=%.3f; show "
     "delay=%d ms; "
-    "sound=%s; sound cooldown=%d ms; sound volume=%d%%; toggle key=0x%X; unload key=0x%X",
+    "sound=%s; sound cooldown=%d ms; sound volume=%d%%; toggle key=0x%X modifiers=0x%X; "
+    "unload key=0x%X modifiers=0x%X",
     config.enabled ? "yes" : "no",
     config.show_icon ? "yes" : "no",
     config.force_show ? "yes" : "no",
@@ -203,8 +204,10 @@ void log_settings(const Config& config) {
     config.sound_enabled ? "yes" : "no",
     config.sound_cooldown_ms,
     config.sound_volume_percent,
-    static_cast<unsigned>(config.toggle_key),
-    static_cast<unsigned>(config.unload_key)
+    static_cast<unsigned>(config.toggle_hotkey.key),
+    config.toggle_hotkey.modifiers,
+    static_cast<unsigned>(config.unload_hotkey.key),
+    config.unload_hotkey.modifiers
   );
   log(LogLevel::debug, message);
 }
@@ -374,7 +377,7 @@ public:
       }
       indicator_.update();
 
-      const auto actions = poll_hotkeys(config.toggle_key, config.unload_key);
+      const auto actions = poll_hotkeys(config.toggle_hotkey, config.unload_hotkey);
 
       if (actions.toggle) {
         indicator_.toggle();

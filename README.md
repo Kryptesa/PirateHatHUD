@@ -78,8 +78,8 @@ next game launch. **Live** means saved edits apply without restarting.
 | `sound.volume_percent` | `100` | Additional volume after game master/effects scaling: 0-100 percent. Zero mutes; 50 halves amplitude. | Live, about 1 second |
 | `treasure.enabled` | `0` | Optional hat range override: `0` off, `1` on. When off at startup, no radius lookup, write or settings polling occurs. | Restart |
 | `treasure.radius` | `15` | Hat detection radius: 1-1000 meters; decimals allowed. For example, 30 doubles the stock range. | Live, about 2 seconds, if enabled at startup |
-| `hotkeys.toggle` | `F9` | Toggle the icon and sound. Choices: F8, F9, F10, F11. Does not change hat range. | Restart |
-| `hotkeys.unload` | `F10` | Stop the mod until the next launch and restore its radius override. Choices: F8, F9, F10, F11; choose a different key from toggle. | Restart |
+| `hotkeys.toggle` | `F9` | Toggle the icon and sound. Any key or combination described below; empty disables. Does not change hat range. | Restart |
+| `hotkeys.unload` | `F10` | Stop the mod until the next launch and restore its radius override. Any key or combination described below; empty disables. | Restart |
 | `logging.level` | `info` | Log detail: trace, debug, info, warn, error, off. State transitions and detailed diagnostics require debug or trace. | Restart |
 | `logging.max_file_size_mb` | `5` | Maximum size of one log file: 1-100 MB. Logs also rotate at startup. | Restart |
 | `logging.max_files` | `3` | Total log files to keep, including the current file: 1-20. | Restart |
@@ -115,9 +115,41 @@ cannot be read safely, sound is suppressed and a diagnostic is logged; the icon 
 works. Restoring volume does not replay missed notifications. Nonzero changes apply
 to the next sound, using linear scaling of both sliders.
 
-Hotkeys are registered with Windows while the game is focused and released when it
-loses focus or the mod stops. A binding that cannot be registered uses key-state
-polling instead; the log reports this fallback.
+Hotkeys accept case-insensitive key names, optionally preceded by `Ctrl`, `Alt`,
+`Shift` and/or `Win`, separated by `+`. For example:
+
+```ini
+[hotkeys]
+toggle=Ctrl+K
+unload=
+```
+
+This assigns toggle to Ctrl+K and disables the stop hotkey. Restart the game after
+editing hotkeys. Empty values, `None`, `Off` and `Disabled` disable a binding;
+missing entries keep the F9/F10 defaults. Invalid values disable the affected binding
+instead of restoring its default. If both bindings are identical, only toggle is enabled.
+
+Supported names include `A`-`Z`, `0`-`9` (top row), `F1`-`F24`, `Space`, `Tab`,
+`Enter`, `Escape`/`Esc`, `Backspace`, `Insert`/`Ins`, `Delete`/`Del`, `Home`, `End`,
+`PageUp`/`PgUp`, `PageDown`/`PgDn`, `Left`, `Right`, `Up`, `Down`, `PrintScreen`,
+`Pause`, `CapsLock`, `NumLock`, `ScrollLock`, `Numpad0`-`Numpad9`, `Add`, `Subtract`,
+`Multiply`, `Divide`, `Decimal`, `Separator`, `Apps`, `Ctrl`, `Alt`, `Shift`,
+`LCtrl`/`RCtrl`, `LAlt`/`RAlt`, `LShift`/`RShift`, `LWin`/`RWin`, and `Mouse1`-`Mouse5`
+(left, right, middle, X1, X2). Media keys use names such as `Volume_Mute`, `Volume_Up`,
+`Volume_Down`, `Media_Play_Pause`, `Media_Stop`, `Media_Next_Track` and `Media_Prev_Track`.
+Punctuation keys use `OEM_1`-`OEM_8`, `OEM_102`, `OEM_Plus`, `OEM_Minus`, `OEM_Comma`
+and `OEM_Period`; their physical meaning depends on the keyboard layout. An optional
+`VK_` prefix is accepted for these names. Other keys can use a hexadecimal
+[Windows virtual-key code](https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes)
+from `0x01` to `0xFE`, for example `Ctrl+0xC0`. `0` is the digit key, not a disable value.
+
+Hotkeys operate only while the game is focused. Keyboard bindings register with
+Windows and release registration when focus is lost or the mod stops. Mouse buttons,
+standalone modifier keys and F12 use key-state polling; unavailable keyboard bindings
+also fall back to polling and log a warning. Polling requires the exact configured
+modifiers and triggers on the main key's press, without repeating while held.
+Windows-reserved shortcuts may still perform their system action or be unavailable
+to the mod; see [Windows hotkey restrictions](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-registerhotkey).
 
 ### Custom icon
 

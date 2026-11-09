@@ -95,6 +95,17 @@ in the same task, including any constraints passed to delegated agents.
   and exception cleanup ask the modifier to restore before observer/graphics shutdown.
   Hotkeys register owner-thread WM_HOTKEY delivery with MOD_NOREPEAT while the game
   is foreground, falling back per unavailable binding to key-state edge detection.
+  `HotkeyBinding` carries a virtual-key code and Windows-compatible modifier bits;
+  zero disables an action without allocating an atom, registering or sampling a key.
+  The platform parser accepts named keys, hexadecimal virtual keys and modifier
+  combinations. Missing INI entries preserve defaults; empty, explicitly disabled,
+  invalid or truncated entries disable the action. Identical bindings disable unload
+  so toggling cannot also stop the mod. Hotkeys remain startup-only settings.
+  Mouse buttons, modifier keys and F12 use polling directly. Polling compares the
+  exact modifier set (excluding the main key itself when it is a modifier) and
+  consumes main-key edges even when modifiers do not match, preventing a held key
+  from retriggering when modifiers change. Parsing and registration remain within
+  platform; app passes the configured bindings and logs their key/modifier values.
   Registrations and atom IDs are released on focus loss and during application
   cleanup on that same thread, including exceptional exits.
 - `app`: composition, polling and exception-safe shutdown. `main.cpp` starts the worker

@@ -48,24 +48,16 @@ read_treasure_range(const std::wstring& path, TreasureRangeSettings previous) {
   return TreasureRangeSettings{active, radius.value_or(previous.radius)};
 }
 
-int key_from_name(const wchar_t* value, int fallback) {
-  if (_wcsicmp(value, L"F8") == 0) {
-    return VK_F8;
+HotkeyBinding read_hotkey(const std::wstring& path, const wchar_t* name, HotkeyBinding fallback) {
+  wchar_t value[128]{};
+  const auto length = GetPrivateProfileStringW(L"hotkeys", name, L"\x01", value, 128, path.c_str());
+  if (length == 1 && value[0] == L'\x01') {
+    return fallback; // Missing entries preserve defaults; explicitly empty entries disable.
   }
-
-  if (_wcsicmp(value, L"F9") == 0) {
-    return VK_F9;
+  if (length >= 127) {
+    return {};
   }
-
-  if (_wcsicmp(value, L"F10") == 0) {
-    return VK_F10;
-  }
-
-  if (_wcsicmp(value, L"F11") == 0) {
-    return VK_F11;
-  }
-
-  return fallback;
+  return parse_hotkey({value, length}).value_or(HotkeyBinding{});
 }
 } // namespace
 
@@ -123,11 +115,11 @@ Config read_config(const std::wstring& path) {
     config.sound_volume_percent = defaults.sound_volume_percent;
   }
 
-  wchar_t key[16]{};
-  GetPrivateProfileStringW(L"hotkeys", L"toggle", L"", key, 16, path.c_str());
-  config.toggle_key = key_from_name(key, config.toggle_key);
-  GetPrivateProfileStringW(L"hotkeys", L"unload", L"", key, 16, path.c_str());
-  config.unload_key = key_from_name(key, config.unload_key);
+  config.toggle_hotkey = read_hotkey(path, L"toggle", defaults.toggle_hotkey);
+  config.unload_hotkey = read_hotkey(path, L"unload", defaults.unload_hotkey);
+  if (config.toggle_hotkey.key != 0 && config.toggle_hotkey == config.unload_hotkey) {
+    config.unload_hotkey = {}; // A toggle must never also stop the mod.
+  }
   wchar_t level[32]{};
   GetPrivateProfileStringW(L"logging", L"level", L"info", level, 32, path.c_str());
   constexpr const wchar_t* levels[] = {L"trace", L"debug", L"info", L"warn", L"error", L"off"};

@@ -7,8 +7,8 @@ namespace {
 struct Registration {
   ATOM toggle_id = 0;
   ATOM unload_id = 0;
-  int toggle_key = -1;
-  int unload_key = -1;
+  HotkeyBinding toggle_binding;
+  HotkeyBinding unload_binding;
   bool active = false;
   bool toggle_registered = false;
   bool unload_registered = false;
@@ -19,6 +19,42 @@ struct Registration {
 Registration& registration() {
   static thread_local Registration state;
   return state;
+}
+
+bool uses_polling(HotkeyBinding binding) {
+  return binding.key == VK_F12 ||
+    hotkey_key_modifier(binding.key) != 0 ||
+    binding.key == VK_LBUTTON ||
+    binding.key == VK_RBUTTON ||
+    binding.key == VK_MBUTTON ||
+    binding.key == VK_XBUTTON1 ||
+    binding.key == VK_XBUTTON2;
+}
+
+bool register_binding(HotkeyBinding binding, const wchar_t* name, ATOM& id) {
+  if (binding.key == 0 || uses_polling(binding)) {
+    return false;
+  }
+  id = GlobalAddAtomW(name);
+  return id && RegisterHotKey(nullptr, id, MOD_NOREPEAT | binding.modifiers, binding.key);
+}
+
+unsigned held_modifiers() {
+  const auto down = [](int key) { return (GetAsyncKeyState(key) & 0x8000) != 0; };
+  unsigned modifiers = 0;
+  if (down(VK_MENU)) {
+    modifiers |= kHotkeyAlt;
+  }
+  if (down(VK_CONTROL)) {
+    modifiers |= kHotkeyCtrl;
+  }
+  if (down(VK_SHIFT)) {
+    modifiers |= kHotkeyShift;
+  }
+  if (down(VK_LWIN) || down(VK_RWIN)) {
+    modifiers |= kHotkeyWin;
+  }
+  return modifiers;
 }
 
 void drain_messages(Registration& state, HotkeyActions* actions) {
@@ -59,7 +95,7 @@ bool game_is_foreground() {
     process_id == GetCurrentProcessId();
 }
 
-HotkeyActions poll_hotkeys(int toggle_key, int unload_key) {
+HotkeyActions poll_hotkeys(HotkeyBinding toggle, HotkeyBinding unload) {
   auto& state = registration();
   if (!game_is_foreground()) {
     if (state.active) {
@@ -68,32 +104,33 @@ HotkeyActions poll_hotkeys(int toggle_key, int unload_key) {
     return {};
   }
 
-  if (!state.active || state.toggle_key != toggle_key || state.unload_key != unload_key) {
+  if (!state.active || state.toggle_binding != toggle || state.unload_binding != unload) {
     stop_hotkeys();
     state.active = true;
-    state.toggle_key = toggle_key;
-    state.unload_key = unload_key;
-    state.toggle_id = GlobalAddAtomW(L"PirateHatHUD.Toggle");
-    state.unload_id = GlobalAddAtomW(L"PirateHatHUD.Stop");
-    state.toggle_registered =
-      state.toggle_id && RegisterHotKey(nullptr, state.toggle_id, MOD_NOREPEAT, toggle_key);
-    state.unload_registered =
-      state.unload_id && RegisterHotKey(nullptr, state.unload_id, MOD_NOREPEAT, unload_key);
+    state.toggle_binding = toggle;
+    state.unload_binding = unload;
+    state.toggle_registered = register_binding(toggle, L"PirateHatHUD.Toggle", state.toggle_id);
+    state.unload_registered = register_binding(unload, L"PirateHatHUD.Stop", state.unload_id);
+    const bool fallback = (toggle.key && !uses_polling(toggle) && !state.toggle_registered) ||
+      (unload.key && !uses_polling(unload) && !state.unload_registered);
     log(
-      state.toggle_registered && state.unload_registered ? LogLevel::debug : LogLevel::warn,
-      state.toggle_registered && state.unload_registered
-        ? "Windows hotkeys registered while game is focused"
-        : "Windows hotkey registration incomplete; using key-state polling for unavailable bindings"
+      fallback ? LogLevel::warn : LogLevel::debug,
+      fallback
+        ? "Windows hotkey registration incomplete; using key-state polling for unavailable bindings"
+        : "Hotkeys configured while game is focused; disabled bindings skipped"
     );
   }
 
   HotkeyActions actions;
   drain_messages(state, &actions);
-  if (!state.toggle_registered) {
-    actions.toggle = state.toggle.sample(toggle_key, GetAsyncKeyState(toggle_key));
+  const bool poll_toggle = toggle.key != 0 && !state.toggle_registered;
+  const bool poll_unload = unload.key != 0 && !state.unload_registered;
+  const auto modifiers = poll_toggle || poll_unload ? held_modifiers() : 0;
+  if (poll_toggle) {
+    actions.toggle = state.toggle.sample(toggle, GetAsyncKeyState(toggle.key), modifiers);
   }
-  if (!state.unload_registered) {
-    actions.unload = state.unload.sample(unload_key, GetAsyncKeyState(unload_key));
+  if (poll_unload) {
+    actions.unload = state.unload.sample(unload, GetAsyncKeyState(unload.key), modifiers);
   }
   return actions;
 }

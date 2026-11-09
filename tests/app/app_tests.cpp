@@ -354,7 +354,7 @@ float TreasureRadiusConfig::poll(std::chrono::steady_clock::time_point) {
   return radius_;
 }
 
-HotkeyActions poll_hotkeys(int, int) {
+HotkeyActions poll_hotkeys(HotkeyBinding, HotkeyBinding) {
   step("hotkeys");
 
   return {

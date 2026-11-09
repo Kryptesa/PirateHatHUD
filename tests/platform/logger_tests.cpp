@@ -176,6 +176,48 @@ int main() {
   CHECK(read_config((folder / "missing.ini").wstring()).logging.level == LogLevel::info);
 
   const auto defaults = read_config((folder / "missing.ini").wstring());
+  CHECK(defaults.toggle_hotkey == HotkeyBinding{0x78});
+  CHECK(defaults.unload_hotkey == HotkeyBinding{0x79});
+  std::ofstream(ini) << "[hotkeys]\ntoggle=\nunload=\n";
+  auto bindings = read_config(ini.wstring());
+  CHECK(bindings.toggle_hotkey == HotkeyBinding{});
+  CHECK(bindings.unload_hotkey == HotkeyBinding{});
+  std::ofstream(ini) << "[hotkeys]\ntoggle=   \n";
+  bindings = read_config(ini.wstring());
+  CHECK(bindings.toggle_hotkey.key == 0);
+  CHECK(bindings.unload_hotkey == defaults.unload_hotkey); // Missing is distinct from empty.
+  std::ofstream(ini) << "[hotkeys]\nunload=\n";
+  bindings = read_config(ini.wstring());
+  CHECK(bindings.toggle_hotkey == defaults.toggle_hotkey);
+  CHECK(bindings.unload_hotkey.key == 0);
+  std::ofstream(ini) << "[hotkeys]\ntoggle=Ctrl+K\nunload=Alt+Mouse5\n";
+  bindings = read_config(ini.wstring());
+  CHECK((bindings.toggle_hotkey == HotkeyBinding{'K', kHotkeyCtrl}));
+  CHECK((bindings.unload_hotkey == HotkeyBinding{0x06, kHotkeyAlt}));
+  std::ofstream(ini) << "[hotkeys]\ntoggle=F11\nunload=F8\n";
+  bindings = read_config(ini.wstring());
+  CHECK(bindings.toggle_hotkey.key == 0x7A && bindings.unload_hotkey.key == 0x77);
+  for (const auto* value : {"None", "OFF", "nope", "Ctrl+", "F25"}) {
+    std::ofstream(ini) << "[hotkeys]\ntoggle=" << value << "\nunload=" << value << "\n";
+    bindings = read_config(ini.wstring());
+    CHECK(bindings.toggle_hotkey.key == 0 && bindings.unload_hotkey.key == 0);
+  }
+  std::ofstream(ini) << "[hotkeys]\ntoggle=\"\"\nunload=\" ctrl + f24 \"\n";
+  bindings = read_config(ini.wstring());
+  CHECK(bindings.toggle_hotkey.key == 0);
+  CHECK((bindings.unload_hotkey == HotkeyBinding{0x87, kHotkeyCtrl}));
+  std::ofstream(ini) << "[hotkeys]\ntoggle=F10\nunload=f10\n";
+  bindings = read_config(ini.wstring());
+  CHECK(bindings.toggle_hotkey.key == 0x79 && bindings.unload_hotkey.key == 0);
+  std::ofstream(ini) << "[hotkeys]\ntoggle=Ctrl+F10\nunload=F10\n";
+  bindings = read_config(ini.wstring());
+  CHECK(bindings.toggle_hotkey.modifiers == kHotkeyCtrl && bindings.unload_hotkey.key == 0x79);
+  std::ofstream(ini) << "[hotkeys]\ntoggle=F9" << std::string(128, ' ') << "\nunload=F10junk\n";
+  bindings = read_config(ini.wstring());
+  // A truncated value must not turn a malformed assignment into an enabled hotkey.
+  CHECK(bindings.unload_hotkey.key == 0);
+  std::ofstream(ini) << "[hotkeys]\ntoggle=" << std::string(128, 'F') << "\n";
+  CHECK(read_config(ini.wstring()).toggle_hotkey.key == 0);
   CHECK(defaults.show_icon);
   CHECK(defaults.sound_enabled);
   CHECK(defaults.sound_cooldown_ms == 1000);

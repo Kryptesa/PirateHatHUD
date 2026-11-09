@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Empty hotkey values now disable the action instead of restoring F9/F10. Added
+  arbitrary virtual keys, named keyboard and mouse buttons, and Ctrl/Alt/Shift/Win
+  combinations. Missing entries preserve defaults; invalid assignments disable the
+  affected action. Identical bindings keep toggle and disable unload.
+
 ## 1.2.3 - 2026-11-09
 
 - Prevented UI cache entries from resembling extra native minimap and world-map

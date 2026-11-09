@@ -80,7 +80,8 @@ add_library(PirateHatHUD SHARED "${CMAKE_CURRENT_BINARY_DIR}/generated/icon.rc"
   src/render/dxgi_diagnostics.cpp src/render/dx12_renderer.cpp src/render/dx12_frames.cpp
   src/render/dx12_texture.cpp src/render/dx12_hdr.cpp src/render/hdr_bytecode.cpp
   src/render/image.cpp src/render/hud_draw.cpp
-  src/platform/config.cpp src/platform/hotkeys.cpp src/platform/logger.cpp src/platform/sound.cpp src/platform/wave_pcm.cpp)
+  src/platform/config.cpp src/platform/hotkeys.cpp src/platform/hotkey_binding.cpp
+  src/platform/logger.cpp src/platform/sound.cpp src/platform/wave_pcm.cpp)
 target_include_directories(PirateHatHUD PRIVATE include)
 target_compile_definitions(PirateHatHUD PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE
   PHI_VERSION="${PROJECT_VERSION}")

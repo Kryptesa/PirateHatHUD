@@ -117,13 +117,15 @@ target_compile_definitions(sound_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
 target_link_libraries(sound_tests PRIVATE winmm)
 add_test(NAME sound_tests COMMAND sound_tests)
 
-add_executable(hotkey_tests platform/hotkey_tests.cpp)
+add_executable(hotkey_tests platform/hotkey_tests.cpp
+  "${PROJECT_SOURCE_DIR}/src/platform/hotkey_binding.cpp")
 target_include_directories(hotkey_tests PRIVATE "${PROJECT_SOURCE_DIR}/include")
 add_test(NAME hotkey_tests COMMAND hotkey_tests)
 
 add_executable(logger_tests
   platform/logger_tests.cpp
   "${PROJECT_SOURCE_DIR}/src/platform/logger.cpp"
+  "${PROJECT_SOURCE_DIR}/src/platform/hotkey_binding.cpp"
   "${PROJECT_SOURCE_DIR}/src/platform/config.cpp")
 target_include_directories(logger_tests PRIVATE "${PROJECT_SOURCE_DIR}/include")
 target_compile_definitions(logger_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
