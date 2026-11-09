@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.2.4 - 2026-11-09
+
 - Empty hotkey values now disable the action instead of restoring F9/F10. Added
   arbitrary virtual keys, named keyboard and mouse buttons, and Ctrl/Alt/Shift/Win
   combinations. Missing entries preserve defaults; invalid assignments disable the

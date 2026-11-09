@@ -5,13 +5,13 @@ a chest icon appears on screen and a short sound plays when detection becomes ac
 The icon hides while the minimap is off or a menu is open,
 and returns after a short delay when you get back to the game.
 
-**Current version: 1.2.3** · Windows x64 · DirectX 12
+**Current version: 1.2.4** · Windows x64 · DirectX 12
 
 ## Installation
 
 With [CDUMM](https://github.com/faisalkindi/CrimsonDesert-UltimateModsManager) or
 [Definitive Mod Manager (DMM)](https://www.nexusmods.com/crimsondesert/mods/633), drag
-`PirateHatHUD-1.2.3.zip` into the manager, enable the mod on the ASI page, and make
+`PirateHatHUD-1.2.4.zip` into the manager, enable the mod on the ASI page, and make
 sure the ASI loader is enabled. Restart the game.
 
 If you use another ASI loader, put `PirateHatHUD.asi` and `PirateHatHUD.ini` together

@@ -1,39 +1,53 @@
-# Pirate Hat HUD 1.2.3
+# Pirate Hat HUD 1.2.4
 
-Compatibility improvement for map route mods.
+Disable or freely reassign the mod's hotkeys.
 
-## Fixed
+## Changed
 
-- Prevented PirateHatHUD's UI cache entries from being mistaken for additional
-  minimap and world-map objects by whole-process scanners. These false objects
-  could give WaypointRoute incorrect coordinates and a straight route from
-  outside the map. The cache now stores image-relative offsets.
+- Clearing `toggle=` or `unload=` now disables that action instead of restoring
+  F9/F10. `None`, `Off` and `Disabled` also disable a binding.
+- Reassign hotkeys to letters, digits, F1-F24, numpad and other keyboard keys,
+  Mouse1-Mouse5, or hexadecimal Windows virtual-key codes. Add Ctrl, Alt, Shift
+  and/or Win modifiers, for example `Ctrl+K` or `Alt+Mouse4`.
+- Missing entries keep the F9/F10 defaults. Invalid values disable the affected
+  action. If both actions use the same binding, only toggle remains enabled.
+
+For example, use Numpad5 to toggle and disable the stop hotkey:
+
+```ini
+[hotkeys]
+toggle=Numpad5
+unload=
+```
+
+Hotkey edits require restarting the game. Windows-reserved shortcuts may still
+perform their system action or be unavailable to the mod.
 
 ## Updating
 
-Close the game and back up PirateHatHUD.ini. Import PirateHatHUD-1.2.3.zip into
+Close the game and back up PirateHatHUD.ini. Import PirateHatHUD-1.2.4.zip into
 CDUMM or DMM, enable the mod and ASI loader, then restart the game. Enable the
 existing mod before importing the update, and keep only one copy of the ASI.
 
-Existing settings remain compatible. No configuration changes are required.
+Existing F8-F11 assignments remain compatible. Review any empty or invalid
+hotkey values: these now disable the action rather than restoring a default.
 
 ## Validation and compatibility
 
 Release build, architecture-check, formatting, all 31 CTest checks and all 25
 research-tool tests passed. Release metadata and ZIP contents were validated.
-The regression test reproduces three map-object candidates before the fix and
-one after it, without increasing warm-cache memory reads.
+Regression tests cover missing versus empty INI entries, invalid/truncated
+assignments, named and numeric keys, modifier matching, duplicate assignments
+and press/hold behavior.
 
-The candidate was tested locally on game EXE 1.0.0.3576 with WaypointRoute 1.2.8
-and CrimsonRoute 9.1.0 separately. The user reported normal behavior; paired logs
-record successful HUD initialization and road routes. The WaypointRoute run also
-records treasure state and minimap visibility transitions.
+A local candidate run on game EXE 1.0.0.3576 logged Numpad5 as the configured
+toggle key, followed by successful hotkey disable/enable actions. The same run
+initialized the DX12 HUD at 2560 x 1440 in HDR10 on an RTX 5080 and recorded
+treasure, minimap and menu observations.
 
-Confirmation on the reporter's originally failing setup remains pending. The
-separate CrimsonRoute queue-binding failure is not established as fixed. A full
-equipment-change cycle, hotkey-stop, load-order variations and other graphics
-modes were not separately verified. The versioned release package has not
-received an additional in-game run.
+Disabled bindings, modifier combinations, mouse bindings, stop/restoration and
+force_show still need separate in-game verification. The final versioned package
+has not received an additional in-game run.
 
 Windows x64 and DirectX 12. The Pirate King Hat must be equipped for detection.
 The executable file version may differ from the public patch number.
