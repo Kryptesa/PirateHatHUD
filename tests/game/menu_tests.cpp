@@ -1,6 +1,7 @@
 #include "game/menu/memory.hpp"
 #include "game/menu_observer.hpp"
 #include "game/menu/capture.hpp"
+#include "pattern_scan.hpp"
 #include <Windows.h>
 #include <array>
 #include <iostream>
@@ -199,6 +200,43 @@ int main() {
   const auto warm_reads = reads;
   CHECK(cold_reads == warm_reads + 6); // COL pointer, locator and name per distinct vtable.
   std::cout << "Menu identity read calls: cold=" << cold_reads << ", warm=" << warm_reads << '\n';
+
+  // Other mods scan readable memory for native script vtables. Both observers classify
+  // the whole UI table; their independent cache payloads must not look like extra objects.
+  detail::UiIdentityCache companion_cache;
+  companion_cache.root_slot = cache.root_slot;
+  companion_cache.immutable_ranges = cache.immutable_ranges;
+  CHECK(detail::find_menu_root(module, read, &companion_cache) == 0x500000);
+  for (const auto vtable : {uintptr_t{0x700000}, uintptr_t{0x710000}}) {
+    const std::array<uintptr_t, 4> native_script{vtable, 0, 0, 0};
+    const auto* signature = reinterpret_cast<const uint8_t*>(native_script.data());
+    const PatternQuery script_query{{{signature, sizeof(uintptr_t)}}};
+    const auto native_match = scan_pattern(
+      {signature, sizeof(native_script)},
+      reinterpret_cast<uintptr_t>(native_script.data()),
+      script_query
+    );
+    CHECK(native_match.status == ScanStatus::found);
+    size_t script_candidates = native_match.candidates;
+    for (const auto* identities : {&cache, &companion_cache}) {
+      for (const auto& entry : identities->types) {
+        std::array<uint8_t, sizeof(entry)> payload{};
+        CHECK(
+          detail::read_memory(reinterpret_cast<uintptr_t>(&entry), payload.data(), payload.size())
+        );
+        const auto match = scan_pattern(payload, reinterpret_cast<uintptr_t>(&entry), script_query);
+        CHECK(match.status != ScanStatus::invalid_image);
+        script_candidates += match.candidates;
+      }
+    }
+    std::cout << "Native script candidates with two observer caches: " << script_candidates << '\n';
+    CHECK(script_candidates == 1);
+  }
+
+  // A cache cannot carry type identities across images, even at matching type offsets.
+  CHECK(detail::find_menu_root(module + 0x100000, read, &cache) == 0);
+  CHECK(detail::find_menu_root(module, read, &cache) == 0x500000);
+
   failed = 0x510118;
   CHECK(detail::find_menu_root(module, read, &cache) == 0);
 

@@ -37,8 +37,9 @@ UiIdentity identify_ui_script(
     return UiIdentity::unknown;
   }
 
-  if (cache && cache->expected_name != name) {
+  if (cache && (cache->image_base != module || cache->expected_name != name)) {
     cache->types.clear();
+    cache->image_base = module;
     cache->expected_name = name;
   }
 
@@ -48,9 +49,12 @@ UiIdentity identify_ui_script(
 
   uintptr_t address = 0;
   bool cache_locator = false;
+  // Whole-process vtable scanners can mistake absolute keys on our heap for game
+  // objects. Keep only an image-relative displacement in persistent cache storage.
+  const auto type_offset = vtable - module;
 
   if (cache) {
-    const auto found = cache->types.find(vtable);
+    const auto found = cache->types.find(type_offset);
 
     if (found != cache->types.end()) {
       if (found->second.identity != UiIdentity::unknown) {
@@ -104,7 +108,7 @@ UiIdentity identify_ui_script(
     // MSVC type descriptors may live in writable .data: cache the immutable locator,
     // but continue reading the name on every poll unless its storage is immutable too.
     cache->types.emplace(
-      vtable,
+      type_offset,
       UiCachedType{address, cache->immutable(address, size) ? identity : UiIdentity::unknown}
     );
   }

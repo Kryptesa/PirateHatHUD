@@ -316,7 +316,11 @@ all live heap links and checks the entire array for duplicates. Only RTTI classi
 whose vtable, locator and name are in non-writable, readable game image sections are
 cached. If only the locator is immutable, its resolved name address is cached and the
 writable name is read again every poll. Heap addresses and root ownership are never
-cached. All owner-thread samplers use the same guarded memory reader and overflow-checked
+cached. Type cache keys are image-relative vtable displacements, invalidated when the
+image base or expected type changes. Absolute vtable keys in heap cache nodes can be
+misidentified as native script objects by other mods' whole-process scanners. Relative
+keys avoid these persistent false object signatures without changing live traversal.
+All owner-thread samplers use the same guarded memory reader and overflow-checked
 field reads; the treasure hook keeps its separate SEH capture path. RIP-relative
 slot decoding is shared by UI-root and audio scanning, with each scanner retaining
 its own image bounds and alignment validation.

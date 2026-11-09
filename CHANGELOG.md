@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Store UI type-cache keys as image-relative offsets so whole-process object scanners
+  do not mistake the observer caches for additional native minimap or world-map objects.
+  A regression test reproduces the extra vtable matches; the reported WaypointRoute
+  interaction still requires in-game confirmation with this build.
+
 ## 1.2.2 - 2026-11-08
 
 - Fixed false treasure notification sounds and icon activation from unrelated

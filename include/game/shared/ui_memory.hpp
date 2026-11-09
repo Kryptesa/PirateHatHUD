@@ -25,9 +25,11 @@ struct UiCachedType {
 
 struct UiIdentityCache {
   uintptr_t root_slot = 0;
+  uintptr_t image_base = 0;
   UiLayout layout = UiLayout::original;
   std::string expected_name;
   std::vector<UiImageRange> immutable_ranges;
+  // Image-relative keys avoid making cache nodes resemble native script objects.
   std::map<uintptr_t, UiCachedType> types;
 
   bool immutable(uintptr_t address, size_t size) const;
