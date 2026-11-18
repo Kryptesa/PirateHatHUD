@@ -73,7 +73,7 @@ detail::AudioVolumeLocation find_audio_volume_location(HMODULE game) {
     return {};
   }
   const auto manager_offset =
-    detail::is_exe_1_0_0_3576(nt.FileHeader.TimeDateStamp, nt.OptionalHeader.SizeOfImage)
+    detail::has_expanded_ui_and_audio(nt.FileHeader.TimeDateStamp, nt.OptionalHeader.SizeOfImage)
       ? 0x1078u
       : 0x1070u;
   return {slot, match.image_base, match.image_size, manager_offset};

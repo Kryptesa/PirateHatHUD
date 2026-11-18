@@ -43,11 +43,16 @@ can yield unknown. The observer samples draw flags, clipping and opacity.
 
 ## Updated layout: game EXE 1.0.0.3576
 
-The loaded PE timestamp `6AED2E85` and image size `13CC4000` select the expanded
-UI layout. Both must match; other images retain the original layout. The root
+The expanded UI layout applies to EXE 1.0.0.3576 (PE timestamp `6AED2E85`, image
+size `13CC4000`) and 1.0.0.3663 (`6AF5D198`, `144E9000`). Both fields must match. The root
 slot still comes from the unique launcher signature, rather than a fixed RVA.
 Exact RTTI, array uniqueness, widget names, canvas ownership and all ancestor
 checks still apply; there is no fallback between layouts on a failed read.
+
+On 2026-11-18 the compiled samplers on EXE 1.0.0.3663 reported a visible minimap
+and a closed menu with the expanded layout. Both returned unknown with the original layout.
+With the corrected ASI installed, the log recorded valid volume, a visible minimap
+and a treasure activation at 10:40:25 UTC. The tester saw the icon and heard the alert.
 
 | Field | Original | Expanded |
 | --- | --- | --- |

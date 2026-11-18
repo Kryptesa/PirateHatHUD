@@ -35,6 +35,11 @@ int main() {
   nt->FileHeader.TimeDateStamp ^= 1;
   nt->OptionalHeader.SizeOfImage -= 0x1000;
   CHECK(detail::make_ui_identity_cache(image_address).layout == detail::UiLayout::original);
+  nt->FileHeader.TimeDateStamp = 0x6AF5D198;
+  nt->OptionalHeader.SizeOfImage = 0x144E9000;
+  CHECK(detail::make_ui_identity_cache(image_address).layout == detail::UiLayout::expanded);
+  nt->FileHeader.TimeDateStamp ^= 1;
+  CHECK(detail::make_ui_identity_cache(image_address).layout == detail::UiLayout::original);
   constexpr uintptr_t module = 0x140000000;
   std::map<uintptr_t, std::vector<uint8_t>> memory;
   auto put = [&](uintptr_t address, const auto& value) {

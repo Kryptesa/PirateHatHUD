@@ -164,6 +164,11 @@ int main() {
   nt->FileHeader.TimeDateStamp ^= 1;
   nt->OptionalHeader.SizeOfImage -= 0x1000;
   CHECK(phi::find_audio_volume_location(module).settings_manager_offset == 0x1070);
+  nt->FileHeader.TimeDateStamp = 0x6AF5D198;
+  nt->OptionalHeader.SizeOfImage = 0x144E9000;
+  CHECK(phi::find_audio_volume_location(module).settings_manager_offset == 0x1078);
+  nt->OptionalHeader.SizeOfImage -= 0x1000;
+  CHECK(phi::find_audio_volume_location(module).settings_manager_offset == 0x1070);
   CHECK(phi::scan_audio_volume_code(code, 0x1001).status == phi::ScanStatus::no_match);
   CHECK(phi::scan_audio_volume_code(code, UINTPTR_MAX).status == phi::ScanStatus::no_match);
   auto duplicate = code;

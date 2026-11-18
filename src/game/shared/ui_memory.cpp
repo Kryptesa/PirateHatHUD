@@ -7,9 +7,7 @@
 
 namespace phi::detail {
 UiLayout ui_layout_for_image(uint32_t timestamp, uint32_t image_size) {
-  // EXE 1.0.0.3576: the UI binding and definition layouts changed together.
-  // Other builds retain the original layout and all existing identity checks.
-  return is_exe_1_0_0_3576(timestamp, image_size) ? UiLayout::expanded : UiLayout::original;
+  return has_expanded_ui_and_audio(timestamp, image_size) ? UiLayout::expanded : UiLayout::original;
 }
 
 bool UiIdentityCache::immutable(uintptr_t address, size_t size) const {

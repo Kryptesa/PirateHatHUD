@@ -16,6 +16,7 @@
 int main() {
   using namespace phi;
   CHECK(detail::treasure_descriptor_stack_offset(0x6AED2E85, 0x13CC4000) == 0x200);
+  CHECK(detail::treasure_descriptor_stack_offset(0x6AF5D198, 0x144E9000) == 0x1F0);
   CHECK(detail::treasure_descriptor_stack_offset(0, 0) == 0x1F0);
   CHECK(detail::treasure_descriptor_stack_offset(0x6AED2E85, 0x13CC4001) == 0x1F0);
   CHECK(detail::treasure_descriptor_stack_offset(0x6AED2E84, 0x13CC4000) == 0x1F0);

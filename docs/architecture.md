@@ -60,8 +60,8 @@ in the same task, including any constraints passed to delegated agents.
   `shared/` contains guarded memory access, address arithmetic, UI identity resolution
   and hook retention used across observers. Feature-specific signatures and layout
   checks stay with their owner. Headers and implementations mirror these paths.
-  The shared image-build fingerprint identifies EXE 1.0.0.3576 by its PE timestamp
-  and image size; UI and audio code own the field offsets selected for that build.
+  PE timestamp and image size identify the shared UI and audio layouts for EXE
+  1.0.0.3576 and 1.0.0.3663. Each observer owns its field offsets.
   A shared `MemoryReader` callback allows simulated-memory tests to exercise
   the same compiled implementation as production. Observer files own lifecycle
   and event publication, while memory files own traversal and state interpretation.
@@ -242,7 +242,7 @@ cannot identify the hat. Rejected or unreadable descriptors leave the last hat
 capture intact. The equip requirement is descriptor identity, not an independent
 live equipment sample; equipment gating still relies on the game's hat handler.
 The saved argument is RBP+200 for the verified EXE 1.0.0.3576 fingerprint and
-RBP+1F0 for the original layout. The register holding the descriptor is unsuitable:
+RBP+1F0 for EXE 1.0.0.3663 and the original layout. The register holding the descriptor is unsuitable:
 event dispatch can overwrite it before the first enter instruction. Static
 inspection confirms the saved argument and fields in EXE 1.0.0.3576, and earlier
 runtime research distinguishes the hat from three other finder descriptors.

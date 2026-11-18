@@ -17,14 +17,17 @@ From the engine, +0x1070 resolves the settings manager. Manager fields +0x50 and
 +0x68 point to inner option objects (native base +0x28). Each option's +0x70 points
 to its inner audio object (native base +0x28).
 
-For EXE 1.0.0.3576 (PE timestamp `6AED2E85`, image size `13CC4000`), the
-engine's settings-manager field moved to +0x1078. Both fingerprint fields must
+EXE 1.0.0.3576 (PE timestamp `6AED2E85`, image size `13CC4000`) and 1.0.0.3663
+(`6AF5D198`, `144E9000`) use +0x1078 for the settings manager. Both fingerprint fields must
 match to select it. Other offsets, exact property names, object ownership,
 percentage bounds and the two coherent option-set snapshots remain unchanged.
 Read-only inspection on 2026-11-07 found both selected sets at 100/100 through
 the new manager. The user subsequently confirmed recovery of the reported missing
 icon/sound behavior with the patched test build; its debug log records a valid
 audio sample.
+
+On 2026-11-18 the compiled sampler read master and effects at 100/100 on
+EXE 1.0.0.3663 using +0x1078. The +0x1070 sample returned unknown.
 
 | Audio native field | Meaning |
 | --- | --- |
