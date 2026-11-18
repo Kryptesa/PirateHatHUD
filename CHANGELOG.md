@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.2.6 - 2026-11-18
+
+- Detect the known minimap, menu and audio settings layouts automatically.
+  The mod validates UI and audio separately, retries when game data is
+  unavailable during loading, and logs each selected layout.
+
 ## 1.2.5 - 2026-11-18
 
 - Restored the treasure icon and notification sound after the Crimson Desert
