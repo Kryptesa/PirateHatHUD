@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 1.2.5 - 2026-11-18
+
+- Restored the treasure icon and notification sound after the Crimson Desert
+  2.05.00 update (game EXE 1.0.0.3663).
+
 ## 1.2.4 - 2026-11-09
 
 - Empty hotkey values now disable the action instead of restoring F9/F10. Added
