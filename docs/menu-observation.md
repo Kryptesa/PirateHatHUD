@@ -24,11 +24,11 @@ The UI owner is resolved from a unique launcher constructor signature through
 module +6C8CC00); there is no runtime fallback to that RVA.
 The array is owner +30EB8, count is uint32 at +30EC0 (bounded to 4096).
 Each entry follows +A0, +10 to its render root; root +118 identifies the script.
-For EXE 1.0.0.3576 and 1.0.0.3663, the binding node supplies the root at +28.
-The menu scanner resolved the state byte at +26C on 1.0.0.3663. Both fingerprint fields must
-match to select this layout. The slot scan, owner chain, array offsets, root
-script field and exact RTTI checks remain unchanged. See the expanded layout
-in [minimap observation](minimap-observation.md#updated-layout-game-exe-1003576).
+The menu observer checks binding offsets +10 and +28 and selects the only layout
+with a unique exact menu script match. It logs the selection at info level and
+retries when the root becomes unavailable, at most once every 100 ms.
+The menu scanner separately resolved the state byte at +26C on 1.0.0.3663.
+See the two known layouts in [minimap observation](minimap-observation.md#ui-layout-selection).
 MSVC x64 RTTI must exactly match
 `.?AVUIGamePlayControl_Root_MainMenu@uiCommonScript@pa@@`, with locator image
 base matching the game module. Multiple matches or read failures yield unknown.

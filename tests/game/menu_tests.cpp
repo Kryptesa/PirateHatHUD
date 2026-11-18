@@ -16,30 +16,6 @@
   } while (false)
 int main() {
   using namespace phi;
-  // Select the changed UI layout only for the observed executable fingerprint.
-  std::vector<uint8_t> image(0x1000);
-  auto dos = reinterpret_cast<IMAGE_DOS_HEADER*>(image.data());
-  dos->e_magic = IMAGE_DOS_SIGNATURE;
-  dos->e_lfanew = 0x80;
-  auto nt = reinterpret_cast<IMAGE_NT_HEADERS64*>(image.data() + 0x80);
-  nt->Signature = IMAGE_NT_SIGNATURE;
-  nt->FileHeader.SizeOfOptionalHeader = sizeof(IMAGE_OPTIONAL_HEADER64);
-  nt->FileHeader.NumberOfSections = 1;
-  nt->OptionalHeader.Magic = IMAGE_NT_OPTIONAL_HDR64_MAGIC;
-  nt->FileHeader.TimeDateStamp = 0x6AED2E85;
-  nt->OptionalHeader.SizeOfImage = 0x13CC4000;
-  const auto image_address = reinterpret_cast<uintptr_t>(image.data());
-  CHECK(detail::make_ui_identity_cache(image_address).layout == detail::UiLayout::expanded);
-  nt->FileHeader.TimeDateStamp ^= 1;
-  CHECK(detail::make_ui_identity_cache(image_address).layout == detail::UiLayout::original);
-  nt->FileHeader.TimeDateStamp ^= 1;
-  nt->OptionalHeader.SizeOfImage -= 0x1000;
-  CHECK(detail::make_ui_identity_cache(image_address).layout == detail::UiLayout::original);
-  nt->FileHeader.TimeDateStamp = 0x6AF5D198;
-  nt->OptionalHeader.SizeOfImage = 0x144E9000;
-  CHECK(detail::make_ui_identity_cache(image_address).layout == detail::UiLayout::expanded);
-  nt->FileHeader.TimeDateStamp ^= 1;
-  CHECK(detail::make_ui_identity_cache(image_address).layout == detail::UiLayout::original);
   constexpr uintptr_t module = 0x140000000;
   std::map<uintptr_t, std::vector<uint8_t>> memory;
   auto put = [&](uintptr_t address, const auto& value) {
@@ -89,18 +65,38 @@ int main() {
   CHECK(detail::find_menu_root(module, read, &location) == 0x500000);
   CHECK(detail::sample_menu(0x500000, 0x25B, read) == MenuState::open);
 
+  detail::UiLayoutSelection selection;
+  using namespace std::chrono_literals;
+  auto now = detail::UiLayoutSelection::Clock::time_point{};
+  const auto resolve = [&] {
+    return selection.sample(now, uintptr_t{0}, [&](detail::UiLayout candidate) {
+      return detail::find_menu_root(module, read, &location, candidate);
+    });
+  };
+  ptr(0x400028, 0x500000);
+  CHECK(resolve() == 0);
+  CHECK(!selection.layout()); // Exact menu identity at both offsets is ambiguous.
+  memory.erase(0x400028);
+  now += 100ms;
+  CHECK(resolve() == 0x500000);
+  CHECK(selection.layout() == detail::UiLayout::original);
+
   // The new binding puts the same verified script root at +28 instead of +10.
   memory.erase(0x400010);
   ptr(0x400028, 0x500000);
   CHECK(detail::find_menu_root(module, read, &location) == 0);
-  location.layout = detail::UiLayout::expanded;
-  CHECK(detail::find_menu_root(module, read, &location) == 0x500000);
+  CHECK(resolve() == 0); // The current layout invalidates before the next probe.
+  CHECK(!selection.layout());
+  now += 100ms;
+  CHECK(resolve() == 0x500000);
+  CHECK(selection.layout() == detail::UiLayout::expanded);
+  const auto expanded = detail::UiLayout::expanded;
+  CHECK(detail::find_menu_root(module, read, &location, expanded) == 0x500000);
   failed = 0x400028;
-  CHECK(detail::find_menu_root(module, read, &location) == 0);
+  CHECK(detail::find_menu_root(module, read, &location, expanded) == 0);
   failed = 0;
   memory.erase(0x400028);
   ptr(0x400010, 0x500000);
-  location.layout = detail::UiLayout::original;
 
   put(0x50025B, uint8_t{0});
   CHECK(detail::sample_menu(0x500000, 0x25B, read) == MenuState::closed);

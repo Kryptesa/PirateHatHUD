@@ -30,7 +30,6 @@ struct Fixture {
     return true;
   }
   explicit Fixture(uintptr_t settings_manager_offset = 0x1070) {
-    location.settings_manager_offset = settings_manager_offset;
     put(location.engine_slot, uintptr_t{0x200000});
     put(0x200000, uintptr_t{0x101000});
     put(0x200000 + settings_manager_offset, uintptr_t{0x300000});
@@ -57,10 +56,14 @@ struct Fixture {
     put(0x700001, "UI_GameSetting_Sound_MasterVolume");
     put(0x700100, "UI_GameSetting_Sound_SFXVolume");
   }
-  phi::AudioVolumeState sample() const {
+  phi::detail::AudioVolumeSample resolve() const {
     return phi::detail::sample_audio_volume(location, [this](auto a, auto d, auto n) {
       return read(a, d, n);
     });
+  }
+
+  phi::AudioVolumeState sample() const {
+    return resolve().volume;
   }
 };
 } // namespace
@@ -68,15 +71,24 @@ int main() {
   Fixture fixture;
   const phi::AudioVolumeState expected{true, 50, 25};
   CHECK(fixture.sample() == expected);
+  CHECK(fixture.resolve().settings_manager_offset == 0x1070);
   Fixture updated(0x1078);
   CHECK(updated.sample() == expected);
+  CHECK(updated.resolve().settings_manager_offset == 0x1078);
   for (const auto& [address, bytes] : updated.memory) {
     auto missing = updated;
     missing.memory.erase(address);
     CHECK(!missing.sample().known);
   }
-  updated.location.settings_manager_offset = 0x1070;
-  CHECK(!updated.sample().known); // No fallback to a different settings manager.
+  updated.put(0x201070, uintptr_t{0x300000});
+  CHECK(!updated.sample().known); // Both candidates are fully valid.
+  CHECK(updated.resolve().settings_manager_offset == 0);
+  updated.put(updated.location.engine_slot, uintptr_t{0});
+  CHECK(!updated.sample().known); // Settings objects unavailable during loading.
+  updated.put(updated.location.engine_slot, uintptr_t{0x200000});
+  updated.put(0x201078, uintptr_t{0});
+  CHECK(updated.resolve().settings_manager_offset == 0x1070);
+  CHECK(updated.sample() == expected);
   for (const auto& [address, bytes] : fixture.memory) {
     auto broken = fixture;
     broken.memory.erase(address);
@@ -109,7 +121,7 @@ int main() {
       fixture.put(0x5010D0, int32_t{60});
     }
     return fixture.read(a, d, n);
-  }).known);
+  }).volume.known);
   CHECK(fixture.sample().master_percent == 60);
 
   std::vector<uint8_t> code = {
@@ -147,9 +159,9 @@ int main() {
   nt->Signature = IMAGE_NT_SIGNATURE;
   nt->FileHeader.SizeOfOptionalHeader = sizeof(IMAGE_OPTIONAL_HEADER64);
   nt->FileHeader.NumberOfSections = 1;
-  nt->FileHeader.TimeDateStamp = 0x6AED2E85;
+  nt->FileHeader.TimeDateStamp = 0x12345678;
   nt->OptionalHeader.Magic = IMAGE_NT_OPTIONAL_HDR64_MAGIC;
-  nt->OptionalHeader.SizeOfImage = 0x13CC4000;
+  nt->OptionalHeader.SizeOfImage = static_cast<DWORD>(image.size());
   auto section = IMAGE_FIRST_SECTION(nt);
   section->Characteristics = IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_EXECUTE;
   section->VirtualAddress = 0x1000;
@@ -158,17 +170,8 @@ int main() {
   const auto module = reinterpret_cast<HMODULE>(image.data());
   auto location = phi::find_audio_volume_location(module);
   CHECK(location.engine_slot == reinterpret_cast<uintptr_t>(image.data()) + 0x1100);
-  CHECK(location.settings_manager_offset == 0x1078);
-  nt->FileHeader.TimeDateStamp ^= 1;
-  CHECK(phi::find_audio_volume_location(module).settings_manager_offset == 0x1070);
-  nt->FileHeader.TimeDateStamp ^= 1;
-  nt->OptionalHeader.SizeOfImage -= 0x1000;
-  CHECK(phi::find_audio_volume_location(module).settings_manager_offset == 0x1070);
-  nt->FileHeader.TimeDateStamp = 0x6AF5D198;
-  nt->OptionalHeader.SizeOfImage = 0x144E9000;
-  CHECK(phi::find_audio_volume_location(module).settings_manager_offset == 0x1078);
-  nt->OptionalHeader.SizeOfImage -= 0x1000;
-  CHECK(phi::find_audio_volume_location(module).settings_manager_offset == 0x1070);
+  CHECK(location.image_base == reinterpret_cast<uintptr_t>(image.data()));
+  CHECK(location.image_size == image.size());
   CHECK(phi::scan_audio_volume_code(code, 0x1001).status == phi::ScanStatus::no_match);
   CHECK(phi::scan_audio_volume_code(code, UINTPTR_MAX).status == phi::ScanStatus::no_match);
   auto duplicate = code;

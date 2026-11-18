@@ -5,5 +5,5 @@
 
 namespace phi::detail {
 MinimapState
-sample_minimap(uintptr_t module, const MemoryReader& read, UiIdentityCache* cache = nullptr);
+sample_minimap(uintptr_t module, const MemoryReader& read, UiIdentityCache* cache, UiLayout layout);
 } // namespace phi::detail

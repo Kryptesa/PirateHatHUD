@@ -1,6 +1,7 @@
 #include "game/audio_volume_observer.hpp"
 #include "game/audio/scan.hpp"
 #include <chrono>
+#include <cstdio>
 
 namespace phi {
 struct AudioVolumeObserver::Impl {
@@ -8,6 +9,7 @@ struct AudioVolumeObserver::Impl {
   detail::AudioVolumeLocation location;
   AudioVolumeState sampled;
   AudioVolumeState published;
+  uintptr_t settings_manager_offset = 0;
   LogCallback logger = nullptr;
   std::chrono::steady_clock::time_point next_sample{};
 };
@@ -40,7 +42,23 @@ bool AudioVolumeObserver::start() {
 void AudioVolumeObserver::poll() {
   const auto now = std::chrono::steady_clock::now();
   if (impl_->location.engine_slot && now >= impl_->next_sample) {
-    impl_->sampled = detail::sample_audio_volume(impl_->location, detail::read_memory);
+    const auto sample = detail::sample_audio_volume(impl_->location, detail::read_memory);
+    if (
+      impl_->logger &&
+      sample.settings_manager_offset &&
+      sample.settings_manager_offset != impl_->settings_manager_offset
+    ) {
+      char message[96]{};
+      std::snprintf(
+        message,
+        sizeof(message),
+        "Audio volume layout selected: settings manager +0x%zX",
+        sample.settings_manager_offset
+      );
+      impl_->logger(LogLevel::info, message);
+    }
+    impl_->settings_manager_offset = sample.settings_manager_offset;
+    impl_->sampled = sample.volume;
     impl_->next_sample = now + std::chrono::milliseconds(50);
   }
   if (impl_->sampled != impl_->published) {
@@ -60,6 +78,7 @@ void AudioVolumeObserver::poll() {
 
 void AudioVolumeObserver::stop() noexcept {
   impl_->location = {};
+  impl_->settings_manager_offset = 0;
   impl_->sampled = {};
 }
 

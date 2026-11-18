@@ -4,7 +4,11 @@
 #include "game/shared/ui_memory.hpp"
 
 namespace phi::detail {
-uintptr_t
-find_menu_root(uintptr_t module, const MemoryReader& read, UiIdentityCache* cache = nullptr);
+uintptr_t find_menu_root(
+  uintptr_t module,
+  const MemoryReader& read,
+  UiIdentityCache* cache,
+  UiLayout layout = UiLayout::original
+);
 MenuState sample_menu(uintptr_t root, uintptr_t state_offset, const MemoryReader& read);
 } // namespace phi::detail

@@ -41,13 +41,16 @@ All heap links, names and properties are read afresh on each poll. The binding
 and field offsets depend on the game version. Transient changes between reads
 can yield unknown. The observer samples draw flags, clipping and opacity.
 
-## Updated layout: game EXE 1.0.0.3576
+## UI layout selection
 
-The expanded UI layout applies to EXE 1.0.0.3576 (PE timestamp `6AED2E85`, image
-size `13CC4000`) and 1.0.0.3663 (`6AF5D198`, `144E9000`). Both fields must match. The root
-slot still comes from the unique launcher signature, rather than a fixed RVA.
-Exact RTTI, array uniqueness, widget names, canvas ownership and all ancestor
-checks still apply; there is no fallback between layouts on a failed read.
+The root slot comes from the unique launcher signature. The minimap observer
+tries both layouts and selects the only one that verifies the exact script type,
+widget names, canvas ownership and ancestor fields. Either a visible or a hidden
+minimap can validate the layout. The observer samples the selected layout until
+its data becomes unavailable. It then retries both layouts at most once every
+100 ms. The observer logs a successful selection at info level.
+
+EXE 1.0.0.3576 and 1.0.0.3663 use the expanded UI layout.
 
 On 2026-11-18 the compiled samplers on EXE 1.0.0.3663 reported a visible minimap
 and a closed menu with the expanded layout. Both returned unknown with the original layout.

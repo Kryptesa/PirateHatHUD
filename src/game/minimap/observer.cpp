@@ -11,6 +11,7 @@ struct MinimapObserver::Impl {
   MinimapState published = MinimapState::unknown;
   uintptr_t module = 0;
   detail::UiIdentityCache identities;
+  detail::UiLayoutSelection layout_selection;
   bool running = false;
   bool logged_sample = false;
   LogCallback logger = nullptr;
@@ -54,9 +55,32 @@ bool MinimapObserver::start() {
 }
 
 void MinimapObserver::poll() {
-  impl_->sampled = impl_->running
-    ? detail::sample_minimap(impl_->module, detail::read_memory, &impl_->identities)
-    : MinimapState::unknown;
+  const auto previous_layout = impl_->layout_selection.layout();
+  impl_->sampled = MinimapState::unknown;
+  if (impl_->running) {
+    impl_->sampled = impl_->layout_selection.sample(
+      detail::UiLayoutSelection::Clock::now(),
+      MinimapState::unknown,
+      [&](detail::UiLayout layout) {
+        return detail::sample_minimap(
+          impl_->module,
+          detail::read_memory,
+          &impl_->identities,
+          layout
+        );
+      }
+    );
+  }
+
+  const auto layout = impl_->layout_selection.layout();
+  if (impl_->logger && layout && layout != previous_layout) {
+    impl_->logger(
+      LogLevel::info,
+      *layout == detail::UiLayout::original
+        ? "Minimap UI layout selected: original"
+        : "Minimap UI layout selected: expanded"
+    );
+  }
 
   if (impl_->logger && (!impl_->logged_sample || impl_->sampled != impl_->published)) {
     impl_->logged_sample = true;
@@ -80,6 +104,7 @@ void MinimapObserver::poll() {
 void MinimapObserver::stop() noexcept {
   impl_->running = false;
   impl_->module = 0;
+  impl_->layout_selection = {};
   impl_->sampled = MinimapState::unknown;
 }
 

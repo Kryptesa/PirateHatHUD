@@ -60,8 +60,9 @@ in the same task, including any constraints passed to delegated agents.
   `shared/` contains guarded memory access, address arithmetic, UI identity resolution
   and hook retention used across observers. Feature-specific signatures and layout
   checks stay with their owner. Headers and implementations mirror these paths.
-  PE timestamp and image size identify the shared UI and audio layouts for EXE
-  1.0.0.3576 and 1.0.0.3663. Each observer owns its field offsets.
+  The minimap and menu observers each confirm their UI layout from live objects.
+  The audio observer validates its two settings-manager candidates independently
+  of the UI. Layout discovery retries during owner-thread polling.
   A shared `MemoryReader` callback allows simulated-memory tests to exercise
   the same compiled implementation as production. Observer files own lifecycle
   and event publication, while memory files own traversal and state interpretation.

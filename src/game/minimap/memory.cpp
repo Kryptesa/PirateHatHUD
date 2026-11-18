@@ -5,10 +5,15 @@
 
 namespace phi::detail {
 // Follow the native canvas binding and its live ancestors.
-MinimapState sample_minimap(uintptr_t module, const MemoryReader& read, UiIdentityCache* cache) {
+MinimapState sample_minimap(
+  uintptr_t module,
+  const MemoryReader& read,
+  UiIdentityCache* cache,
+  UiLayout layout
+) {
   constexpr char root_type[] = ".?AVUIGamePlayControlRootMiniMap@uiCommonScript@pa@@";
-  const auto root = find_ui_root(module, read, root_type, cache);
-  const auto expanded = cache && cache->layout == UiLayout::expanded;
+  const auto root = find_ui_root(module, read, root_type, cache, layout);
+  const auto expanded = layout == UiLayout::expanded;
   const auto definition_shift = expanded ? 8u : 0u;
   const auto canvas_offset = expanded ? 0x410u : 0x3F0u;
   auto named = [&](uintptr_t definition, const char* expected) {

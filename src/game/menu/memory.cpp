@@ -1,10 +1,15 @@
 #include "game/menu/memory.hpp"
 
 namespace phi::detail {
-uintptr_t find_menu_root(uintptr_t module, const MemoryReader& read, UiIdentityCache* cache) {
+uintptr_t find_menu_root(
+  uintptr_t module,
+  const MemoryReader& read,
+  UiIdentityCache* cache,
+  UiLayout layout
+) {
   constexpr char name[] = ".?AVUIGamePlayControl_Root_MainMenu@uiCommonScript@pa@@";
 
-  return find_ui_root(module, read, name, cache);
+  return find_ui_root(module, read, name, cache, layout);
 }
 
 MenuState sample_menu(uintptr_t root, uintptr_t state_offset, const MemoryReader& read) {

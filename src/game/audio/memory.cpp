@@ -49,11 +49,16 @@ bool property_name(
     std::memcmp(bytes.data(), name, N) == 0;
 }
 
-bool snapshot(const AudioVolumeLocation& location, const MemoryReader& read, Snapshot& result) {
+bool snapshot(
+  const AudioVolumeLocation& location,
+  uintptr_t settings_manager_offset,
+  const MemoryReader& read,
+  Snapshot& result
+) {
   if (
     !pointer(read, location.engine_slot, 0, result.engine) ||
     !module_vtable(location, read, result.engine) ||
-    !pointer(read, result.engine, location.settings_manager_offset, result.manager) ||
+    !pointer(read, result.engine, settings_manager_offset, result.manager) ||
     !module_vtable(location, read, result.manager)
   ) {
     return false;
@@ -105,9 +110,25 @@ bool snapshot(const AudioVolumeLocation& location, const MemoryReader& read, Sna
   }
   return result.volumes[0] == result.volumes[1];
 }
+
+AudioVolumeState sample_layout(
+  const AudioVolumeLocation& location,
+  uintptr_t settings_manager_offset,
+  const MemoryReader& read
+) {
+  Snapshot first, second;
+  if (
+    !snapshot(location, settings_manager_offset, read, first) ||
+    !snapshot(location, settings_manager_offset, read, second) ||
+    first != second
+  ) {
+    return {};
+  }
+  return first.volumes[0];
+}
 } // namespace
 
-AudioVolumeState
+AudioVolumeSample
 sample_audio_volume(const AudioVolumeLocation& location, const MemoryReader& read) {
   if (
     !read ||
@@ -119,10 +140,15 @@ sample_audio_volume(const AudioVolumeLocation& location, const MemoryReader& rea
   ) {
     return {};
   }
-  Snapshot first, second;
-  if (!snapshot(location, read, first) || !snapshot(location, read, second) || first != second) {
+  constexpr uintptr_t original_offset = 0x1070;
+  constexpr uintptr_t expanded_offset = 0x1078;
+  const auto original = sample_layout(location, original_offset, read);
+  const auto expanded = sample_layout(location, expanded_offset, read);
+  if (original.known == expanded.known) {
     return {};
   }
-  return first.volumes[0];
+  return original.known
+    ? AudioVolumeSample{original, original_offset}
+    : AudioVolumeSample{expanded, expanded_offset};
 }
 } // namespace phi::detail

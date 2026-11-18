@@ -42,6 +42,7 @@ struct MenuObserver::Impl {
   uintptr_t module = 0;
   uintptr_t state_offset = 0;
   detail::UiIdentityCache identities;
+  detail::UiLayoutSelection layout_selection;
   bool claimed = false;
   bool running = false;
   LogCallback logger = nullptr;
@@ -72,6 +73,27 @@ struct MenuObserver::Impl {
     if (logger) {
       logger(LogLevel::debug, message);
     }
+  }
+
+  uintptr_t resolve_root() {
+    const auto previous_layout = layout_selection.layout();
+    const auto root = layout_selection.sample(
+      detail::UiLayoutSelection::Clock::now(),
+      uintptr_t{0},
+      [&](detail::UiLayout candidate) {
+        return detail::find_menu_root(module, detail::read_memory, &identities, candidate);
+      }
+    );
+    const auto selected = layout_selection.layout();
+    if (logger && selected && selected != previous_layout) {
+      logger(
+        LogLevel::info,
+        *selected == detail::UiLayout::original
+          ? "Menu UI layout selected: original"
+          : "Menu UI layout selected: expanded"
+      );
+    }
+    return root;
   }
 };
 
@@ -135,7 +157,7 @@ bool MenuObserver::start() {
   impl.identities.root_slot = root_scan.root_slot;
   impl.state_offset = scan.state_offset;
   impl.log_debug("Menu initial state sample begin");
-  auto root = detail::find_menu_root(impl.module, detail::read_memory, &impl.identities);
+  const auto root = impl.resolve_root();
   g_root.store(root, std::memory_order_release);
   impl.current = detail::sample_menu(root, impl.state_offset, detail::read_memory);
   impl.log_debug("Menu initial state sample ready");
@@ -197,7 +219,7 @@ void MenuObserver::poll() {
     return;
   }
 
-  const auto root = detail::find_menu_root(impl.module, detail::read_memory, &impl.identities);
+  const auto root = impl.resolve_root();
   g_root.store(root, std::memory_order_release);
   const auto before = g_events.take();
   const auto sampled = detail::sample_menu(root, impl.state_offset, detail::read_memory);
@@ -225,6 +247,7 @@ ObserverStopResult MenuObserver::stop() noexcept {
   g_root.store(0);
   impl.running = false;
   impl.claimed = false;
+  impl.layout_selection = {};
   impl.current = MenuState::unknown;
 
   return result;

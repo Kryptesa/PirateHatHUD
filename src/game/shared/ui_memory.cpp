@@ -1,15 +1,10 @@
 #include "game/shared/ui_memory.hpp"
 #include <Windows.h>
 #include "game/shared/address.hpp"
-#include "game/shared/image_build.hpp"
 #include <array>
 #include <cstring>
 
 namespace phi::detail {
-UiLayout ui_layout_for_image(uint32_t timestamp, uint32_t image_size) {
-  return has_expanded_ui_and_audio(timestamp, image_size) ? UiLayout::expanded : UiLayout::original;
-}
-
 bool UiIdentityCache::immutable(uintptr_t address, size_t size) const {
   for (const auto& range : immutable_ranges) {
     if (
@@ -119,7 +114,8 @@ uintptr_t find_ui_root(
   uintptr_t module,
   const MemoryReader& read,
   std::string_view name,
-  UiIdentityCache* cache
+  UiIdentityCache* cache,
+  UiLayout layout
 ) {
   auto pointer = [&](uintptr_t base, uintptr_t offset, uintptr_t& value) {
     return read_field(read, base, offset, value);
@@ -157,6 +153,7 @@ uintptr_t find_ui_root(
     return 0;
   }
 
+  const auto root_offset = layout == UiLayout::expanded ? 0x28u : 0x10u;
   uintptr_t found = 0;
 
   for (uint32_t i = 0; i < count; ++i) {
@@ -179,7 +176,6 @@ uintptr_t find_ui_root(
       continue;
     }
 
-    const auto root_offset = cache->layout == UiLayout::expanded ? 0x28u : 0x10u;
     if (!pointer(node, root_offset, root)) {
       return 0;
     }
@@ -246,8 +242,6 @@ UiIdentityCache make_ui_identity_cache(uintptr_t module) {
   ) {
     return cache;
   }
-
-  cache.layout = ui_layout_for_image(nt.FileHeader.TimeDateStamp, nt.OptionalHeader.SizeOfImage);
 
   for (unsigned i = 0; i < nt.FileHeader.NumberOfSections; ++i) {
     IMAGE_SECTION_HEADER section{};

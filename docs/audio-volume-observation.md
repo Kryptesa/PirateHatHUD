@@ -11,16 +11,18 @@ The signed RIP displacement at +3 is relative to the end of the seven-byte MOV.
 The resolved slot must be aligned and inside the game image. Missing or ambiguous
 matches leave volume unknown; there is no fallback to a fixed RVA or heap address.
 
-## Current layout
+## Settings-manager selection
 
-From the engine, +0x1070 resolves the settings manager. Manager fields +0x50 and
-+0x68 point to inner option objects (native base +0x28). Each option's +0x70 points
-to its inner audio object (native base +0x28).
+The observer checks the settings-manager pointers at engine +0x1070 and +0x1078.
+It accepts a volume sample when exactly one candidate passes every ownership,
+property, and snapshot check. When both or neither pass, volume is unknown and
+the next scheduled poll checks again. The observer logs the selected offset at
+info level when it first obtains a valid sample or recovers after a failed read.
 
-EXE 1.0.0.3576 (PE timestamp `6AED2E85`, image size `13CC4000`) and 1.0.0.3663
-(`6AF5D198`, `144E9000`) use +0x1078 for the settings manager. Both fingerprint fields must
-match to select it. Other offsets, exact property names, object ownership,
-percentage bounds and the two coherent option-set snapshots remain unchanged.
+Manager fields +0x50 and +0x68 point to inner option objects (native base +0x28).
+Each option's +0x70 points to its inner audio object (native base +0x28).
+
+EXE 1.0.0.3576 and 1.0.0.3663 use +0x1078 for the settings manager.
 Read-only inspection on 2026-11-07 found both selected sets at 100/100 through
 the new manager. The user subsequently confirmed recovery of the reported missing
 icon/sound behavior with the patched test build; its debug log records a valid

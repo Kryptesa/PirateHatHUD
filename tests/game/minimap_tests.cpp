@@ -43,7 +43,6 @@ int test_layout(phi::detail::UiLayout layout) {
   };
   detail::UiIdentityCache location;
   location.root_slot = module + 0x6C8CC00;
-  location.layout = layout;
   uintptr_t owner = 0x100000;
   ptr(location.root_slot, owner);
   for (auto offset : {0x30u, 0x18u, 0x88u, 0x78u, 0u}) {
@@ -87,12 +86,39 @@ int test_layout(phi::detail::UiLayout layout) {
       ptr(definition + 0x38, definition + 0x1000);
     }
   }
-  auto sample = [&] { return detail::sample_minimap(module, read, &location); };
+  auto sample = [&] { return detail::sample_minimap(module, read, &location, layout); };
   CHECK(sample() == MinimapState::visible);
-  location.layout = expanded ? detail::UiLayout::original : detail::UiLayout::expanded;
-  CHECK(sample() == MinimapState::unknown);
-  location.layout = layout;
-  CHECK(sample() == MinimapState::visible);
+  const auto wrong_layout = expanded ? detail::UiLayout::original : detail::UiLayout::expanded;
+  CHECK(detail::sample_minimap(module, read, &location, wrong_layout) == MinimapState::unknown);
+
+  detail::UiLayoutSelection selection;
+  using namespace std::chrono_literals;
+  auto now = detail::UiLayoutSelection::Clock::time_point{};
+  const auto resolve = [&] {
+    return selection.sample(now, MinimapState::unknown, [&](detail::UiLayout candidate) {
+      return detail::sample_minimap(module, read, &location, candidate);
+    });
+  };
+  put(location.root_slot, uintptr_t{0});
+  CHECK(resolve() == MinimapState::unknown);
+  CHECK(!selection.layout());
+  ptr(location.root_slot, 0x100000);
+  reads = 0;
+  CHECK(resolve() == MinimapState::unknown);
+  CHECK(reads == 0); // A loading screen does not force both traversals every poll.
+  now += 100ms;
+  put(first + 0xB0 + definition_shift, uint8_t{0x50});
+  CHECK(resolve() == MinimapState::hidden);
+  CHECK(selection.layout() == layout);
+  put(first + 0xB0 + definition_shift, uint8_t{0xD0});
+  CHECK(resolve() == MinimapState::visible);
+  put(location.root_slot, uintptr_t{0});
+  CHECK(resolve() == MinimapState::unknown);
+  CHECK(!selection.layout());
+  ptr(location.root_slot, 0x100000);
+  now += 100ms;
+  CHECK(resolve() == MinimapState::visible);
+  CHECK(selection.layout() == layout);
 
   // Every sampled link and field is required, even when a previous ancestor is hidden.
   for (const auto& [address, bytes] : memory) {
@@ -204,8 +230,8 @@ int test_layout(phi::detail::UiLayout layout) {
   CHECK(sample() == MinimapState::visible);
   ptr(0x600000 + canvas_offset, 0);
   CHECK(sample() == MinimapState::unknown);
-  CHECK(detail::sample_minimap(0, read, &location) == MinimapState::unknown);
-  CHECK(detail::sample_minimap(module, read, nullptr) == MinimapState::unknown);
+  CHECK(detail::sample_minimap(0, read, &location, layout) == MinimapState::unknown);
+  CHECK(detail::sample_minimap(module, read, nullptr, layout) == MinimapState::unknown);
 
   MinimapObserver observer;
   CHECK(observer.state() == MinimapState::unknown);
